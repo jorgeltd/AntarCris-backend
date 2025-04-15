@@ -208,7 +208,6 @@
     </submission-process>
     <submission-process name="person-edit">
       <step id="person" />
-      <step id="custom-url" />
     </submission-process>
     <submission-process name="admin-person-edit">
       <step id="person" />

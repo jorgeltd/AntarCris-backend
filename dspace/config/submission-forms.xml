@@ -682,18 +682,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
       </row>
-      <row>
-        <field>
-          <dc-schema>antarc</dc-schema>
-          <dc-element>area</dc-element>
-          <dc-qualifier>ods</dc-qualifier>
-          <label>ODS Area</label>
-          <input-type value-pairs-name="ods_area">dropdown</input-type>
-          <repeatable>false</repeatable>
-          <required />
-          <hint />
-        </field>
-      </row>
     </form>
     <form name="publication_bibliographic_details">
       <row>
