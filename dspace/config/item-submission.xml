@@ -169,6 +169,8 @@
     </submission-process>
     <submission-process name="orgunit-edit">
       <step id="orgunit" />
+      <step id="correction" />
+      <step id="detect-duplicate" />
     </submission-process>
     <submission-process name="project">
       <step id="collection" />
@@ -179,6 +181,8 @@
     </submission-process>
     <submission-process name="project-edit">
       <step id="project" />
+      <step id="correction" />
+      <step id="detect-duplicate" />
     </submission-process>
     <submission-process name="publication">
       <step id="collection" />
@@ -197,6 +201,8 @@
       <step id="publication_indexing" />
       <step id="publication_bibliographic_details" />
       <step id="publication_references" />
+      <step id="correction" />
+      <step id="detect-duplicate" />
     </submission-process>
     <submission-process name="person">
       <step id="collection" />
@@ -208,6 +214,8 @@
     </submission-process>
     <submission-process name="person-edit">
       <step id="person" />
+      <step id="correction" />
+      <step id="detect-duplicate" />
     </submission-process>
     <submission-process name="admin-person-edit">
       <step id="person" />
@@ -233,6 +241,8 @@
     </submission-process>
     <submission-process name="funding-edit">
       <step id="funding" />
+      <step id="correction" />
+      <step id="detect-duplicate" />
     </submission-process>
   </submission-definitions>
 </item-submission>
