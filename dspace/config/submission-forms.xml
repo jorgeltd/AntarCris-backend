@@ -436,7 +436,7 @@
           <style>col-xs-12 col-md-6 col-lg-3</style>
           <hint />
         </field>
-        <field>
+        <!--<field>
           <dc-schema>antarc</dc-schema>
           <dc-element>affiliation</dc-element>
           <dc-qualifier>ror</dc-qualifier>
@@ -446,7 +446,7 @@
           <required />
           <style>col-xs-12 col-md-6 col-lg-3</style>
           <hint />
-        </field>
+        </field>-->
       </row>
     </form>
     <form name="product-dc-contributor-author">
@@ -1506,13 +1506,61 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>organization</dc-schema>
           <dc-element>identifier</dc-element>
           <label>Identifiers</label>
           <input-type value-pairs-name="orgunit_identifiers">qualdrop_value</input-type>
           <repeatable>true</repeatable>
+          <required />
+          <hint />
+        </field>
+      </row>-->
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>ror</dc-qualifier>
+          <label>ROR Id</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <required />
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>crossrefid</dc-qualifier>
+          <label>Crossref Id</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <required />
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>isni</dc-qualifier>
+          <label>ISNI Id</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <required />
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>rin</dc-qualifier>
+          <label>RingGold Id</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
           <required />
           <hint />
         </field>
@@ -1524,7 +1572,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-qualifier>url</dc-qualifier>
           <label>Website(s)</label>
           <input-type>link</input-type>
-          <repeatable>true</repeatable>
+          <repeatable>false</repeatable>
           <required />
           <hint />
         </field>
@@ -1557,7 +1605,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-element>type</dc-element>
           <label>Type</label>
           <input-type value-pairs-name="orgunit_types">dropdown</input-type>
-          <repeatable>false</repeatable>
+          <repeatable>true</repeatable>
           <required>You must specify the organisation type</required>
           <hint />
         </field>
@@ -2395,51 +2443,12 @@ it, please enter the types and the actual numbers or codes.</hint>
         <displayed-value>Other</displayed-value>
         <stored-value>Other</stored-value>
       </pair>
-    </value-pairs>
+      </value-pairs>
+    <!--Solo trabajaremos con DOI-->
     <value-pairs value-pairs-name="common_identifiers" dc-term="common_identifiers">
       <pair>
         <displayed-value>DOI</displayed-value>
         <stored-value>doi</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Scopus ID</displayed-value>
-        <stored-value>scopus</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>WOS ID</displayed-value>
-        <stored-value>isi</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Pubmed ID</displayed-value>
-        <stored-value>pmid</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>arXiv ID</displayed-value>
-        <stored-value>arxiv</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Other</displayed-value>
-        <stored-value>other</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>ISMN</displayed-value>
-        <stored-value>ismn</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Gov't Doc #</displayed-value>
-        <stored-value>govdoc</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>URI</displayed-value>
-        <stored-value>uri</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>ISBN</displayed-value>
-        <stored-value>isbn</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Ads Code</displayed-value>
-        <stored-value>adsbibcode</stored-value>
       </pair>
     </value-pairs>
     <value-pairs value-pairs-name="common_types" dc-term="common_types">
@@ -2758,6 +2767,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <stored-value>musical notation</stored-value>
       </pair>
     </value-pairs>
+    <!--Divisas en las que ha pagado ANID a la fecha-->
     <value-pairs value-pairs-name="currency" dc-term="currency">
       <pair>
         <displayed-value>Euro</displayed-value>
@@ -2786,6 +2796,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <stored-value>n/a</stored-value>
       </pair>
     </value-pairs>
+    <!--Solo trabajaremos con identificadores disponibles en ROR-->
     <value-pairs value-pairs-name="orgunit_identifiers" dc-term="orgunit_identifiers">
       <pair>
         <displayed-value>CrossRef Funder ID</displayed-value>
@@ -2799,18 +2810,6 @@ it, please enter the types and the actual numbers or codes.</hint>
         <displayed-value>International Standard Name Identifier</displayed-value>
         <stored-value>isni</stored-value>
       </pair>
-      <pair>
-        <displayed-value>Ringgold identifier</displayed-value>
-        <stored-value>rin</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Legal Entity Identifier</displayed-value>
-        <stored-value>lei</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Generic ID</displayed-value>
-        <stored-value />
-      </pair>
     </value-pairs>
     <value-pairs value-pairs-name="truefalse" dc-term="truefalse">
       <pair>
@@ -2822,62 +2821,43 @@ it, please enter the types and the actual numbers or codes.</hint>
         <stored-value>false</stored-value>
       </pair>
     </value-pairs>
+    <!--Tipos de organizacion segun ROR-->
     <value-pairs value-pairs-name="orgunit_types" dc-term="orgunit_types">
       <pair>
         <displayed-value>Unspecified</displayed-value>
         <stored-value />
       </pair>
       <pair>
-        <displayed-value>Academic Institute</displayed-value>
-        <stored-value>Academic Institute</stored-value>
+        <displayed-value>Education</displayed-value>
+        <stored-value>Education</stored-value>
       </pair>
       <pair>
-        <displayed-value>University</displayed-value>
-        <stored-value>University</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>University College</displayed-value>
-        <stored-value>University College</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Research Institute</displayed-value>
-        <stored-value>Research Institute</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Strategic Research Institute</displayed-value>
-        <stored-value>Strategic Research Insitute</stored-value>
+        <displayed-value>Healthcare</displayed-value>
+        <stored-value>Healthcare</stored-value>
       </pair>
       <pair>
         <displayed-value>Company</displayed-value>
         <stored-value>Company</stored-value>
       </pair>
       <pair>
-        <displayed-value>SME</displayed-value>
-        <stored-value>SME</stored-value>
+        <displayed-value>Archive</displayed-value>
+        <stored-value>Archive</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Nonprofit</displayed-value>
+        <stored-value>Nonprofit</stored-value>
       </pair>
       <pair>
         <displayed-value>Government</displayed-value>
         <stored-value>Government</stored-value>
       </pair>
       <pair>
-        <displayed-value>Higher Education</displayed-value>
-        <stored-value>Higher Education</stored-value>
+        <displayed-value>Facility</displayed-value>
+        <stored-value>Facility</stored-value>
       </pair>
       <pair>
-        <displayed-value>Private non-profit</displayed-value>
-        <stored-value>Private non-profit</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Intergovernmental</displayed-value>
-        <stored-value>Intergovernmental</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Charity</displayed-value>
-        <stored-value>Charity</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>National Health Service</displayed-value>
-        <stored-value>National Health Service</stored-value>
+        <displayed-value>Funder</displayed-value>
+        <stored-value>Funder</stored-value>
       </pair>
     </value-pairs>
     <value-pairs value-pairs-name="project_types" dc-term="project_types">
@@ -2898,18 +2878,15 @@ it, please enter the types and the actual numbers or codes.</hint>
         <stored-value>experimental development</stored-value>
       </pair>
     </value-pairs>
+    <!--Tipos de funding segun ORCID-->
     <value-pairs value-pairs-name="funding_types" dc-term="funding_types">
       <pair>
         <displayed-value>Unspecified</displayed-value>
         <stored-value />
       </pair>
       <pair>
-        <displayed-value>Gift</displayed-value>
-        <stored-value>Gift</stored-value>
-      </pair>
-      <pair>
-        <displayed-value>Internal Funding</displayed-value>
-        <stored-value>Internal Funding</stored-value>
+        <displayed-value>Salary award</displayed-value>
+        <stored-value>Salary award</stored-value>
       </pair>
       <pair>
         <displayed-value>Contract</displayed-value>
