@@ -436,17 +436,6 @@
           <style>col-xs-12 col-md-6 col-lg-3</style>
           <hint />
         </field>
-        <!--<field>
-          <dc-schema>antarc</dc-schema>
-          <dc-element>affiliation</dc-element>
-          <dc-qualifier>ror</dc-qualifier>
-          <label>ROR id</label>
-          <input-type>onebox</input-type>
-          <repeatable>false</repeatable>
-          <required />
-          <style>col-xs-12 col-md-6 col-lg-3</style>
-          <hint />
-        </field>-->
       </row>
     </form>
     <form name="product-dc-contributor-author">
@@ -1397,7 +1386,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>name</input-type>
           <repeatable>false</repeatable>
           <required>You must enter least at the Surname.</required>
-          <hint />
         </field>
       </row>
       <row>
@@ -1408,7 +1396,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>name</input-type>
           <repeatable>false</repeatable>
           <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -1420,7 +1407,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>name</input-type>
           <repeatable>true</repeatable>
           <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -1431,7 +1417,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>onebox</input-type>
           <repeatable>false</repeatable>
           <required />
-          <hint />
         </field>
         <field>
           <dc-schema>person</dc-schema>
@@ -1441,7 +1426,15 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>onebox</input-type>
           <repeatable>false</repeatable>
           <required />
-          <hint />
+        </field>
+        <field>
+          <dc-schema>antarc</dc-schema>
+          <dc-element>affiliation</dc-element>
+          <dc-qualifier>ror</dc-qualifier>
+          <label>ROR id</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <required />
         </field>
       </row>
       <row>
@@ -1452,7 +1445,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>onebox</input-type>
           <repeatable>false</repeatable>
           <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -1463,7 +1455,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>tag</input-type>
           <repeatable>true</repeatable>
           <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -1475,7 +1466,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type>onebox</input-type>
           <repeatable>false</repeatable>
           <required />
-          <hint>Settable by connecting the entity with ORCID</hint>
         </field>
       </row>
       <row>
@@ -1485,9 +1475,19 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-qualifier>scopus-author-id</dc-qualifier>
           <label>Scopus Author ID</label>
           <input-type>onebox</input-type>
-          <repeatable>true</repeatable>
+          <repeatable>false</repeatable>
           <required />
-          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>person</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>rid</dc-qualifier>
+          <label>Web of Science ResearchID</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <required />
         </field>
       </row>
       <row>
