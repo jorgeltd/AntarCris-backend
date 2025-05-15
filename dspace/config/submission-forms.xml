@@ -553,6 +553,8 @@
         <field>
           <dc-schema>dc</dc-schema>
           <dc-element>identifier</dc-element>
+          <!--<dc-qualifier>doi</dc-qualifier>
+          <input-type>onebox</input-type>-->
           <label>Identifiers</label>
           <input-type value-pairs-name="common_identifiers">qualdrop_value</input-type>
           <repeatable>true</repeatable>
@@ -1415,7 +1417,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-element>jobTitle</dc-element>
           <label>Job Title</label>
           <input-type>onebox</input-type>
-          <repeatable>false</repeatable>
+          <repeatable>true</repeatable>
           <required />
         </field>
         <field>
@@ -1424,7 +1426,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-qualifier>name</dc-qualifier>
           <label>Main Affiliation</label>
           <input-type>onebox</input-type>
-          <repeatable>false</repeatable>
+          <repeatable>true</repeatable>
           <required />
         </field>
         <field>
@@ -1433,7 +1435,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-qualifier>ror</dc-qualifier>
           <label>ROR id</label>
           <input-type>onebox</input-type>
-          <repeatable>false</repeatable>
+          <repeatable>true</repeatable>
           <required />
         </field>
       </row>
@@ -1982,8 +1984,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>Investigator(s)</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
-          <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -1994,8 +1994,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>Investigator(s) ORCID</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
-          <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -2005,8 +2003,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>Lead Organization(s)</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
-          <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -2017,8 +2013,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>Lead Organization(s) ROR</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
-          <required />
-          <hint />
         </field>
       </row>
       <row>
@@ -2029,7 +2023,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>INACH Area</label>
           <input-type value-pairs-name="inach_area">dropdown</input-type>
           <repeatable>false</repeatable>
-          <required />
           <hint />
         </field>
       </row>
@@ -2041,7 +2034,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>ANID Area</label>
           <input-type value-pairs-name="anid_area">dropdown</input-type>
           <repeatable>false</repeatable>
-          <required />
           <hint />
         </field>
       </row>
@@ -2053,7 +2045,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>OCDE Area</label>
           <input-type value-pairs-name="ocde_area">dropdown</input-type>
           <repeatable>false</repeatable>
-          <required />
           <hint />
         </field>
       </row>
@@ -2065,7 +2056,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>ODS Area</label>
           <input-type value-pairs-name="ods_area">dropdown</input-type>
           <repeatable>true</repeatable>
-          <required />
           <hint />
         </field>
       </row>
