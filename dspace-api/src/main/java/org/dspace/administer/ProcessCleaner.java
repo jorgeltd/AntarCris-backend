@@ -12,15 +12,12 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.lang.time.DateUtils;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.content.ProcessStatus;
 import org.dspace.core.Context;
-import org.dspace.eperson.EPerson;
-import org.dspace.eperson.factory.EPersonServiceFactory;
 import org.dspace.scripts.DSpaceRunnable;
 import org.dspace.scripts.Process;
 import org.dspace.scripts.factory.ScriptServiceFactory;
@@ -81,14 +78,12 @@ public class ProcessCleaner extends DSpaceRunnable<ProcessCleanerConfiguration<P
         }
 
         Context context = new Context();
-        assignCurrentUserInContext(context);
-        assignSpecialGroupsInContext(context);
 
         try {
-            handleAuthorizationSystem(context);
+            context.turnOffAuthorisationSystem();
             performDeletion(context);
         } finally {
-            handleAuthorizationSystem(context);
+            context.restoreAuthSystemState();
             context.complete();
         }
 
@@ -140,20 +135,6 @@ public class ProcessCleaner extends DSpaceRunnable<ProcessCleanerConfiguration<P
     public ProcessCleanerConfiguration<ProcessCleaner> getScriptConfiguration() {
         return new DSpace().getServiceManager()
             .getServiceByName("process-cleaner", ProcessCleanerConfiguration.class);
-    }
-
-    private void assignCurrentUserInContext(Context context) throws SQLException {
-        UUID uuid = getEpersonIdentifier();
-        if (uuid != null) {
-            EPerson ePerson = EPersonServiceFactory.getInstance().getEPersonService().find(context, uuid);
-            context.setCurrentUser(ePerson);
-        }
-    }
-
-    private void assignSpecialGroupsInContext(Context context) throws SQLException {
-        for (UUID uuid : handler.getSpecialGroups()) {
-            context.setSpecialGroup(uuid);
-        }
     }
 
 }

@@ -19,10 +19,8 @@ import org.dspace.app.rest.utils.ContextUtil;
 import org.dspace.app.util.service.MetadataExposureService;
 import org.dspace.authorize.service.AuthorizeService;
 import org.dspace.content.DSpaceObject;
-import org.dspace.content.Item;
 import org.dspace.content.MetadataField;
 import org.dspace.content.MetadataValue;
-import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.core.Context;
 import org.dspace.services.RequestService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +53,7 @@ public abstract class DSpaceObjectConverter<M extends DSpaceObject, R extends or
     @Autowired
     RequestService requestService;
 
+
     @Override
     public R convert(M obj, Projection projection) {
         R resource = newInstance();
@@ -65,8 +64,8 @@ public abstract class DSpaceObjectConverter<M extends DSpaceObject, R extends or
         }
         resource.setName(obj.getName());
 
-        MetadataValueList metadataValues = getPermissionFilteredMetadata(ContextUtil.obtainCurrentRequestContext(),
-            obj, projection);
+        MetadataValueList metadataValues = getPermissionFilteredMetadata(
+                ContextUtil.obtainCurrentRequestContext(), obj);
         resource.setMetadata(converter.toRest(metadataValues, projection));
         return resource;
     }
@@ -79,20 +78,11 @@ public abstract class DSpaceObjectConverter<M extends DSpaceObject, R extends or
      * When the context is null, it will return the metadatalist as for an anonymous user
      * @param context   The context
      * @param obj       The object of which the filtered metadata will be retrieved
-     * @param projection The projection(s) used into current request
      * @return A list of object metadata filtered based on the the hidden metadata configuration
      */
-    public MetadataValueList getPermissionFilteredMetadata(Context context, M obj, Projection projection) {
+    public MetadataValueList getPermissionFilteredMetadata(Context context, M obj) {
+        List<MetadataValue> metadata = obj.getMetadata();
         List<MetadataValue> visibleMetadata = new ArrayList<MetadataValue>();
-        String language = Item.ANY;
-
-        if (context != null && !projection.isAllLanguages()) {
-            language = context.getCurrentLocale().getLanguage();
-        }
-
-        List<MetadataValue> metadata = ContentServiceFactory.getInstance().getDSpaceObjectService(obj.getType())
-            .getMetadata(obj, Item.ANY, Item.ANY, Item.ANY, language);
-
         try {
             if (context != null && authorizeService.isAdmin(context)) {
                 return new MetadataValueList(metadata);

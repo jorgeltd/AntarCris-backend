@@ -14,7 +14,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Arrays;
-import java.util.List;
 
 import org.dspace.app.rest.matcher.EntityTypeMatcher;
 import org.dspace.app.rest.matcher.RelationshipTypeMatcher;
@@ -22,7 +21,6 @@ import org.dspace.app.rest.test.AbstractEntityIntegrationTest;
 import org.dspace.builder.CollectionBuilder;
 import org.dspace.builder.CommunityBuilder;
 import org.dspace.builder.EntityTypeBuilder;
-import org.dspace.content.Collection;
 import org.dspace.content.Community;
 import org.dspace.content.EntityType;
 import org.dspace.content.RelationshipType;
@@ -31,7 +29,6 @@ import org.dspace.core.Constants;
 import org.dspace.external.provider.AbstractExternalDataProvider;
 import org.dspace.external.service.ExternalDataService;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -46,52 +43,6 @@ public class EntityTypeRestRepositoryIT extends AbstractEntityIntegrationTest {
     private ExternalDataService externalDataService;
     @Autowired
     private EntityTypeService entityTypeService;
-    private EntityType publicationType;
-    private EntityType journalType;
-    private EntityType journalIssueType;
-    private EntityType orgUnitType;
-    private EntityType dataPackageType;
-    private EntityType personType;
-    private EntityType journalVolumeType;
-    private EntityType projectType;
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        context.turnOffAuthorisationSystem();
-
-        publicationType = entityTypeService.findByEntityType(context, "Publication");
-        if (publicationType == null) {
-            publicationType = EntityTypeBuilder.createEntityTypeBuilder(context, "Publication").build();
-        }
-        journalType = entityTypeService.findByEntityType(context, "Journal");
-        if (journalType == null) {
-            journalType = EntityTypeBuilder.createEntityTypeBuilder(context, "Journal").build();
-        }
-        personType = entityTypeService.findByEntityType(context, "Person");
-        if (personType == null) {
-            personType = EntityTypeBuilder.createEntityTypeBuilder(context, "Person").build();
-        }
-        projectType = entityTypeService.findByEntityType(context, "Project");
-        if (projectType == null) {
-            projectType = EntityTypeBuilder.createEntityTypeBuilder(context, "Project").build();
-        }
-        journalVolumeType = entityTypeService.findByEntityType(context, "JournalVolume");
-        if (journalVolumeType == null) {
-            journalVolumeType = EntityTypeBuilder.createEntityTypeBuilder(context, "JournalVolume").build();
-        }
-        journalIssueType = entityTypeService.findByEntityType(context, "JournalIssue");
-        if (journalIssueType == null) {
-            journalIssueType = EntityTypeBuilder.createEntityTypeBuilder(context, "JournalIssue").build();
-        }
-        orgUnitType = entityTypeService.findByEntityType(context, "OrgUnit");
-        if (orgUnitType == null) {
-            orgUnitType = EntityTypeBuilder.createEntityTypeBuilder(context, "OrgUnit").build();
-        }
-
-        context.restoreAuthSystemState();
-    }
 
     @Test
     public void getAllEntityTypeEndpoint() throws Exception {
@@ -178,57 +129,6 @@ public class EntityTypeRestRepositoryIT extends AbstractEntityIntegrationTest {
     public void retrieveOneEntityTypeThatDoesNotExist() throws Exception {
         getClient().perform(get("/api/core/entitytypes/" + 5555))
                    .andExpect(status().isNotFound());
-    }
-
-    @Test
-    public void findAllByAuthorizedCollection() throws Exception {
-        try {
-            context.turnOffAuthorisationSystem();
-
-            //** GIVEN **
-            //1. A community-collection structure with one parent community with sub-community and one collection.
-            parentCommunity = CommunityBuilder.createCommunity(context)
-                .withName("Parent Community")
-                .build();
-            Collection col1 =
-                CollectionBuilder.createCollection(context, parentCommunity)
-                        .withEntityType("JournalIssue")
-                        .withSubmitterGroup(eperson)
-                        .withName("Collection 1")
-                        .build();
-            Collection col2 = CollectionBuilder.createCollection(context, parentCommunity)
-                    .withEntityType("Publication")
-                    .withSubmitterGroup(eperson)
-                     .withName("Collection 2")
-                    .build();
-            Collection col3 = CollectionBuilder.createCollection(context, parentCommunity)
-                    .withEntityType("Project")
-                    .withSubmitterGroup(eperson)
-                    .withName("Collection 3")
-                    .build();
-            Collection col4 = CollectionBuilder.createCollection(context, parentCommunity)
-                    .withEntityType("Journal")
-                    .withSubmitterGroup(eperson)
-                    .withName("Collection 4")
-                    .build();
-
-            context.restoreAuthSystemState();
-
-
-            context.setCurrentUser(eperson);
-            String token = getAuthToken(eperson.getEmail(), password);
-            getClient(token).perform(get("/api/core/entitytypes/search/findAllByAuthorizedCollection"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$._embedded.entitytypes", containsInAnyOrder(
-                    EntityTypeMatcher
-                        .matchEntityTypeEntry(entityTypeService.findByEntityType(context, "JournalIssue")),
-                    EntityTypeMatcher.matchEntityTypeEntry(entityTypeService.findByEntityType(context, "Publication")),
-                    EntityTypeMatcher.matchEntityTypeEntry(entityTypeService.findByEntityType(context, "Project")),
-                    EntityTypeMatcher.matchEntityTypeEntry(entityTypeService.findByEntityType(context, "Journal"))
-                )));
-        } finally {
-            CommunityBuilder.deleteCommunity(parentCommunity.getID());
-        }
     }
 
     @Test
@@ -511,16 +411,12 @@ public class EntityTypeRestRepositoryIT extends AbstractEntityIntegrationTest {
                                         EntityTypeMatcher.matchEntityTypeEntry(publication))))
                              .andExpect(jsonPath("$.page.totalElements", Matchers.is(4)));
 
-        List<String> mockSupportedEntityTypes = ((AbstractExternalDataProvider) externalDataService
-            .getExternalDataProvider("mock")).getSupportedEntityTypes();
-
-        List<String> pubmedSupportedEntityTypes = ((AbstractExternalDataProvider) externalDataService
-            .getExternalDataProvider("pubmed")).getSupportedEntityTypes();
-
         try {
             ((AbstractExternalDataProvider) externalDataService.getExternalDataProvider("mock"))
                     .setSupportedEntityTypes(Arrays.asList("Publication"));
             ((AbstractExternalDataProvider) externalDataService.getExternalDataProvider("pubmed"))
+                    .setSupportedEntityTypes(Arrays.asList("Publication"));
+            ((AbstractExternalDataProvider) externalDataService.getExternalDataProvider("suggestion"))
                     .setSupportedEntityTypes(Arrays.asList("Publication"));
 
             // these are similar to the previous checks but now we have restricted the mock and pubmed providers
@@ -529,24 +425,24 @@ public class EntityTypeRestRepositoryIT extends AbstractEntityIntegrationTest {
                             .andExpect(status().isOk())
                             .andExpect(jsonPath("$._embedded.entitytypes", containsInAnyOrder(
                                        EntityTypeMatcher.matchEntityTypeEntry(publication),
-                                       EntityTypeMatcher.matchEntityTypeEntry(funding),
                                        EntityTypeMatcher.matchEntityTypeEntry(project))))
-                            .andExpect(jsonPath("$.page.totalElements", Matchers.is(3)));
+                            .andExpect(jsonPath("$.page.totalElements", Matchers.is(2)));
 
             getClient(adminToken).perform(get("/api/core/entitytypes/search/findAllByAuthorizedExternalSource"))
                                  .andExpect(status().isOk())
                                  .andExpect(jsonPath("$._embedded.entitytypes", containsInAnyOrder(
                                             EntityTypeMatcher.matchEntityTypeEntry(project),
                                             EntityTypeMatcher.matchEntityTypeEntry(orgUnit),
-                                            EntityTypeMatcher.matchEntityTypeEntry(funding),
                                             EntityTypeMatcher.matchEntityTypeEntry(publication))))
-                                 .andExpect(jsonPath("$.page.totalElements", Matchers.is(4)));
+                                 .andExpect(jsonPath("$.page.totalElements", Matchers.is(3)));
 
         } finally {
             ((AbstractExternalDataProvider) externalDataService.getExternalDataProvider("mock"))
-                    .setSupportedEntityTypes(mockSupportedEntityTypes);
+                    .setSupportedEntityTypes(null);
             ((AbstractExternalDataProvider) externalDataService.getExternalDataProvider("pubmed"))
-                    .setSupportedEntityTypes(pubmedSupportedEntityTypes);
+                    .setSupportedEntityTypes(null);
+            ((AbstractExternalDataProvider) externalDataService.getExternalDataProvider("suggestion"))
+                    .setSupportedEntityTypes(null);
         }
 
     }

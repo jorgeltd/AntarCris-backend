@@ -14,7 +14,6 @@ import java.util.List;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.content.EntityType;
-import org.dspace.content.Item;
 import org.dspace.core.Context;
 import org.dspace.service.DSpaceCRUDService;
 
@@ -61,28 +60,18 @@ public interface EntityTypeService extends DSpaceCRUDService<EntityType> {
     public EntityType create(Context context, String entityTypeString) throws SQLException, AuthorizeException;
 
     /**
-     * Retrieves the EntityType related to the given item.
-     *
-     * @param  context The relevant DSpace context
-     * @param  item    the Item instance
-     * @return         the entity type
-     */
-    public EntityType findByItem(Context context, Item item) throws SQLException;
-
-    /**
-     * Retrieves all entity types related to the collections on which the current
-     * user can deposit
-     *
-     * @param  context             DSpace context object
+     * Retrieves all entity types related to the collections on which the current user can deposit
+     * 
+     * @param context                     DSpace context object
      * @return
-     * @throws SQLException        If database error
-     * @throws SolrServerException If there is a problem in communicating with Solr
-     * @throws IOException         If IO error
+     * @throws SQLException               If database error
+     * @throws SolrServerException        If there is a problem in communicating with Solr
+     * @throws IOException                If IO error
      */
     public List<String> getSubmitAuthorizedTypes(Context context) throws SQLException, SolrServerException, IOException;
 
     /**
-     *
+     * 
      * @param context          DSpace context object
      * @param names            List of Entity type names that you want to retrieve
      * @param limit            paging limit
@@ -94,7 +83,7 @@ public interface EntityTypeService extends DSpaceCRUDService<EntityType> {
            throws SQLException;
 
     /**
-     *
+     * 
      * @param context          DSpace context object
      * @param names            List of Entity type names that you want to retrieve
      * @return
@@ -104,7 +93,7 @@ public interface EntityTypeService extends DSpaceCRUDService<EntityType> {
 
     /**
      * Initializes the EntityType names, and marks them "permanent".
-     *
+     * 
      * @param context                 DSpace context object
      * @throws SQLException           Database exception
      * @throws AuthorizeException     Authorization error

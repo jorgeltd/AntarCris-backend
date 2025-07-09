@@ -30,8 +30,7 @@ public class VocabularyMatcher {
                 hasJsonPath("$.name", is(name)),
                 hasJsonPath("$.scrollable", is(scrollable)),
                 hasJsonPath("$.hierarchical", is(hierarchical)),
-                hasJsonPath("$.type", is("vocabulary")),
-                hasJsonPath("$.uniqueType", is("submission.vocabulary"))
+                hasJsonPath("$.type", is("vocabulary"))
         );
     }
 

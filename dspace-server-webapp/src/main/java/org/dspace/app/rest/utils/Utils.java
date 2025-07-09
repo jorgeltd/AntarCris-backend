@@ -55,7 +55,6 @@ import org.dspace.app.rest.exception.PaginationException;
 import org.dspace.app.rest.exception.RepositoryNotFoundException;
 import org.dspace.app.rest.model.BaseObjectRest;
 import org.dspace.app.rest.model.CommunityRest;
-import org.dspace.app.rest.model.CrisMetricsRest;
 import org.dspace.app.rest.model.LinkRest;
 import org.dspace.app.rest.model.LinksRest;
 import org.dspace.app.rest.model.OrcidHistoryRest;
@@ -66,7 +65,6 @@ import org.dspace.app.rest.model.ResourcePolicyRest;
 import org.dspace.app.rest.model.RestAddressableModel;
 import org.dspace.app.rest.model.RestModel;
 import org.dspace.app.rest.model.SupervisionOrderRest;
-import org.dspace.app.rest.model.UsageReportCategoryRest;
 import org.dspace.app.rest.model.VersionHistoryRest;
 import org.dspace.app.rest.model.VocabularyRest;
 import org.dspace.app.rest.model.hateoas.EmbeddedPage;
@@ -195,27 +193,6 @@ public class Utils {
                 Math.toIntExact(pageable.getOffset()) + pageable.getPageSize());
         }
         return pageContent;
-    }
-
-    /**
-     * @param rel
-     * @param domainClass
-     * @return the LinkRest annotation corresponding to the specified rel in the
-     * domainClass. Null if not found
-     */
-    public LinkRest getLinkRest(String rel, Class<RestAddressableModel> domainClass) {
-        LinkRest linkRest = null;
-        LinksRest linksAnnotation = domainClass.getDeclaredAnnotation(LinksRest.class);
-        if (linksAnnotation != null) {
-            LinkRest[] links = linksAnnotation.links();
-            for (LinkRest l : links) {
-                if (StringUtils.equals(rel, l.name())) {
-                    linkRest = l;
-                    break;
-                }
-            }
-        }
-        return linkRest;
     }
 
     /**
@@ -349,12 +326,6 @@ public class Utils {
         if (StringUtils.equals(modelPlural, "orcidhistories")) {
             return OrcidHistoryRest.NAME;
         }
-        if (StringUtils.equals(modelPlural, "metrics")) {
-            return CrisMetricsRest.NAME;
-        }
-        if (StringUtils.equals(modelPlural, "categories")) {
-            return UsageReportCategoryRest.NAME;
-        }
         if (StringUtils.equals(modelPlural, "supervisionorders")) {
             return SupervisionOrderRest.NAME;
         }
@@ -374,7 +345,7 @@ public class Utils {
         try {
             return applicationContext.getBean(apiCategory + "." + modelPlural + "." + rel, LinkRestRepository.class);
         } catch (NoSuchBeanDefinitionException e) {
-            throw new RepositoryNotFoundException(apiCategory, modelPlural, rel);
+            throw new RepositoryNotFoundException(apiCategory, modelPlural);
         }
     }
 
@@ -1016,7 +987,7 @@ public class Utils {
     */
     public BaseObjectRest getBaseObjectRestFromUri(Context context, String uri) throws SQLException {
         String dspaceUrl = configurationService.getProperty("dspace.server.url");
-        String dspaceSSRUrl = configurationService.getProperty("dspace.server.ssr.url", "");
+        String dspaceSSRUrl = configurationService.getProperty("dspace.server.ssr.url", dspaceUrl);
 
         // Convert strings to URL objects.
         // Do this early to check that inputs are well-formed.
@@ -1035,8 +1006,7 @@ public class Utils {
         }
 
         // Check whether the URI could be valid.
-        if (!urlIsPrefixOf(dspaceUrl, uri) && (StringUtils.isBlank(dspaceSSRUrl) ||
-            !urlIsPrefixOf(dspaceSSRUrl, uri))) {
+        if (!urlIsPrefixOf(dspaceUrl, uri) && !urlIsPrefixOf(dspaceSSRUrl, uri)) {
             throw new IllegalArgumentException("the supplied uri is not ours: " + uri);
         }
 
@@ -1046,12 +1016,11 @@ public class Utils {
         String[] requestPath = StringUtils.split(requestUrlObject.getPath(), '/');
         String[] uriParts = Arrays.copyOfRange(requestPath, dspacePathLength,
                 requestPath.length);
-        String[] uriSSRParts = new String[0];
-        if (StringUtils.isNoneBlank(dspaceSSRUrl) && !Objects.isNull(dspaceUrlSSRObject)) {
-            int dspaceSSRPathLength = StringUtils.split(dspaceUrlSSRObject.getPath(), '/').length;
-            uriSSRParts = Arrays.copyOfRange(requestPath, dspaceSSRPathLength,
-                requestPath.length);
-        }
+
+        int dspaceSSRPathLength = StringUtils.split(dspaceUrlSSRObject.getPath(), '/').length;
+        String[] uriSSRParts = Arrays.copyOfRange(requestPath, dspaceSSRPathLength,
+            requestPath.length);
+
         if ("api".equalsIgnoreCase(uriParts[0])) {
             uriParts = Arrays.copyOfRange(uriParts, 1, uriParts.length);
         }

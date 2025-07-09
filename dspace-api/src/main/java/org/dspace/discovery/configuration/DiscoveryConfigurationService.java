@@ -51,16 +51,6 @@ public class DiscoveryConfigurationService {
 
     public void setMap(Map<String, DiscoveryConfiguration> map) {
         this.map = map;
-        if (map != null) {
-            // improve the configuration assigning the map key as id to any configuration
-            // that doesn't have one
-            for (Map.Entry<String, DiscoveryConfiguration> entry : map.entrySet()) {
-                DiscoveryConfiguration conf = entry.getValue();
-                if (StringUtils.isBlank(conf.getId())) {
-                    conf.setId(entry.getKey());
-                }
-            }
-        }
     }
 
     public Map<Integer, List<String>> getToIgnoreMetadataFields() {
@@ -190,24 +180,6 @@ public class DiscoveryConfigurationService {
         }
     }
 
-
-    public DiscoveryConfiguration getDiscoveryConfigurationByNameOrDefault(final String name) {
-        return this.getDiscoveryConfiguration(name, true);
-    }
-
-    public DiscoveryConfiguration getDiscoveryConfigurationByName(String name) {
-        return this.getDiscoveryConfiguration(name, false);
-    }
-
-    public DiscoveryConfiguration getDiscoveryConfigurationByNameOrDso(final String configurationName,
-                                                                       final IndexableObject dso) {
-        if (StringUtils.isNotBlank(configurationName) && getMap().containsKey(configurationName)) {
-            return getMap().get(configurationName);
-        } else {
-            return getDiscoveryConfiguration(null, dso);
-        }
-    }
-
     /**
      * Retrieves a list of all DiscoveryConfiguration objects where
      * {@link org.dspace.discovery.configuration.DiscoveryConfiguration#isIndexAlways()} is true
@@ -240,9 +212,9 @@ public class DiscoveryConfigurationService {
         System.out.println(DSpaceServicesFactory.getInstance().getServiceManager().getServicesNames().size());
         DiscoveryConfigurationService mainService = DSpaceServicesFactory.getInstance().getServiceManager()
                                                                          .getServiceByName(
-                                                                             DiscoveryConfigurationService.class
-                                                                                 .getName(),
-                                                                             DiscoveryConfigurationService.class);
+                                                                                 DiscoveryConfigurationService.class
+                                                                                         .getName(),
+                                                                                 DiscoveryConfigurationService.class);
 
         for (String key : mainService.getMap().keySet()) {
             System.out.println(key);
@@ -270,7 +242,7 @@ public class DiscoveryConfigurationService {
 
             System.out.println("Recent submissions configuration:");
             DiscoveryRecentSubmissionsConfiguration recentSubmissionConfiguration = discoveryConfiguration
-                .getRecentSubmissionConfiguration();
+                    .getRecentSubmissionConfiguration();
             System.out.println("\tMetadata sort field: " + recentSubmissionConfiguration.getMetadataSortField());
             System.out.println("\tMax recent submissions: " + recentSubmissionConfiguration.getMax());
 
@@ -286,6 +258,7 @@ public class DiscoveryConfigurationService {
 
     /**
      * Retrieves a list of all DiscoveryConfiguration objects where key starts with prefixConfigurationName
+     * 
      * @param prefixConfigurationName string as prefix key
      */
     public List<DiscoveryConfiguration> getDiscoveryConfigurationWithPrefixName(final String prefixConfigurationName) {

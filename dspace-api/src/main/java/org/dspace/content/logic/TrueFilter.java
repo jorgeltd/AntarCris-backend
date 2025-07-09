@@ -24,7 +24,7 @@ public class TrueFilter implements Filter {
     private String name;
     private final static Logger log = LogManager.getLogger();
 
-    public Boolean getResult(Context context, Item item) throws LogicalStatementException {
+    public boolean getResult(Context context, Item item) throws LogicalStatementException {
         return true;
     }
 

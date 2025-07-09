@@ -23,17 +23,16 @@ import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
 
 /**
- * This contributor checks for each node returned for the supplied path if node
- * contains supplied attribute - the value of the current node is taken,
- * otherwise #PLACEHOLDER_PARENT_METADATA_VALUE#
+ * This contributor checks for each node returned for the supplied path
+ * if node contains supplied attribute - the value of the current node is taken if exist.
  * 
- * @author Boychuk Mykhaylo (boychuk.mykhaylo at 4Science dot it)4
+ * @author Boychuk Mykhaylo (boychuk.mykhaylo at 4Science dot com)
  */
 public class SimpleXpathMetadatumAndAttributeContributor extends SimpleXpathMetadatumContributor {
 
     private final static Logger log = LogManager.getLogger();
 
-    protected String attribute;
+    private String attribute;
 
     @Override
     public Collection<MetadatumDTO> contributeMetadata(Element t) {
@@ -43,7 +42,7 @@ public class SimpleXpathMetadatumAndAttributeContributor extends SimpleXpathMeta
             namespaces.add(Namespace.getNamespace(prefixToNamespaceMapping.get(ns), ns));
         }
         XPathExpression<Object> xpath = XPathFactory.instance().compile(query, Filters.fpassthrough(), null,
-            namespaces);
+                namespaces);
         List<Object> nodes = xpath.evaluate(t);
         for (Object el : nodes) {
             if (el instanceof Element) {

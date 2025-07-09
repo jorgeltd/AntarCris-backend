@@ -51,14 +51,12 @@ public class AuthorizationMatcher {
         if (authz != null) {
             return allOf(
                     hasJsonPath("$.id", is(authz.getID())),
-                    hasJsonPath("$.type", is("authorization")),
-                    hasJsonPath("$.uniqueType", is("authz.authorization"))
+                    hasJsonPath("$.type", is("authorization"))
             );
         } else {
             return allOf(
                     hasJsonPath("$.id"),
-                    hasJsonPath("$.type", is("authorization")),
-                    hasJsonPath("$.uniqueType", is("authz.authorization"))
+                    hasJsonPath("$.type", is("authorization"))
             );
         }
     }

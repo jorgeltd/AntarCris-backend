@@ -16,12 +16,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.dspace.app.util.Util;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.core.Context;
-import org.dspace.versioning.ItemCorrectionService;
 import org.dspace.xmlworkflow.factory.XmlWorkflowServiceFactory;
 import org.dspace.xmlworkflow.state.Step;
 import org.dspace.xmlworkflow.state.actions.ActionResult;
 import org.dspace.xmlworkflow.storedcomponents.XmlWorkflowItem;
-import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Processing class of an accept/reject action
@@ -37,9 +35,6 @@ public class ReviewAction extends ProcessingAction {
     public static final int REJECT_PAGE = 1;
 
     private static final String SUBMITTER_IS_DELETED_PAGE = "submitter_deleted";
-
-    @Autowired
-    protected ItemCorrectionService itemCorrectionService;
 
     @Override
     public void activate(Context c, XmlWorkflowItem wfItem) {

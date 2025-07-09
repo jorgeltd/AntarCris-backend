@@ -11,12 +11,10 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 
-import org.apache.commons.lang3.StringUtils;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.content.DSpaceObject;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataField;
-import org.dspace.content.authority.Choices;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.ItemService;
 import org.dspace.core.Constants;
@@ -53,7 +51,6 @@ public class DIMIngestionCrosswalk implements IngestionCrosswalk {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void ingest(Context context, DSpaceObject dso, Element root, boolean createMissingMetadataFields)
         throws CrosswalkException, IOException, SQLException, AuthorizeException {
         if (dso.getType() != Constants.ITEM) {
@@ -68,25 +65,13 @@ public class DIMIngestionCrosswalk implements IngestionCrosswalk {
 
         List<Element> metadata = root.getChildren("field", DIM_NS);
         for (Element field : metadata) {
-
-            String value = field.getText();
-
-            if (StringUtils.isBlank(value)) {
-                continue;
-            }
-
             String schema = field.getAttributeValue("mdschema");
             String element = field.getAttributeValue("element");
             String qualifier = field.getAttributeValue("qualifier");
-            String language = field.getAttributeValue("lang");
-
-            String authority = field.getAttributeValue("authority");
-            int confidence = StringUtils.isBlank(authority) ? Choices.CF_UNSET : Choices.CF_UNCERTAIN;
-
-            MetadataField metadataField = metadataValidator.checkMetadata(context, schema, element, qualifier,
-                createMissingMetadataFields);
-
-            itemService.addMetadata(context, item, metadataField, language, value, authority, confidence);
+            MetadataField metadataField = metadataValidator
+                .checkMetadata(context, schema, element, qualifier, createMissingMetadataFields);
+            itemService.addMetadata(context, item, metadataField,
+                                    field.getAttributeValue("lang"), field.getText());
         }
 
     }

@@ -85,10 +85,9 @@ public class OrcidFundingFieldMapping {
     private String descriptionField;
 
     /**
-     * The metadata field related to the funding organization.
+     * The type of the relationship between the funding and the organization.
      */
-
-    private String organizationField;
+    private String organizationRelationshipType;
 
     private Map<String, FundingContributorRole> parseContributors(String contributors) {
         Map<String, String> contributorsMap = parseConfigurations(contributors);
@@ -159,12 +158,12 @@ public class OrcidFundingFieldMapping {
         this.descriptionField = descriptionField;
     }
 
-    public String getOrganizationField() {
-        return organizationField;
+    public String getOrganizationRelationshipType() {
+        return organizationRelationshipType;
     }
 
-    public void setOrganizationField(String organizationField) {
-        this.organizationField = organizationField;
+    public void setOrganizationRelationshipType(String organizationRelationshipType) {
+        this.organizationRelationshipType = organizationRelationshipType;
     }
 
     public String getTypeField() {

@@ -10,17 +10,23 @@ package org.dspace.orcid.model.factory.impl;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataValue;
+import org.dspace.content.Relationship;
+import org.dspace.content.RelationshipType;
 import org.dspace.content.service.ItemService;
+import org.dspace.content.service.RelationshipService;
+import org.dspace.content.service.RelationshipTypeService;
 import org.dspace.core.Context;
 import org.dspace.orcid.model.OrcidEntityType;
 import org.dspace.orcid.model.OrcidFundingFieldMapping;
@@ -28,7 +34,6 @@ import org.dspace.orcid.model.factory.OrcidCommonObjectFactory;
 import org.dspace.orcid.model.factory.OrcidEntityFactory;
 import org.orcid.jaxb.model.common.FundingContributorRole;
 import org.orcid.jaxb.model.common.FundingType;
-import org.orcid.jaxb.model.common.Relationship;
 import org.orcid.jaxb.model.v3.release.common.Amount;
 import org.orcid.jaxb.model.v3.release.common.FuzzyDate;
 import org.orcid.jaxb.model.v3.release.common.Organization;
@@ -59,6 +64,12 @@ public class OrcidFundingFactory implements OrcidEntityFactory {
 
     @Autowired
     private OrcidCommonObjectFactory orcidCommonObjectFactory;
+
+    @Autowired
+    private RelationshipTypeService relationshipTypeService;
+
+    @Autowired
+    private RelationshipService relationshipService;
 
     private OrcidFundingFieldMapping fieldMapping;
 
@@ -131,14 +142,44 @@ public class OrcidFundingFactory implements OrcidEntityFactory {
         ExternalID externalID = new ExternalID();
         externalID.setType(type);
         externalID.setValue(value);
-        externalID.setRelationship(Relationship.SELF);
+        externalID.setRelationship(org.orcid.jaxb.model.common.Relationship.SELF);
         return externalID;
     }
 
+    /**
+     * Returns an Organization ORCID entity related to the given item. The
+     * relationship type configured with
+     * orcid.mapping.funding.organization-relationship-type is the relationship used
+     * to search the Organization of the given project item.
+     */
     private Organization getOrganization(Context context, Item item) {
-        return getMetadataValue(context, item, fieldMapping.getOrganizationField())
-            .flatMap(metadataValue -> orcidCommonObjectFactory.createOrganization(context, metadataValue))
-            .orElse(null);
+
+        try {
+
+            return relationshipTypeService.findByLeftwardOrRightwardTypeName(context,
+                fieldMapping.getOrganizationRelationshipType()).stream()
+                .flatMap(relationshipType -> getRelationships(context, item, relationshipType))
+                .map(relationship -> getRelatedItem(item, relationship))
+                .flatMap(orgUnit -> orcidCommonObjectFactory.createOrganization(context, orgUnit).stream())
+                .findFirst()
+                .orElse(null);
+
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    private Stream<Relationship> getRelationships(Context context, Item item, RelationshipType relationshipType) {
+        try {
+            return relationshipService.findByItemAndRelationshipType(context, item, relationshipType).stream();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Item getRelatedItem(Item item, Relationship relationship) {
+        return item.equals(relationship.getLeftItem()) ? relationship.getRightItem() : relationship.getLeftItem();
     }
 
     private FuzzyDate getStartDate(Context context, Item item) {
@@ -159,6 +200,11 @@ public class OrcidFundingFactory implements OrcidEntityFactory {
         return fundingTitle;
     }
 
+    /**
+     * Returns an instance of FundingType taking the type from the given item. The
+     * metadata field to be used to retrieve the item's type is related to the
+     * configured typeField (orcid.mapping.funding.type).
+     */
     private FundingType getType(Context context, Item item) {
         return getMetadataValue(context, item, fieldMapping.getTypeField())
             .map(type -> fieldMapping.convertType(type.getValue()))
@@ -179,17 +225,40 @@ public class OrcidFundingFactory implements OrcidEntityFactory {
         return orcidCommonObjectFactory.createUrl(context, item).orElse(null);
     }
 
+    /**
+     * Returns an Amount instance taking the amount and currency value from the
+     * configured metadata values of the given item, if any.
+     */
     private Amount getAmount(Context context, Item item) {
-        return getMetadataValue(context, item, fieldMapping.getAmountField())
-            .flatMap(amount -> getAmount(context, item, amount.getValue()))
-            .orElse(null);
+
+        Optional<String> amount = getAmountValue(context, item);
+        Optional<String> currency = getCurrencyValue(context, item);
+
+        if (amount.isEmpty() || currency.isEmpty()) {
+            return null;
+        }
+
+        return getAmount(amount.get(), currency.get());
     }
 
-    private Optional<Amount> getAmount(Context context, Item item, String amount) {
+    /**
+     * Returns the amount value of the configured metadata field
+     * orcid.mapping.funding.amount
+     */
+    private Optional<String> getAmountValue(Context context, Item item) {
+        return getMetadataValue(context, item, fieldMapping.getAmountField())
+            .map(MetadataValue::getValue);
+    }
+
+    /**
+     * Returns the amount value of the configured metadata field
+     * orcid.mapping.funding.amount.currency (if configured using the converter
+     * orcid.mapping.funding.amount.currency.converter).
+     */
+    private Optional<String> getCurrencyValue(Context context, Item item) {
         return getMetadataValue(context, item, fieldMapping.getAmountCurrencyField())
             .map(currency -> fieldMapping.convertAmountCurrency(currency.getValue()))
-            .filter(currency -> isValidCurrency(currency))
-            .map(currency -> getAmount(amount, currency));
+            .filter(currency -> isValidCurrency(currency));
     }
 
     private boolean isValidCurrency(String currency) {

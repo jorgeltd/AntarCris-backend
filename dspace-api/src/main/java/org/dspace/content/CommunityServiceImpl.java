@@ -19,7 +19,6 @@ import java.util.UUID;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
-import org.dspace.app.metrics.service.CrisMetricsService;
 import org.dspace.app.util.AuthorizeUtil;
 import org.dspace.authorize.AuthorizeConfiguration;
 import org.dspace.authorize.AuthorizeException;
@@ -78,8 +77,6 @@ public class CommunityServiceImpl extends DSpaceObjectServiceImpl<Community> imp
     protected IdentifierService identifierService;
     @Autowired(required = true)
     protected SubscribeService subscribeService;
-    @Autowired(required = true)
-    protected CrisMetricsService crisMetricsService;
     @Autowired
     protected ItemCounter itemCounter;
 
@@ -237,7 +234,8 @@ public class CommunityServiceImpl extends DSpaceObjectServiceImpl<Community> imp
         // First, delete any existing logo
         Bitstream oldLogo = community.getLogo();
         if (oldLogo != null) {
-            log.info(LogHelper.getHeader(context, "remove_logo", "community_id=" + community.getID()));
+            log.info(LogHelper.getHeader(context, "remove_logo",
+                                          "community_id=" + community.getID()));
             community.setLogo(null);
             bitstreamService.delete(context, oldLogo);
         }
@@ -248,11 +246,13 @@ public class CommunityServiceImpl extends DSpaceObjectServiceImpl<Community> imp
 
             // now create policy for logo bitstream
             // to match our READ policy
-            List<ResourcePolicy> policies = authorizeService.getPolicies(context, community);
+            List<ResourcePolicy> policies = authorizeService
+                    .getPoliciesActionFilter(context, community, Constants.READ);
             authorizeService.addPolicies(context, policies, newLogo);
 
             log.info(LogHelper.getHeader(context, "set_logo",
-                "community_id=" + community.getID() + "logo_bitstream_id=" + newLogo.getID()));
+                                          "community_id=" + community.getID() + "logo_bitstream_id="
+                                              + newLogo.getID()));
         }
 
         return community.getLogo();
@@ -491,7 +491,6 @@ public class CommunityServiceImpl extends DSpaceObjectServiceImpl<Community> imp
 
     @Override
     public void delete(Context context, Community community) throws SQLException, AuthorizeException, IOException {
-        crisMetricsService.deleteByResourceID(context, community);
         // Check authorisation
         // FIXME: If this was a subcommunity, it is first removed from it's
         // parent.
@@ -506,7 +505,6 @@ public class CommunityServiceImpl extends DSpaceObjectServiceImpl<Community> imp
         String removedHandle = community.getHandle();
         UUID removedId = community.getID();
 
-        subscribeService.deleteByDspaceObject(context, community);
 
         // If not a top-level community, have parent remove me; this
         // will call rawDelete() before removing the linkage
@@ -730,10 +728,4 @@ public class CommunityServiceImpl extends DSpaceObjectServiceImpl<Community> imp
     public int countArchivedItems(Context context, Community community) {
         return itemCounter.getCount(context, community);
     }
-
-    @Override
-    public boolean exists(Context context, UUID id) throws SQLException {
-        return this.communityDAO.exists(context, Community.class, id);
-    }
-
 }

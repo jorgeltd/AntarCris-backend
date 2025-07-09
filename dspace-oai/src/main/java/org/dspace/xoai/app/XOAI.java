@@ -9,7 +9,7 @@ package org.dspace.xoai.app;
 
 import static com.lyncode.xoai.dataprovider.core.Granularity.Second;
 import static java.util.Objects.nonNull;
-import static org.apache.commons.lang.StringUtils.EMPTY;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.solr.common.params.CursorMarkParams.CURSOR_MARK_PARAM;
 import static org.apache.solr.common.params.CursorMarkParams.CURSOR_MARK_START;
 import static org.dspace.xoai.util.ItemUtils.retrieveMetadata;
@@ -36,7 +36,6 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.solr.client.solrj.SolrClient;
@@ -82,7 +81,7 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
  */
 @SuppressWarnings("deprecation")
 public class XOAI {
-    private static final Logger log = LogManager.getLogger(XOAI.class);
+    private static Logger log = LogManager.getLogger(XOAI.class);
 
     // needed because the solr query only returns 10 rows by default
     private final Context context;
@@ -104,7 +103,7 @@ public class XOAI {
     private final static ConfigurationService configurationService = DSpaceServicesFactory.getInstance()
             .getConfigurationService();
 
-    private final List<XOAIExtensionItemCompilePlugin> extensionPlugins;
+    private List<XOAIExtensionItemCompilePlugin> extensionPlugins;
 
     private List<String> getFileFormats(Item item) {
         List<String> formats = new ArrayList<>();
@@ -150,9 +149,9 @@ public class XOAI {
     }
 
     public int index() throws DSpaceSolrIndexerException {
-        int result;
-
+        int result = 0;
         try {
+
             if (clean) {
                 clearIndex();
                 System.out.println("Using full import.");
@@ -168,8 +167,8 @@ public class XOAI {
                 } else {
                     result = this.index((Date) results.get(0).getFieldValue("item.lastmodified"));
                 }
-            }
 
+            }
             solrServerResolver.getServer().commit();
 
             // Set last compilation date
@@ -207,7 +206,7 @@ public class XOAI {
      * @param last maximum date for an item to be considered for an update
      * @return Iterator over list of items which might have changed their visibility
      *         since the last update.
-     * @throws DSpaceSolrIndexerException e
+     * @throws DSpaceSolrIndexerException
      */
     private Iterator<Item> getItemsWithPossibleChangesBefore(Date last) throws DSpaceSolrIndexerException, IOException {
         try {
@@ -335,6 +334,11 @@ public class XOAI {
                     server.add(list);
                     server.commit();
                     list.clear();
+                    try {
+                        context.uncacheEntities();
+                    } catch (SQLException ex) {
+                        log.error("Error uncaching entities", ex);
+                    }
                 }
             }
             System.out.println("Total: " + i + " items");
@@ -358,7 +362,7 @@ public class XOAI {
      *
      * @param item Item
      * @return date
-     * @throws SQLException e
+     * @throws SQLException
      */
     private Date getMostRecentModificationDate(Item item) throws SQLException {
         List<Date> dates = new LinkedList<>();
@@ -391,12 +395,8 @@ public class XOAI {
         SolrInputDocument doc = new SolrInputDocument();
         doc.addField("item.id", item.getID().toString());
 
-        String legacyOaiId = itemService.getMetadataFirstValue(item, "dspace", "legacy", "oai-identifier", Item.ANY);
         String handle = item.getHandle();
-        doc.addField("item.handle", item.getHandle());
-        if (StringUtils.isNotEmpty(legacyOaiId)) {
-            doc.addField("item.legacyoaiidentifier", legacyOaiId.split(":")[2]);
-        }
+        doc.addField("item.handle", handle);
 
         boolean isEmbargoed = !this.isPublic(item);
         boolean isCurrentlyVisible = this.checkIfVisibleInOAI(item);
@@ -415,7 +415,7 @@ public class XOAI {
          * future will be marked as such.
          */
 
-        boolean isPublic = !isEmbargoed || (isIndexed && isCurrentlyVisible);
+        boolean isPublic = isEmbargoed ? (isIndexed ? isCurrentlyVisible : false) : true;
         doc.addField("item.public", isPublic);
 
         // if the visibility of the item will change in the future due to an
@@ -430,7 +430,8 @@ public class XOAI {
          * because this will override the item.public flag.
          */
 
-        doc.addField("item.deleted", (item.isWithdrawn() || !item.isDiscoverable() || (isEmbargoed && isPublic)));
+        doc.addField("item.deleted",
+                (item.isWithdrawn() || !item.isDiscoverable() || (isEmbargoed ? isPublic : false)));
 
         /*
          * An item that is embargoed will potentially not be harvested by incremental
@@ -580,8 +581,8 @@ public class XOAI {
 
     public static void main(String[] argv) throws IOException, ConfigurationException {
 
-        AnnotationConfigApplicationContext applicationContext =
-            new AnnotationConfigApplicationContext(BasicConfiguration.class);
+        AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext(
+                new Class[] { BasicConfiguration.class });
 
         XOAICacheService cacheService = applicationContext.getBean(XOAICacheService.class);
         XOAIItemCacheService itemCacheService = applicationContext.getBean(XOAIItemCacheService.class);
@@ -601,9 +602,10 @@ public class XOAI {
             String[] validDatabaseCommands = { COMMAND_CLEAN_CACHE, COMMAND_COMPILE_ITEMS,
                 COMMAND_ERASE_COMPILED_ITEMS };
 
-            boolean solr = !("database").equals(configurationService.getProperty("oai.storage", "solr"));
-            boolean run = false;
+            boolean solr = true; // Assuming solr by default
+            solr = !("database").equals(configurationService.getProperty("oai.storage", "solr"));
 
+            boolean run = false;
             if (line.getArgs().length > 0) {
                 if (solr) {
                     if (Arrays.asList(validSolrCommands).contains(line.getArgs()[0])) {

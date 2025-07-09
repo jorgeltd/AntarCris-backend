@@ -2,7 +2,7 @@ name: Maven Build
 
 on:
   push:
-   branch: ["*"]
+   branch: ["main"]
 
 #Lista de pasos
 #1. Limpiar archivos viejos

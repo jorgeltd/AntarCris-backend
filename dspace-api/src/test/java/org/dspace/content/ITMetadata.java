@@ -28,7 +28,6 @@ import org.dspace.content.service.MetadataValueService;
 import org.dspace.content.service.WorkspaceItemService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -36,7 +35,6 @@ import org.junit.Test;
  *
  * @author pvillega
  */
-@Ignore
 public class ITMetadata extends AbstractIntegrationTest {
 
     protected CommunityService communityService = ContentServiceFactory.getInstance().getCommunityService();

@@ -207,11 +207,6 @@ public class BitstreamStorageServiceImpl implements BitstreamStorageService, Ini
         return internalId.startsWith(REGISTERED_FLAG);
     }
 
-    public String absolutePath(Context context, Bitstream bitstream)
-            throws SQLException, IOException {
-        return stores.get(bitstream.getStoreNumber()).path(bitstream);
-    }
-
     @Override
     public InputStream retrieve(Context context, Bitstream bitstream)
         throws SQLException, IOException {

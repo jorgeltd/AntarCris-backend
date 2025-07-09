@@ -175,12 +175,10 @@ public class CanSubscribeFeatureIT extends AbstractControllerIntegrationTest {
         String token3 = getAuthToken(ePersonNotSubscribePermission.getEmail(), password);
 
         getClient(token1).perform(get("/api/authz/authorizations/" + epersonToItem.getID()))
-                         .andExpect(status().isOk())
-                         .andExpect(jsonPath("$", Matchers.is(AuthorizationMatcher.matchAuthorization(epersonToItem))));
+                         .andExpect(status().isNotFound());
 
         getClient(token2).perform(get("/api/authz/authorizations/" + adminToItem.getID()))
-                         .andExpect(status().isOk())
-                         .andExpect(jsonPath("$", Matchers.is(AuthorizationMatcher.matchAuthorization(adminToItem))));
+                         .andExpect(status().isNotFound());
 
         getClient(token3).perform(get("/api/authz/authorizations/" + ePersonNotSubscribePermissionToItem.getID()))
                          .andExpect(status().isNotFound());

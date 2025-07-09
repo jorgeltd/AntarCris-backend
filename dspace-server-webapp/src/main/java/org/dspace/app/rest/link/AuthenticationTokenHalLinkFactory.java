@@ -27,12 +27,7 @@ public class AuthenticationTokenHalLinkFactory
     protected void addLinks(AuthenticationTokenResource halResource, Pageable pageable, LinkedList<Link> list)
         throws Exception {
 
-        if (halResource.getContent().isShortLivedToken()) {
-            list.add(buildLink(IanaLinkRelations.SELF.value(), getMethodOn().shortLivedToken(null)));
-        } else {
-            list.add(buildLink(IanaLinkRelations.SELF.value(), getMethodOn().machineToken(null)));
-        }
-
+        list.add(buildLink(IanaLinkRelations.SELF.value(), getMethodOn().shortLivedToken(null)));
     }
 
     @Override

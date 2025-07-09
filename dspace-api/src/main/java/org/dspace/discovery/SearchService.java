@@ -144,6 +144,4 @@ public interface SearchService {
     String calculateExtremeValue(Context context, String valueField,
                                  String sortField, DiscoverQuery.SORT_ORDER sortOrder)
         throws SearchServiceException;
-
-    public SolrSearchCore getSolrSearchCore();
 }

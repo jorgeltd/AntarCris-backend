@@ -65,16 +65,14 @@ public class DiscoverableEndpointsService {
             for (Entry<Object, List<Link>> controller : registeredEndpoints.entrySet()) {
                 for (Link link : controller.getValue()) {
                     if (isLinkValid(controller.getKey(), link.getHref())) {
+                        discoverableEndpoints.add(link);
                         // sanity check
                         // FIXME improve logging for debugging
-                        String linkRel = link.getRel().value();
-                        if (rels.contains(linkRel)) {
-                            throw new IllegalStateException(
-                                "The rel " + linkRel + " is defined multiple times!"
-                            );
+                        if (rels.contains(link.getRel().value())) {
+                            throw new IllegalStateException("The rel " + link.getRel().value()
+                                                                + " is defined multiple times!");
                         }
-                        discoverableEndpoints.add(link);
-                        rels.add(linkRel);
+                        rels.add(link.getRel().value());
                     }
                 }
             }

@@ -7,15 +7,19 @@
  */
 package org.dspace.identifier.doi;
 
+import static org.dspace.identifier.DOIIdentifierProvider.DOI_ELEMENT;
+import static org.dspace.identifier.DOIIdentifierProvider.DOI_QUALIFIER;
+import static org.dspace.identifier.DOIIdentifierProvider.MD_SCHEMA;
+
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.StatusLine;
@@ -38,14 +42,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.content.DSpaceObject;
-import org.dspace.content.Item;
 import org.dspace.content.crosswalk.CrosswalkException;
-import org.dspace.content.crosswalk.StreamDisseminationCrosswalk;
+import org.dspace.content.crosswalk.DisseminationCrosswalk;
+import org.dspace.content.crosswalk.ParameterizedDisseminationCrosswalk;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.DSpaceObjectService;
-import org.dspace.content.service.ItemService;
-import org.dspace.core.Constants;
 import org.dspace.core.Context;
+import org.dspace.core.factory.CoreServiceFactory;
 import org.dspace.handle.service.HandleService;
 import org.dspace.identifier.DOI;
 import org.dspace.services.ConfigurationService;
@@ -101,6 +104,18 @@ public class DataCiteConnector
      * dependency injection.
      */
     protected String METADATA_PATH;
+    /**
+     * Name of crosswalk to convert metadata into DataCite Metadata Scheme. Set
+     * by spring dependency injection.
+     */
+    protected String CROSSWALK_NAME;
+    /**
+     * DisseminationCrosswalk to map local metadata into DataCite metadata.
+     * The name of the crosswalk is set by spring dependency injection using
+     * {@link #setDisseminationCrosswalkName(String) setDisseminationCrosswalkName} which
+     * instantiates the crosswalk.
+     */
+    protected ParameterizedDisseminationCrosswalk xwalk;
 
     protected ConfigurationService configurationService;
 
@@ -109,12 +124,8 @@ public class DataCiteConnector
     @Autowired
     protected HandleService handleService;
 
-    @Autowired
-    private ItemService itemService;
-
-    private Map<String, StreamDisseminationCrosswalk> disseminationCrosswalkByEntityType;
-
     public DataCiteConnector() {
+        this.xwalk = null;
         this.USERNAME = null;
         this.PASSWORD = null;
     }
@@ -181,6 +192,34 @@ public class DataCiteConnector
     @Autowired(required = true)
     public void setConfigurationService(ConfigurationService configurationService) {
         this.configurationService = configurationService;
+    }
+
+    /**
+     * Set the name of the dissemination crosswalk used to convert the metadata
+     * into DataCite Metadata Schema. Used by spring dependency injection.
+     *
+     * @param CROSSWALK_NAME The name of the dissemination crosswalk to use. This
+     *                       crosswalk must be configured in dspace.cfg.
+     */
+    @Autowired(required = true)
+    public void setDisseminationCrosswalkName(String CROSSWALK_NAME) {
+        this.CROSSWALK_NAME = CROSSWALK_NAME;
+    }
+
+    protected void prepareXwalk() {
+        if (null != this.xwalk) {
+            return;
+        }
+
+        this.xwalk = (ParameterizedDisseminationCrosswalk) CoreServiceFactory.getInstance().getPluginService()
+                                                                             .getNamedPlugin(
+                                                                                 DisseminationCrosswalk.class,
+                                                                                 this.CROSSWALK_NAME);
+
+        if (this.xwalk == null) {
+            throw new RuntimeException("Can't find crosswalk '"
+                                           + CROSSWALK_NAME + "'!");
+        }
     }
 
     protected String getUsername() {
@@ -316,47 +355,71 @@ public class DataCiteConnector
     @Override
     public void reserveDOI(Context context, DSpaceObject dso, String doi)
         throws DOIIdentifierException {
+        this.prepareXwalk();
 
         DSpaceObjectService<DSpaceObject> dSpaceObjectService = ContentServiceFactory.getInstance()
                                                                                      .getDSpaceObjectService(dso);
-        StreamDisseminationCrosswalk xwalk = getStreamDisseminationCrosswalkByDso(dso);
-        if (xwalk == null) {
-            log.error(
-                "No crosswalk found for DSO with type {} and ID {}. Giving up reserving the DOI {}.",
-                dso.getType(), dso.getID(), doi
-            );
+
+        if (!this.xwalk.canDisseminate(dso)) {
+            log.error("Crosswalk {} cannot disseminate DSO with type {} and ID {}. Giving up reserving the DOI {}.",
+                          this.CROSSWALK_NAME, dso.getType(), dso.getID(), doi);
             throw new DOIIdentifierException("Cannot disseminate "
-                + dSpaceObjectService.getTypeText(dso) + "/" + dso.getID() + ".",
-                DOIIdentifierException.CONVERSION_ERROR);
+                                                 + dSpaceObjectService.getTypeText(dso) + "/" + dso.getID()
+                                                 + " using crosswalk " + this.CROSSWALK_NAME + ".",
+                                             DOIIdentifierException.CONVERSION_ERROR);
         }
+
+        // Set the transform's parameters.
+        // XXX Should the actual list be configurable?
+        Map<String, String> parameters = new HashMap<>();
+        if (configurationService.hasProperty(CFG_PREFIX)) {
+            parameters.put("prefix",
+                           configurationService.getProperty(CFG_PREFIX));
+        }
+        if (configurationService.hasProperty(CFG_PUBLISHER)) {
+            parameters.put("publisher",
+                           configurationService.getProperty(CFG_PUBLISHER));
+        }
+        if (configurationService.hasProperty(CFG_DATAMANAGER)) {
+            parameters.put("datamanager",
+                           configurationService.getProperty(CFG_DATAMANAGER));
+        }
+        if (configurationService.hasProperty(CFG_HOSTINGINSTITUTION)) {
+            parameters.put("hostinginstitution",
+                           configurationService.getProperty(CFG_HOSTINGINSTITUTION));
+        }
+        parameters.put("mdSchema", MD_SCHEMA);
+        parameters.put("mdElement", DOI_ELEMENT);
+        // Pass an empty string for qualifier if the metadata field doesn't have any
+        parameters.put("mdQualifier", DOI_QUALIFIER);
 
         Element root = null;
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            xwalk.disseminate(context, dso, baos);
-            SAXBuilder builder = new SAXBuilder();
-            Document document = builder.build(new ByteArrayInputStream(baos.toByteArray()));
-            root = document.getRootElement();
+            root = xwalk.disseminateElement(context, dso, parameters);
         } catch (AuthorizeException ae) {
             log.error("Caught an AuthorizeException while disseminating DSO"
                     + " with type {} and ID {}. Giving up to reserve DOI {}.",
                     dso.getType(), dso.getID(), doi, ae);
             throw new DOIIdentifierException("AuthorizeException occured while "
-                + "converting " + dSpaceObjectService.getTypeText(dso) + "/" + dso + ".", ae,
+                                                 + "converting " + dSpaceObjectService.getTypeText(dso) + "/" + dso
+                .getID()
+                                                 + " using crosswalk " + this.CROSSWALK_NAME + ".", ae,
                                              DOIIdentifierException.CONVERSION_ERROR);
         } catch (CrosswalkException ce) {
             log.error("Caught a CrosswalkException while reserving a DOI ({})"
                     + " for DSO with type {} and ID {}. Won't reserve the doi.",
                     doi, dso.getType(), dso.getID(), ce);
             throw new DOIIdentifierException("CrosswalkException occured while "
-                + "converting " + dSpaceObjectService.getTypeText(dso) + "/" + dso + ".", ce,
+                                                 + "converting " + dSpaceObjectService.getTypeText(dso) + "/" + dso
+                .getID()
+                                                 + " using crosswalk " + this.CROSSWALK_NAME + ".", ce,
                                              DOIIdentifierException.CONVERSION_ERROR);
-        } catch (IOException | SQLException | JDOMException ex) {
+        } catch (IOException | SQLException ex) {
             throw new RuntimeException(ex);
         }
 
         String metadataDOI = extractDOI(root);
-        if (null == metadataDOI) {
+        if (StringUtils.isBlank(metadataDOI)) {
             // The DOI will be saved as metadata of dso after successful
             // registration. To register a doi it has to be part of the metadata
             // sent to DataCite. So we add it to the XML we'll send to DataCite
@@ -398,26 +461,15 @@ public class DataCiteConnector
                 log.warn("While reserving the DOI {}, we got a http status code "
                              + "{} and the message \"{}\".",
                         doi, Integer.toString(resp.statusCode), resp.getContent());
+                Format format = Format.getCompactFormat();
+                format.setEncoding("UTF-8");
+                XMLOutputter xout = new XMLOutputter(format);
+                log.info("We send the following XML:\n{}", xout.outputString(root));
                 throw new DOIIdentifierException("Unable to parse an answer from "
                                                      + "DataCite API. Please have a look into DSpace logs.",
                                                  DOIIdentifierException.BAD_ANSWER);
             }
         }
-    }
-
-    private StreamDisseminationCrosswalk getStreamDisseminationCrosswalkByDso(DSpaceObject dso) {
-
-        if (dso.getType() != Constants.ITEM) {
-            return null;
-        }
-
-        String entityType = itemService.getEntityType((Item) dso);
-        if (StringUtils.isBlank(entityType)) {
-            entityType = "Publication";
-        }
-
-        return disseminationCrosswalkByEntityType.get(entityType);
-
     }
 
     @Override
@@ -458,11 +510,9 @@ public class DataCiteConnector
             }
             // 412 Precondition failed: DOI was not reserved before registration!
             case (412): {
-                log.error(
-                    "We tried to register a DOI {} that has not been reserved before! " +
-                    "The registration agency told us: {}.",
-                    () -> doi, resp::getContent
-                );
+                log.error("We tried to register a DOI {} that has not been reserved "
+                        + "before! The registration agency told us: {}.",
+                    () -> doi, resp::getContent);
                 throw new DOIIdentifierException("There was an error in handling "
                                                      + "of DOIs. The DOI we wanted to register had not been "
                                                      + "reserved in advance. Please contact the administrator "
@@ -586,14 +636,30 @@ public class DataCiteConnector
         return sendHttpRequest(httpget, doi);
     }
 
+    /**
+     * Send a DataCite metadata document to the registrar.
+     *
+     * @param doi identify the object.
+     * @param metadataRoot describe the object.  The root element of the document.
+     * @return the registrar's response.
+     * @throws DOIIdentifierException passed through.
+     */
     protected DataCiteResponse sendMetadataPostRequest(String doi, Element metadataRoot)
         throws DOIIdentifierException {
         Format format = Format.getCompactFormat();
         format.setEncoding("UTF-8");
         XMLOutputter xout = new XMLOutputter(format);
-        return sendMetadataPostRequest(doi, xout.outputString(metadataRoot.getDocument()));
+        return sendMetadataPostRequest(doi, xout.outputString(new Document(metadataRoot)));
     }
 
+    /**
+     * Send a DataCite metadata document to the registrar.
+     *
+     * @param doi identify the object.
+     * @param metadata describe the object.
+     * @return the registrar's response.
+     * @throws DOIIdentifierException passed through.
+     */
     protected DataCiteResponse sendMetadataPostRequest(String doi, String metadata)
         throws DOIIdentifierException {
         // post mds/metadata/
@@ -641,7 +707,7 @@ public class DataCiteConnector
      *            properties such as request URI and method type.
      * @param doi DOI string to operate on
      * @return response from DataCite
-     * @throws DOIIdentifierException if DOI error
+     * @throws DOIIdentifierException if registrar returns an error.
      */
     protected DataCiteResponse sendHttpRequest(HttpUriRequest req, String doi)
         throws DOIIdentifierException {
@@ -802,19 +868,10 @@ public class DataCiteConnector
         }
         Element identifier = new Element("identifier",
                                          configurationService.getProperty(CFG_NAMESPACE,
-                                                                          "http://datacite.org/schema/kernel-4"));
+                                                                          "http://datacite.org/schema/kernel-3"));
         identifier.setAttribute("identifierType", "DOI");
         identifier.addContent(doi.substring(DOI.SCHEME.length()));
         return root.addContent(0, identifier);
-    }
-
-    public Map<String, StreamDisseminationCrosswalk> getDisseminationCrosswalkByEntityType() {
-        return disseminationCrosswalkByEntityType;
-    }
-
-    public void setDisseminationCrosswalkByEntityType(
-        Map<String, StreamDisseminationCrosswalk> disseminationCrosswalkByEntityType) {
-        this.disseminationCrosswalkByEntityType = disseminationCrosswalkByEntityType;
     }
 
     protected class DataCiteResponse {

@@ -35,7 +35,6 @@ public class SubmissionAccessOptionConverter
         SubmissionAccessOptionRest model = new SubmissionAccessOptionRest();
         model.setId(config.getName());
         model.setCanChangeDiscoverable(config.getCanChangeDiscoverable());
-        model.setSingleAccessCondition(config.getSingleAccessCondition());
         model.setProjection(projection);
         DateMathParser dateMathParser = new DateMathParser();
         for (AccessConditionOption option : config.getOptions()) {

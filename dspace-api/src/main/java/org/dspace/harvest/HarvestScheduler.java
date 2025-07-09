@@ -258,7 +258,7 @@ public class HarvestScheduler implements Runnable {
                 long nextHarvest = 0;
                 if (hc != null) {
                     Calendar calendar = Calendar.getInstance();
-                    calendar.setTime(hc.getLastHarvestDate());
+                    calendar.setTime(hc.getHarvestDate());
                     calendar.add(Calendar.MINUTE, harvestInterval);
                     nextTime = calendar.getTime();
                     nextHarvest = nextTime.getTime() + -new Date().getTime();

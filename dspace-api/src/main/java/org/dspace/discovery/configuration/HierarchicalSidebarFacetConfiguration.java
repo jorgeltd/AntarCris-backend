@@ -20,7 +20,6 @@ public class HierarchicalSidebarFacetConfiguration extends DiscoverySearchFilter
 
     private String splitter;
     private boolean skipFirstNodeLevel = true;
-    private boolean onlyLastNodeRelevant = false;
 
 
     public HierarchicalSidebarFacetConfiguration() {
@@ -43,14 +42,6 @@ public class HierarchicalSidebarFacetConfiguration extends DiscoverySearchFilter
 
     public void setSkipFirstNodeLevel(boolean skipFirstNodeLevel) {
         this.skipFirstNodeLevel = skipFirstNodeLevel;
-    }
-
-    public boolean isOnlyLastNodeRelevant() {
-        return onlyLastNodeRelevant;
-    }
-
-    public void setOnlyLastNodeRelevant(boolean onlyLastNodeRelevant) {
-        this.onlyLastNodeRelevant = onlyLastNodeRelevant;
     }
 
     @Override

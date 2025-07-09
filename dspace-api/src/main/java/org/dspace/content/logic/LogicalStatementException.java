@@ -15,11 +15,6 @@ package org.dspace.content.logic;
  */
 public class LogicalStatementException extends RuntimeException {
 
-    /**
-     *
-     */
-    private static final long serialVersionUID = 4359396872341233092L;
-
     public LogicalStatementException() {
         super();
     }

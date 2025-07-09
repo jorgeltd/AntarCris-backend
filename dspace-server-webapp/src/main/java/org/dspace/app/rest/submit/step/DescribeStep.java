@@ -9,7 +9,6 @@ package org.dspace.app.rest.submit.step;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
@@ -23,18 +22,14 @@ import org.dspace.app.rest.submit.AbstractProcessingStep;
 import org.dspace.app.rest.submit.SubmissionService;
 import org.dspace.app.rest.submit.factory.PatchOperationFactory;
 import org.dspace.app.rest.submit.factory.impl.PatchOperation;
-import org.dspace.app.rest.utils.DCInputsReaderFactory;
 import org.dspace.app.util.DCInput;
 import org.dspace.app.util.DCInputSet;
 import org.dspace.app.util.DCInputsReader;
 import org.dspace.app.util.DCInputsReaderException;
 import org.dspace.app.util.SubmissionStepConfig;
-import org.dspace.app.util.TypeBindUtils;
 import org.dspace.content.InProgressSubmission;
 import org.dspace.content.MetadataValue;
 import org.dspace.content.RelationshipMetadataService;
-import org.dspace.content.authority.factory.ContentAuthorityServiceFactory;
-import org.dspace.content.authority.service.MetadataAuthorityService;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.core.Context;
 import org.dspace.core.Utils;
@@ -58,15 +53,11 @@ public class DescribeStep extends AbstractProcessingStep {
     private final ConfigurationService configurationService =
             DSpaceServicesFactory.getInstance().getConfigurationService();
 
-    private final MetadataAuthorityService metadataAuthorityService = ContentAuthorityServiceFactory
-            .getInstance()
-            .getMetadataAuthorityService();
-
     private RelationshipMetadataService relationshipMetadataService =
         ContentServiceFactory.getInstance().getRelationshipMetadataService();
 
     public DescribeStep() throws DCInputsReaderException {
-        inputReader = DCInputsReaderFactory.getDCInputsReader();
+        inputReader = new DCInputsReader();
     }
 
     @Override
@@ -84,11 +75,15 @@ public class DescribeStep extends AbstractProcessingStep {
 
     private void readField(InProgressSubmission obj, SubmissionStepConfig config, DataDescribe data,
                            DCInputSet inputConfig) throws DCInputsReaderException {
-
-        String documentType = TypeBindUtils.getTypeBindValue(obj);
+        String documentTypeValue = "";
+        List<MetadataValue> documentType = itemService.getMetadataByMetadataString(obj.getItem(),
+                configurationService.getProperty("submit.type-bind.field", "dc.type"));
+        if (documentType.size() > 0) {
+            documentTypeValue = documentType.get(0).getValue();
+        }
 
         // Get list of all field names (including qualdrop names) allowed for this dc.type
-        List<String> allowedFieldNames = inputConfig.populateAllowedFieldNames(documentType);
+        List<String> allowedFieldNames = inputConfig.populateAllowedFieldNames(documentTypeValue);
 
         // Loop input rows and process submitted metadata
         for (DCInput[] row : inputConfig.getFields()) {
@@ -98,13 +93,6 @@ public class DescribeStep extends AbstractProcessingStep {
                     for (Object qualifier : input.getPairs()) {
                         fieldsName.add(input.getFieldName() + "." + (String) qualifier);
                     }
-                } else if (StringUtils.equalsIgnoreCase(input.getInputType(), "group") ||
-                        StringUtils.equalsIgnoreCase(input.getInputType(), "inline-group")) {
-                    log.debug("Called child form:" + config.getId() + "-" +
-                             Utils.standardize(input.getSchema(), input.getElement(), input.getQualifier(), "-"));
-                    DCInputSet inputConfigChild = inputReader.getInputsByFormName(config.getId() + "-" + Utils
-                        .standardize(input.getSchema(), input.getElement(), input.getQualifier(), "-"));
-                    readField(obj, config, data, inputConfigChild);
                 } else {
                     String fieldName = input.getFieldName();
                     if (fieldName != null) {
@@ -123,7 +111,7 @@ public class DescribeStep extends AbstractProcessingStep {
                         dto.setLanguage(md.getLanguage());
                         dto.setPlace(md.getPlace());
                         dto.setValue(md.getValue());
-                        dto.setSecurityLevel(md.getSecurityLevel());
+
                         String[] metadataToCheck = Utils.tokenize(md.getMetadataField().toString());
                         if (data.getMetadata().containsKey(
                             Utils.standardize(metadataToCheck[0], metadataToCheck[1], metadataToCheck[2], "."))) {
@@ -180,9 +168,7 @@ public class DescribeStep extends AbstractProcessingStep {
             PatchOperation<MetadataValueRest> patchOperation = new PatchOperationFactory()
                         .instanceOf(DESCRIBE_STEP_METADATA_OPERATION_ENTRY, op.getOp());
             String[] split = patchOperation.getAbsolutePath(op.getPath()).split("/");
-            String fieldName = split[0];
-            Optional<DCInput> field = inputConfig.getField(fieldName);
-            if (field.isPresent()) {
+            if (inputConfig.isFieldPresent(split[0])) {
                 patchOperation.perform(context, currentRequest, source, op);
             } else {
                 throw new UnprocessableEntityException("The field " + split[0] + " is not present in section "
@@ -201,7 +187,7 @@ public class DescribeStep extends AbstractProcessingStep {
                     }
                 } else if (StringUtils.equalsIgnoreCase(input.getInputType(), "group") ||
                         StringUtils.equalsIgnoreCase(input.getInputType(), "inline-group")) {
-                    log.debug("Called child form:" + configId + "-" +
+                    log.info("Called child form:" + configId + "-" +
                         Utils.standardize(input.getSchema(), input.getElement(), input.getQualifier(), "-"));
                     DCInputSet inputConfigChild = inputReader.getInputsByFormName(configId + "-" + Utils
                         .standardize(input.getSchema(), input.getElement(), input.getQualifier(), "-"));

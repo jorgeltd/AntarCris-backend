@@ -42,7 +42,6 @@ import org.jdom2.input.SAXBuilder;
 import org.jdom2.xpath.XPathExpression;
 import org.jdom2.xpath.XPathFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.xml.sax.InputSource;
 
 /**
  * Implements a data source for querying PubMed Central
@@ -357,8 +356,6 @@ public class PubmedImportMetadataSourceServiceImpl extends AbstractImportMetadat
             saxBuilder.setFeature("http://xml.org/sax/features/external-general-entities", false);
             saxBuilder.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             saxBuilder.setExpandEntities(false);
-            saxBuilder.setEntityResolver((publicId, systemId) -> new InputSource(new StringReader("")));
-
             Document document = saxBuilder.build(new StringReader(recordsSrc));
             Element root = document.getRootElement();
 
@@ -368,7 +365,7 @@ public class PubmedImportMetadataSourceServiceImpl extends AbstractImportMetadat
             List<Element> recordsList = xpath.evaluate(root);
             return recordsList;
         } catch (JDOMException | IOException e) {
-            return List.of();
+            return null;
         }
     }
 

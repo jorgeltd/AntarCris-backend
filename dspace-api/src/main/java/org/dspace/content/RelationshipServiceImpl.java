@@ -9,14 +9,10 @@ package org.dspace.content;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -31,7 +27,6 @@ import org.dspace.content.dao.RelationshipDAO;
 import org.dspace.content.dao.pojo.ItemUuidAndRelationshipId;
 import org.dspace.content.service.EntityTypeService;
 import org.dspace.content.service.ItemService;
-import org.dspace.content.service.RelationshipPlacesIndexingService;
 import org.dspace.content.service.RelationshipService;
 import org.dspace.content.service.RelationshipTypeService;
 import org.dspace.content.virtual.VirtualMetadataConfiguration;
@@ -72,8 +67,6 @@ public class RelationshipServiceImpl implements RelationshipService {
 
     @Autowired
     private VirtualMetadataPopulator virtualMetadataPopulator;
-    @Autowired
-    private RelationshipPlacesIndexingService relationshipPlacesIndexingService;
 
     @Override
     public Relationship create(Context context) throws SQLException, AuthorizeException {
@@ -90,34 +83,13 @@ public class RelationshipServiceImpl implements RelationshipService {
         return create(c, leftItem, rightItem, relationshipType, leftPlace, rightPlace, null, null);
     }
 
+
+
     @Override
-    public Relationship create(Context c, Item leftItem, Item rightItem, RelationshipType relationshipType,
-        boolean bypassValidation)
-        throws AuthorizeException, SQLException {
-        Relationship relationship = createRelationshipObject(c, leftItem, rightItem, relationshipType,
-            0, 0, null, null);
-        return create(c, relationship, bypassValidation);
-    }
-
-    private Relationship createRelationshipObject(Context c, Item leftItem, Item rightItem,
-            RelationshipType relationshipType, int leftPlace, int rightPlace, String leftwardValue,
-            String rightwardValue)
-        throws AuthorizeException, SQLException {
-        Relationship relationship = new Relationship();
-        relationship.setLeftItem(leftItem);
-        relationship.setRightItem(rightItem);
-        relationship.setRelationshipType(relationshipType);
-        relationship.setLeftPlace(leftPlace);
-        relationship.setRightPlace(rightPlace);
-        relationship.setLeftwardValue(leftwardValue);
-        relationship.setRightwardValue(rightwardValue);
-        return relationship;
-    }
-
     public Relationship create(
         Context c, Item leftItem, Item rightItem, RelationshipType relationshipType, int leftPlace, int rightPlace,
-        String leftwardValue, String rightwardValue, LatestVersionStatus latestVersionStatus)
-        throws AuthorizeException, SQLException {
+        String leftwardValue, String rightwardValue, LatestVersionStatus latestVersionStatus
+    ) throws AuthorizeException, SQLException {
         Relationship relationship = new Relationship();
         relationship.setLeftItem(leftItem);
         relationship.setRightItem(rightItem);
@@ -144,37 +116,22 @@ public class RelationshipServiceImpl implements RelationshipService {
     @Override
     public Relationship create(Context context, Relationship relationship) throws SQLException, AuthorizeException {
         if (isRelationshipValidToCreate(context, relationship)) {
-            return createRelationshipDAO(context, relationship);
+            if (authorizeService.authorizeActionBoolean(context, relationship.getLeftItem(), Constants.WRITE) ||
+                authorizeService.authorizeActionBoolean(context, relationship.getRightItem(), Constants.WRITE)) {
+                // This order of execution should be handled in the creation (create, updateplace, update relationship)
+                // for a proper place allocation
+                Relationship relationshipToReturn = relationshipDAO.create(context, relationship);
+                updatePlaceInRelationship(context, relationshipToReturn, null, null, true, true);
+                update(context, relationshipToReturn);
+                updateItemsInRelationship(context, relationship);
+                return relationshipToReturn;
+            } else {
+                throw new AuthorizeException(
+                    "You do not have write rights on this relationship's items");
+            }
+
         } else {
             throw new IllegalArgumentException("The relationship given was not valid");
-        }
-    }
-
-    @Override
-    public Relationship create(Context context, Relationship relationship, boolean bypassValidation)
-        throws SQLException, AuthorizeException {
-        if (isRelationshipValidToCreate(context, relationship) || bypassValidation) {
-            return createRelationshipDAO(context, relationship);
-        } else {
-            throw new IllegalArgumentException("The relationship given was not valid");
-        }
-    }
-
-    private Relationship createRelationshipDAO(Context context, Relationship relationship)
-        throws AuthorizeException, SQLException {
-        if (authorizeService.authorizeActionBoolean(context, relationship.getLeftItem(), Constants.WRITE) ||
-            authorizeService.authorizeActionBoolean(context, relationship.getRightItem(), Constants.WRITE)) {
-            // This order of execution should be handled in the creation (create,
-            // updateplace, update relationship)
-            // for a proper place allocation
-            Relationship relationshipToReturn = relationshipDAO.create(context, relationship);
-            updatePlaceInRelationship(context, relationshipToReturn, null, null, true, true);
-            update(context, relationshipToReturn);
-            updateItemsInRelationship(context, relationship);
-            return relationshipToReturn;
-        } else {
-            throw new AuthorizeException(
-                "You do not have write rights on this relationship's items");
         }
     }
 
@@ -275,19 +232,14 @@ public class RelationshipServiceImpl implements RelationshipService {
         Item leftItem = relationship.getLeftItem();
         Item rightItem = relationship.getRightItem();
 
-        final boolean onlyRightRelationship = placesOnly(relationship.getRelationshipType(), false);
-        final boolean onlyLeftRelationship = placesOnly(relationship.getRelationshipType(), true);
-
         // These list also include the non-latest. This is relevant to determine whether it's deleted.
         // This can also imply there may be overlapping places, and/or the given relationship will overlap
         // But the shift will allow this, and only happen when needed based on the latest status
-        List<Relationship> leftRelationships = onlyRightRelationship ? Collections.emptyList() :
-            findByItemAndRelationshipType(
-                context, leftItem, relationship.getRelationshipType(), true, -1, -1, false
-            );
-        List<Relationship> rightRelationships = onlyLeftRelationship ? Collections.emptyList() :
-            findByItemAndRelationshipType(
-                context, rightItem, relationship.getRelationshipType(), false, -1, -1, false
+        List<Relationship> leftRelationships = findByItemAndRelationshipType(
+            context, leftItem, relationship.getRelationshipType(), true, -1, -1, false
+        );
+        List<Relationship> rightRelationships = findByItemAndRelationshipType(
+            context, rightItem, relationship.getRelationshipType(), false, -1, -1, false
         );
 
         // These relationships are only deleted from the temporary lists in case they're present in them so that we can
@@ -331,38 +283,10 @@ public class RelationshipServiceImpl implements RelationshipService {
             );
         }
 
-        updateRelationCardinality(relationship, onlyRightRelationship, onlyLeftRelationship,
-                                  leftRelationships, rightRelationships);
-
-
         updateItem(context, leftItem);
         updateItem(context, rightItem);
 
         context.restoreAuthSystemState();
-        relationshipPlacesIndexingService.updateRelationReferences(context, relationship);
-    }
-
-    private void updateRelationCardinality(Relationship relationship, boolean onlyRightRelationship,
-                                           boolean onlyLeftRelationship, List<Relationship> leftRelationships,
-                                           List<Relationship> rightRelationships) {
-        if (onlyLeftRelationship) {
-
-            BiConsumer<Integer, Relationship> placesUpdate = (places,rel) -> rel.setRightPlace(places);
-            updatePlaces(relationship, leftRelationships, placesUpdate);
-        }
-        if (onlyRightRelationship) {
-            BiConsumer<Integer, Relationship> placesUpdate = (places,rel) -> rel.setLeftPlace(places);
-            updatePlaces(relationship, rightRelationships, placesUpdate);
-        }
-    }
-
-    private void updatePlaces(Relationship relationship, List<Relationship> relationships,
-                                  BiConsumer<Integer, Relationship> consumer) {
-        int place = relationships.size() + 1;
-        consumer.accept(place, relationship);
-        for (Relationship rel : relationships) {
-            consumer.accept(place, rel);
-        }
     }
 
     /**
@@ -550,7 +474,6 @@ public class RelationshipServiceImpl implements RelationshipService {
                 }
             }
         }
-
         for (MetadataValue mdv : metadata) {
             // NOTE: Plain text metadata values should ALWAYS be included in the place calculation,
             //       because they are by definition only visible/relevant to the side of the relationship
@@ -606,11 +529,7 @@ public class RelationshipServiceImpl implements RelationshipService {
 
     private boolean isRelationshipValidToCreate(Context context, Relationship relationship) throws SQLException {
         RelationshipType relationshipType = relationship.getRelationshipType();
-        if (relationshipType.getLeftType() == null && relationshipType.getRightType() == null) {
-            log.warn("The relationship has been deemed invalid since both left and right type " +
-                "of relationship type are null");
-            return false;
-        }
+
         if (!verifyEntityTypes(relationship.getLeftItem(), relationshipType.getLeftType())) {
             log.warn("The relationship has been deemed invalid since the leftItem" +
                          " and leftType do no match on entityType");
@@ -648,12 +567,8 @@ public class RelationshipServiceImpl implements RelationshipService {
         log.warn("The relationshipType's ID is: " + relationshipType.getID());
         log.warn("The relationshipType's leftward type is: " + relationshipType.getLeftwardType());
         log.warn("The relationshipType's rightward type is: " + relationshipType.getRightwardType());
-        log.warn("The relationshipType's left entityType label is: " +
-            Optional.ofNullable(relationshipType.getLeftType())
-                .map(EntityType::getLabel).orElse("null"));
-        log.warn("The relationshipType's right entityType label is: " +
-            Optional.ofNullable(relationshipType.getRightType())
-                .map(EntityType::getLabel).orElse("null"));
+        log.warn("The relationshipType's left entityType label is: " + relationshipType.getLeftType().getLabel());
+        log.warn("The relationshipType's right entityType label is: " + relationshipType.getRightType().getLabel());
         log.warn("The relationshipType's left min cardinality is: " + relationshipType.getLeftMinCardinality());
         log.warn("The relationshipType's left max cardinality is: " + relationshipType.getLeftMaxCardinality());
         log.warn("The relationshipType's right min cardinality is: " + relationshipType.getRightMinCardinality());
@@ -677,10 +592,6 @@ public class RelationshipServiceImpl implements RelationshipService {
     }
 
     private boolean verifyEntityTypes(Item itemToProcess, EntityType entityTypeToProcess) {
-        // null means every entity type is fine
-        if (Objects.isNull(entityTypeToProcess)) {
-            return true;
-        }
         List<MetadataValue> list = itemService.getMetadata(itemToProcess, "dspace", "entity",
                 "type", Item.ANY, false);
         if (list.isEmpty()) {
@@ -770,17 +681,6 @@ public class RelationshipServiceImpl implements RelationshipService {
     }
 
     @Override
-    public void delete(Context context, Relationship relationship, boolean bypassValidation)
-        throws SQLException, AuthorizeException {
-        // TODO: retrieve default settings from configuration
-        if (bypassValidation) {
-            forceDelete(context, relationship, false, false);
-        } else {
-            delete(context, relationship, false, false);
-        }
-    }
-
-    @Override
     public void delete(Context context, Relationship relationship, boolean copyToLeftItem, boolean copyToRightItem)
         throws SQLException, AuthorizeException {
         log.info(org.dspace.core.LogHelper.getHeader(context, "delete_relationship",
@@ -826,6 +726,7 @@ public class RelationshipServiceImpl implements RelationshipService {
                 "You do not have write rights on this relationship's items");
         }
     }
+
 
 
     /**
@@ -1199,28 +1100,6 @@ public class RelationshipServiceImpl implements RelationshipService {
     public int countByTypeName(Context context, String typeName)
             throws SQLException {
         return relationshipDAO.countByTypeName(context, typeName);
-    }
-
-    @Override
-    public boolean placesOnly(final RelationshipType relationshipType, final boolean isLeft) {
-
-        final String position = isLeft ? "left" : "right";
-        final String[] placesSettings = configurationService.getArrayProperty("relationship.places.only" +
-            position);
-        if (placesSettings == null) {
-            return false;
-        }
-        final String leftTypeLabel = Optional.ofNullable(relationshipType.getLeftType())
-            .map(EntityType::getLabel).orElse("null");
-        final String rightTypeLabel = Optional.ofNullable(relationshipType.getRightType())
-            .map(EntityType::getLabel).orElse("null");
-
-        return Arrays.stream(placesSettings)
-            .anyMatch(v -> v.equals(String.join("::",
-                leftTypeLabel,
-                rightTypeLabel,
-                relationshipType.getLeftwardType(),
-                relationshipType.getRightwardType())));
     }
 
     @Override

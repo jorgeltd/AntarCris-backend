@@ -145,9 +145,6 @@ public class WOSImportMetadataSourceServiceImpl extends AbstractImportMetadataSo
                 Map<String, Map<String, String>> params = new HashMap<String, Map<String,String>>();
                 params.put(HEADER_PARAMETERS, getRequestParameters());
                 String response = liveImportClient.executeHttpGetRequest(timeout, url, params);
-                if (StringUtils.isEmpty(response)) {
-                    return 0;
-                }
 
                 SAXBuilder saxBuilder = new SAXBuilder();
                 // disallow DTD parsing to ensure no XXE attacks can occur
@@ -184,9 +181,6 @@ public class WOSImportMetadataSourceServiceImpl extends AbstractImportMetadataSo
                 Map<String, Map<String, String>> params = new HashMap<String, Map<String,String>>();
                 params.put(HEADER_PARAMETERS, getRequestParameters());
                 String response = liveImportClient.executeHttpGetRequest(timeout, urlString, params);
-                if (StringUtils.isEmpty(response)) {
-                    return results;
-                }
 
                 List<Element> elements = splitToRecords(response);
                 for (Element record : elements) {
@@ -234,9 +228,6 @@ public class WOSImportMetadataSourceServiceImpl extends AbstractImportMetadataSo
                 String url = urlSearch + URLEncoder.encode(queryString, StandardCharsets.UTF_8)
                                                  + "&count=" + count + "&firstRecord=" + (start + 1);
                 String response = liveImportClient.executeHttpGetRequest(timeout, url, params);
-                if (StringUtils.isEmpty(response)) {
-                    return results;
-                }
 
                 List<Element> omElements = splitToRecords(response);
                 for (Element el : omElements) {

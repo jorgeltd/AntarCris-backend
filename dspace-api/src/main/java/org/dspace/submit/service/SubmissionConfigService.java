@@ -39,10 +39,9 @@ public interface SubmissionConfigService {
     public SubmissionConfig getSubmissionConfigByName(String submitName);
 
     public SubmissionStepConfig getStepConfig(String stepID)
-        throws SubmissionConfigReaderException;
+            throws SubmissionConfigReaderException;
 
     public List<Collection> getCollectionsBySubmissionConfig(Context context, String submitName)
-        throws IllegalStateException, SQLException, SubmissionConfigReaderException;
+            throws IllegalStateException, SQLException, SubmissionConfigReaderException;
 
-    SubmissionConfig getCorrectionSubmissionConfigByCollection(Collection collection);
 }

@@ -7,25 +7,18 @@
  */
 package org.dspace.orcid.service.impl;
 
-import static org.apache.commons.lang3.ArrayUtils.contains;
-
 import java.sql.SQLException;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataFieldName;
-import org.dspace.content.authority.service.ChoiceAuthorityService;
+import org.dspace.content.Relationship;
 import org.dspace.content.service.ItemService;
+import org.dspace.content.service.RelationshipService;
 import org.dspace.core.Context;
-import org.dspace.discovery.DiscoverQuery;
-import org.dspace.discovery.DiscoverResultItemIterator;
-import org.dspace.discovery.indexobject.IndexableItem;
 import org.dspace.orcid.OrcidOperation;
 import org.dspace.orcid.OrcidQueue;
 import org.dspace.orcid.dao.OrcidQueueDAO;
@@ -33,7 +26,6 @@ import org.dspace.orcid.model.OrcidEntityType;
 import org.dspace.orcid.service.OrcidHistoryService;
 import org.dspace.orcid.service.OrcidQueueService;
 import org.dspace.profile.OrcidEntitySyncPreference;
-import org.dspace.services.ConfigurationService;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -54,10 +46,7 @@ public class OrcidQueueServiceImpl implements OrcidQueueService {
     private ItemService itemService;
 
     @Autowired
-    private ChoiceAuthorityService choiceAuthorityService;
-
-    @Autowired
-    private ConfigurationService configurationService;
+    private RelationshipService relationshipService;
 
     @Override
     public List<OrcidQueue> findByProfileItemId(Context context, UUID profileItemId) throws SQLException {
@@ -223,39 +212,33 @@ public class OrcidQueueServiceImpl implements OrcidQueueService {
         if (preference == OrcidEntitySyncPreference.DISABLED) {
             deleteByProfileItemAndRecordType(context, profileItem, entityType);
         } else {
-            Iterator<Item> entities = findAllEntitiesLinkableWith(context, profileItem, entityType);
-            while (entities.hasNext()) {
-                create(context, profileItem, entities.next());
+            List<Item> entities = findAllEntitiesLinkableWith(context, profileItem, entityType);
+            for (Item entity : entities) {
+                create(context, profileItem, entity);
             }
         }
 
     }
 
-    private Iterator<Item> findAllEntitiesLinkableWith(Context context, Item owner, String entityType) {
+    private List<Item> findAllEntitiesLinkableWith(Context context, Item profile, String entityType) {
 
-        String ownerType = itemService.getMetadataFirstValue(owner, "dspace", "entity", "type", Item.ANY);
-
-        String query = choiceAuthorityService.getAuthorityControlledFieldsByEntityType(ownerType).stream()
-            .map(metadataField -> metadataField.replaceAll("_", "."))
-            .filter(metadataField -> shouldNotBeIgnoredForOrcid(metadataField))
-            .map(metadataField -> metadataField + "_allauthority: \"" + owner.getID().toString() + "\"")
-            .collect(Collectors.joining(" OR "));
-
-        if (StringUtils.isEmpty(query)) {
-            return Collections.emptyIterator();
-        }
-
-        DiscoverQuery discoverQuery = new DiscoverQuery();
-        discoverQuery.addDSpaceObjectFilter(IndexableItem.TYPE);
-        discoverQuery.addFilterQueries(query);
-        discoverQuery.addFilterQueries("search.entitytype:" + entityType);
-
-        return new DiscoverResultItemIterator(context, discoverQuery);
+        return findRelationshipsByItem(context, profile).stream()
+            .map(relationship -> getRelatedItem(relationship, profile))
+            .filter(item -> entityType.equals(itemService.getEntityTypeLabel(item)))
+            .collect(Collectors.toList());
 
     }
 
-    private boolean shouldNotBeIgnoredForOrcid(String metadataField) {
-        return !contains(configurationService.getArrayProperty("orcid.linkable-metadata-fields.ignore"), metadataField);
+    private List<Relationship> findRelationshipsByItem(Context context, Item item) {
+        try {
+            return relationshipService.findByItem(context, item);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private Item getRelatedItem(Relationship relationship, Item item) {
+        return relationship.getLeftItem().equals(item) ? relationship.getRightItem() : relationship.getLeftItem();
     }
 
     private String getMetadataValue(Item item, String metadatafield) {

@@ -151,6 +151,24 @@ public class ProcessDAOImpl extends AbstractHibernateDAO<Process> implements Pro
         return count(context, criteriaQuery, criteriaBuilder, processRoot);
     }
 
+
+    @Override
+    public List<Process> findByStatusAndCreationTimeOlderThan(Context context, List<ProcessStatus> statuses,
+        Date date) throws SQLException {
+
+        CriteriaBuilder criteriaBuilder = getCriteriaBuilder(context);
+        CriteriaQuery<Process> criteriaQuery = getCriteriaQuery(criteriaBuilder, Process.class);
+
+        Root<Process> processRoot = criteriaQuery.from(Process.class);
+        criteriaQuery.select(processRoot);
+
+        Predicate creationTimeLessThanGivenDate = criteriaBuilder.lessThan(processRoot.get(CREATION_TIME), date);
+        Predicate statusIn = processRoot.get(Process_.PROCESS_STATUS).in(statuses);
+        criteriaQuery.where(criteriaBuilder.and(creationTimeLessThanGivenDate, statusIn));
+
+        return list(context, criteriaQuery, false, Process.class, -1, -1);
+    }
+
     @Override
     public List<Process> findByUser(Context context, EPerson user, int limit, int offset) throws SQLException {
         CriteriaBuilder criteriaBuilder = getCriteriaBuilder(context);
@@ -176,24 +194,6 @@ public class ProcessDAOImpl extends AbstractHibernateDAO<Process> implements Pro
         criteriaQuery.select(criteriaBuilder.count(processRoot));
         criteriaQuery.where(criteriaBuilder.equal(processRoot.get(Process_.E_PERSON), user));
         return count(context, criteriaQuery, criteriaBuilder, processRoot);
-
-    }
-
-    @Override
-    public List<Process> findByStatusAndCreationTimeOlderThan(Context context, List<ProcessStatus> statuses,
-        Date date) throws SQLException {
-
-        CriteriaBuilder criteriaBuilder = getCriteriaBuilder(context);
-        CriteriaQuery<Process> criteriaQuery = getCriteriaQuery(criteriaBuilder, Process.class);
-
-        Root<Process> processRoot = criteriaQuery.from(Process.class);
-        criteriaQuery.select(processRoot);
-
-        Predicate creationTimeLessThanGivenDate = criteriaBuilder.lessThan(processRoot.get(CREATION_TIME), date);
-        Predicate statusIn = processRoot.get(Process_.PROCESS_STATUS).in(statuses);
-        criteriaQuery.where(criteriaBuilder.and(creationTimeLessThanGivenDate, statusIn));
-
-        return list(context, criteriaQuery, false, Process.class, -1, -1);
     }
 
 }

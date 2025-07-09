@@ -1,6 +1,4 @@
-# AntarCris Backend
-Backend del sistema RIS AntarCris, mayor detalle en la wiki del repositorio.
+# Backend CRIS Antartico
 
-Autor: Javier Norambuena Leiva.
+WIP
 
-Template: DspaceCris8.

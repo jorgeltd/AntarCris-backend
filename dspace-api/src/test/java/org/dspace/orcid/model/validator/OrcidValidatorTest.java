@@ -19,7 +19,6 @@ import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION
 import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION_COUNTRY_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION_NAME_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.PUBLICATION_DATE_INVALID;
-import static org.dspace.orcid.model.validator.OrcidValidationError.START_DATE_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.TITLE_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.TYPE_REQUIRED;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -52,7 +51,6 @@ import org.orcid.jaxb.model.v3.release.record.ExternalID;
 import org.orcid.jaxb.model.v3.release.record.ExternalIDs;
 import org.orcid.jaxb.model.v3.release.record.Funding;
 import org.orcid.jaxb.model.v3.release.record.FundingTitle;
-import org.orcid.jaxb.model.v3.release.record.Qualification;
 import org.orcid.jaxb.model.v3.release.record.Work;
 import org.orcid.jaxb.model.v3.release.record.WorkTitle;
 
@@ -74,7 +72,6 @@ public class OrcidValidatorTest {
     public void before() {
         when(configurationService.getBooleanProperty("orcid.validation.work.enabled", true)).thenReturn(true);
         when(configurationService.getBooleanProperty("orcid.validation.funding.enabled", true)).thenReturn(true);
-        when(configurationService.getBooleanProperty("orcid.validation.affiliation.enabled", true)).thenReturn(true);
         when(configurationService.getArrayProperty("orcid.validation.organization.identifier-sources"))
             .thenReturn(new String[] { "RINGGOLD", "GRID", "FUNDREF", "LEI" });
     }
@@ -572,29 +569,6 @@ public class OrcidValidatorTest {
         funding.setOrganization(buildValidOrganization());
 
         List<OrcidValidationError> errors = validator.validateFunding(funding);
-        assertThat(errors, empty());
-    }
-
-    @Test
-    public void testWithAffiliationValidationEnabled() {
-
-        Qualification qualification = new Qualification();
-        qualification.setOrganization(buildValidOrganization());
-
-        List<OrcidValidationError> errors = validator.validate(qualification);
-        assertThat(errors, hasSize(1));
-        assertThat(errors, containsInAnyOrder(START_DATE_REQUIRED));
-    }
-
-    @Test
-    public void testWithAffiliationValidationDisabled() {
-
-        when(configurationService.getBooleanProperty("orcid.validation.affiliation.enabled", true)).thenReturn(false);
-
-        Qualification qualification = new Qualification();
-        qualification.setOrganization(buildValidOrganization());
-
-        List<OrcidValidationError> errors = validator.validate(qualification);
         assertThat(errors, empty());
     }
 

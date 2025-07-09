@@ -7,11 +7,8 @@
  */
 package org.dspace.app.rest.model;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.UUID;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.dspace.app.rest.RestResourceController;
 
@@ -27,28 +24,11 @@ public class RegistrationRest extends RestAddressableModel {
     public static final String PLURAL_NAME = "registrations";
     public static final String CATEGORY = EPERSON;
 
-    private Integer id;
     private String email;
     private UUID user;
-    private String registrationType;
-    private String netId;
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private MetadataRest<RegistrationMetadataRest> registrationMetadata;
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    private List<String> groupNames = Collections.emptyList();
-    private List<UUID> groups = Collections.emptyList();
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
 
     /**
      * Generic getter for the email
-     *
      * @return the email value of this RegisterRest
      */
     public String getEmail() {
@@ -57,8 +37,7 @@ public class RegistrationRest extends RestAddressableModel {
 
     /**
      * Generic setter for the email
-     *
-     * @param email The email to be set on this RegisterRest
+     * @param email   The email to be set on this RegisterRest
      */
     public void setEmail(String email) {
         this.email = email;
@@ -66,7 +45,6 @@ public class RegistrationRest extends RestAddressableModel {
 
     /**
      * Generic getter for the user
-     *
      * @return the user value of this RegisterRest
      */
     public UUID getUser() {
@@ -75,44 +53,10 @@ public class RegistrationRest extends RestAddressableModel {
 
     /**
      * Generic setter for the user
-     *
-     * @param user The user to be set on this RegisterRest
+     * @param user   The user to be set on this RegisterRest
      */
     public void setUser(UUID user) {
         this.user = user;
-    }
-
-    public String getRegistrationType() {
-        return registrationType;
-    }
-
-    public void setRegistrationType(String registrationType) {
-        this.registrationType = registrationType;
-    }
-
-    public String getNetId() {
-        return netId;
-    }
-
-    public void setNetId(String netId) {
-        this.netId = netId;
-    }
-
-    public MetadataRest<RegistrationMetadataRest> getRegistrationMetadata() {
-        return registrationMetadata;
-    }
-
-    public void setRegistrationMetadata(
-        MetadataRest<RegistrationMetadataRest> registrationMetadata) {
-        this.registrationMetadata = registrationMetadata;
-    }
-
-    public List<UUID> getGroups() {
-        return groups;
-    }
-
-    public void setGroups(List<UUID> groups) {
-        this.groups = groups;
     }
 
     @Override
@@ -129,14 +73,6 @@ public class RegistrationRest extends RestAddressableModel {
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     public String getType() {
         return NAME;
-    }
-
-    public List<String> getGroupNames() {
-        return groupNames;
-    }
-
-    public void setGroupNames(List<String> groupNames) {
-        this.groupNames = groupNames;
     }
 
     @Override

@@ -57,8 +57,6 @@ public interface EPersonService extends DSpaceObjectService<EPerson>, DSpaceObje
             = new MetadataFieldName(EPERSON, "phone");
     public static final MetadataFieldName MD_LANGUAGE
             = new MetadataFieldName(EPERSON, "language");
-    public static final MetadataFieldName MD_ORCID
-            = new MetadataFieldName(EPERSON, "orcid");
 
     /**
      * Find the eperson by their email address.
@@ -348,13 +346,4 @@ public interface EPersonService extends DSpaceObjectService<EPerson>, DSpaceObje
      *                      access error or other errors.
      */
     EPerson findByProfileItem(Context context, Item profile) throws SQLException;
-
-    /**
-     * Check if the given user is the owner of the given item.
-     *
-     * @param  user the user
-     * @param  item the item to check
-     * @return      true if the given user is the owner of the item, false otherwise
-     */
-    boolean isOwnerOfItem(EPerson user, Item item);
 }

@@ -8,7 +8,6 @@
 package org.dspace.orcid.service;
 
 import java.sql.SQLException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -164,13 +163,5 @@ public interface OrcidSynchronizationService {
      * @param  orcid   the orcid id to search for
      * @return         the found profile items
      */
-    Iterator<Item> findProfilesByOrcid(Context context, String orcid);
-
-    /**
-     * Returns all the profiles that has an orcid id.
-     *
-     * @param  context the relevant DSpace Context.
-     * @return         an iterator over the found profile items
-     */
-    Iterator<Item> findProfilesWithOrcid(Context context);
+    List<Item> findProfilesByOrcid(Context context, String orcid);
 }

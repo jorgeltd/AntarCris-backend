@@ -53,6 +53,7 @@ public class ResearcherProfileAutomaticClaim implements PostLoggedInAction {
 
     @Autowired
     private EPersonService ePersonService;
+
     /**
      * The field of the eperson to search for.
      */

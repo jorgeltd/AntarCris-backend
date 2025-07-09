@@ -12,13 +12,11 @@ import java.util.Set;
 
 import org.dspace.app.util.SubmissionConfigReaderException;
 import org.dspace.content.Collection;
-import org.dspace.content.Item;
 import org.dspace.content.MetadataValue;
 import org.dspace.content.authority.Choice;
 import org.dspace.content.authority.ChoiceAuthority;
 import org.dspace.content.authority.Choices;
 import org.dspace.content.authority.DSpaceControlledVocabularyIndex;
-import org.dspace.core.Constants;
 
 /**
  * Broker for ChoiceAuthority plugins, and for other information configured
@@ -30,8 +28,8 @@ import org.dspace.core.Constants;
  * choices.plugin.<FIELD> = name-of-plugin
  *
  * # mode of UI presentation desired in submission UI:
- * #  "select" is dropdown menu, "lookup" is an input type with search button, "suggest" is autocomplete/suggest
- * choices.presentation.<FIELD> = "select" | "suggest" | "lookup"
+ * #  "select" is dropdown menu, "lookup" is popup with selector, "suggest" is autocomplete/suggest
+ * choices.presentation.<FIELD> = "select" | "suggest"
  *
  * # is value "closed" to the set of these choices or are non-authority values permitted?
  * choices.closed.<FIELD> = true | false
@@ -51,24 +49,47 @@ public interface ChoiceAuthorityService {
      * @param schema    schema of metadata field
      * @param element   element of metadata field
      * @param qualifier qualifier of metadata field
-     * @param dsoType   the dspace object type as defined in the {@link Constants}
      * @return the name of the choice authority associated with the specified
      * metadata. Throw IllegalArgumentException if the supplied metadata
      * is not associated with an authority choice
      */
-    public String getChoiceAuthorityName(String schema, String element, String qualifier, int dsoType,
-            Collection collection);
+    public String getChoiceAuthorityName(String schema, String element, String qualifier, Collection collection);
 
     /**
-     * @param schema    schema of metadata field
-     * @param element   element of metadata field
-     * @param qualifier qualifier of metadata field
-     * @param formName  the form name to retrieve the specific authority
-     * @return the name of the choice authority associated with the specified
-     * metadata. Throw IllegalArgumentException if the supplied metadata
-     * is not associated with an authority choice
+     * Wrapper that calls getMatches method of the plugin corresponding to
+     * the metadata field defined by schema,element,qualifier.
+     *
+     * @param schema     schema of metadata field
+     * @param element    element of metadata field
+     * @param qualifier  qualifier of metadata field
+     * @param query      user's value to match
+     * @param collection database ID of Collection for context (owner of Item)
+     * @param start      choice at which to start, 0 is first.
+     * @param limit      maximum number of choices to return, 0 for no limit.
+     * @param locale     explicit localization key if available, or null
+     * @return a Choices object (never null).
+     * @see org.dspace.content.authority.ChoiceAuthority#getMatches(java.lang.String, java.lang.String, org.dspace
+     * .content.Collection, int, int, java.lang.String)
      */
-    public String getChoiceAuthorityName(String schema, String element, String qualifier, String formName);
+    public Choices getMatches(String schema, String element, String qualifier,
+                              String query, Collection collection, int start, int limit, String locale);
+
+    /**
+     * Wrapper calls getMatches method of the plugin corresponding to
+     * the metadata field defined by single field key.
+     *
+     * @param fieldKey   single string identifying metadata field
+     * @param query      user's value to match
+     * @param collection database ID of Collection for context (owner of Item)
+     * @param start      choice at which to start, 0 is first.
+     * @param limit      maximum number of choices to return, 0 for no limit.
+     * @param locale     explicit localization key if available, or null
+     * @return a Choices object (never null).
+     * @see org.dspace.content.authority.ChoiceAuthority#getMatches(java.lang.String, java.lang.String, org.dspace
+     * .content.Collection, int, int, java.lang.String)
+     */
+    public Choices getMatches(String fieldKey, String query, Collection collection,
+                              int start, int limit, String locale);
 
     /**
      * Wrapper that calls getBestMatch method of the plugin corresponding to
@@ -76,76 +97,47 @@ public interface ChoiceAuthorityService {
      *
      * @param fieldKey   single string identifying metadata field
      * @param query      user's value to match
-     * @param dsoType   the dspace object type as defined in the {@link Constants}
      * @param collection database ID of Collection for context (owner of Item)
      * @param locale     explicit localization key if available, or null
      * @return a Choices object (never null) with 1 or 0 values.
      * @see org.dspace.content.authority.ChoiceAuthority#getBestMatch(java.lang.String, java.lang.String, org.dspace
      * .content.Collection, java.lang.String)
      */
-    public Choices getBestMatch(String fieldKey, String query, int dsoType, Collection collection,
+    public Choices getBestMatch(String fieldKey, String query, Collection collection,
                                 String locale);
-
-    /**
-     * Wrapper that calls getChoicesByParent method of the plugin.
-     *
-     * @param authorityName authority name
-     * @param parentId      parent Id
-     * @param start         choice at which to start, 0 is first.
-     * @param limit         maximum number of choices to return, 0 for no limit.
-     * @param locale        explicit localization key if available, or null
-     * @return a Choices object (never null).
-     * @see org.dspace.content.authority.ChoiceAuthority#getChoicesByParent(java.lang.String, java.lang.String,
-     *  int, int, java.lang.String)
-     */
-    public Choices getChoicesByParent(String authorityName, String parentId, int start, int limit, String locale);
 
     /**
      * Wrapper that calls getLabel method of the plugin corresponding to
      * the metadata field defined by schema,element,qualifier.
      *
      * @param metadataValue metadata value
-     * @param dsoType   the dspace object type as defined in the {@link Constants}
      * @param collection Collection owner of Item
      * @param locale        explicit localization key if available
      * @return label
      */
-    public String getLabel(MetadataValue metadataValue, int dsoType, Collection collection, String locale);
+    public String getLabel(MetadataValue metadataValue, Collection collection, String locale);
 
     /**
      * Wrapper that calls getLabel method of the plugin corresponding to
      * the metadata field defined by single field key.
      *
      * @param fieldKey single string identifying metadata field
-     * @param dsoType   the dspace object type as defined in the {@link Constants}
      * @param collection Collection owner of Item
      * @param locale   explicit localization key if available
      * @param authKey  authority key
      * @return label
      */
-    public String getLabel(String fieldKey, int dsoType, Collection collection, String authKey, String locale);
+    public String getLabel(String fieldKey, Collection collection, String authKey, String locale);
 
     /**
      * Predicate, is there a Choices configuration of any kind for the
      * given metadata field?
      *
      * @param fieldKey single string identifying metadata field
-     * @param dsoType   the dspace object type as defined in the {@link Constants}
      * @param collection Collection owner of Item
      * @return true if choices are configured for this field.
      */
-    public boolean isChoicesConfigured(String fieldKey, int dsoType, Collection collection);
-
-    /**
-     * Predicate, is there a Choices configuration of any kind for the
-     * given metadata field?
-     *
-     * @param fieldKey single string identifying metadata field
-     * @param dsoType   the dspace object type as defined in the {@link Constants}
-     * @param formname the formname used by the collection
-     * @return true if choices are configured for this field.
-     */
-    public boolean isChoicesConfigured(String fieldKey, int dsoType, String formname);
+    public boolean isChoicesConfigured(String fieldKey, Collection collection);
 
     /**
      * Get the presentation keyword (should be "lookup", "select" or "suggest", but this
@@ -168,11 +160,9 @@ public interface ChoiceAuthorityService {
      * Wrapper to call plugin's getVariants().
      *
      * @param metadataValue metadata value
-     * @param dsoType   the dspace object type as defined in the {@link Constants}
-     * @param collection Collection owner of Item
      * @return List of variants
      */
-    public List<String> getVariants(MetadataValue metadataValue, int dsoType, Collection collection);
+    public List<String> getVariants(MetadataValue metadataValue, Collection collection);
 
     /**
      * Return the ChoiceAuthority instance identified by the specified name
@@ -188,11 +178,27 @@ public interface ChoiceAuthorityService {
     public void clearCache() throws SubmissionConfigReaderException;
 
     /**
-     * Get the entity type starting from the metadata field.
-     *
-     * @return       the entity type as a String
+     * Should we store the authority key (if any) for such field key and collection?
+     * 
+     * @param fieldKey   single string identifying metadata field
+     * @param collection Collection owner of Item or where the item is submitted to
+     * @return true if the configuration allows to store the authority value
      */
-    String getLinkedEntityType(String fieldKey);
+    public boolean storeAuthority(String fieldKey, Collection collection);
+
+    /**
+     * Wrapper that calls getChoicesByParent method of the plugin.
+     *
+     * @param authorityName authority name
+     * @param parentId      parent Id
+     * @param start         choice at which to start, 0 is first.
+     * @param limit         maximum number of choices to return, 0 for no limit.
+     * @param locale        explicit localization key if available, or null
+     * @return a Choices object (never null).
+     * @see org.dspace.content.authority.ChoiceAuthority#getChoicesByParent(java.lang.String, java.lang.String,
+     *  int, int, java.lang.String)
+     */
+    public Choices getChoicesByParent(String authorityName, String parentId, int start, int limit, String locale);
 
     /**
      * Wrapper that calls getTopChoices method of the plugin.
@@ -216,34 +222,6 @@ public interface ChoiceAuthorityService {
      * @return the parent Choice object if any
      */
     public Choice getParentChoice(String authorityName, String vocabularyId, String locale);
-
-    /**
-     * Returns all the configured metadata field that are authority controlled
-     * related to the given entity type.
-     *
-     * @param  entityType the entity type
-     * @return            the metadata fields
-     */
-    public List<String> getAuthorityControlledFieldsByEntityType(String entityType);
-
-    /**
-     * Return the ChoiceAuthority instance identified by the specified params
-     *
-     * @param fieldKey
-     * @param dsoType
-     * @param collection
-     * @return the ChoiceAuthority identified by the specified params
-     */
-    public ChoiceAuthority getAuthorityByFieldKeyCollection(String fieldKey, int dsoType, Collection collection);
-
-    /**
-     * Set the reference between the given metadata value and the item using the
-     * authority.
-     *
-     * @param metadataValue the metadata value to update
-     * @param item          the item to be linked to the metadata value
-     */
-    void setReferenceWithAuthority(MetadataValue metadataValue, Item item);
 
     public DSpaceControlledVocabularyIndex getVocabularyIndex(String nameVocab);
 

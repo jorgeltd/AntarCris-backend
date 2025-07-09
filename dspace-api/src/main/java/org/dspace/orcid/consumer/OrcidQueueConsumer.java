@@ -19,21 +19,20 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dspace.content.DSpaceObject;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataFieldName;
-import org.dspace.content.MetadataValue;
+import org.dspace.content.Relationship;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.ItemService;
+import org.dspace.content.service.RelationshipService;
 import org.dspace.core.Context;
-import org.dspace.core.CrisConstants;
-import org.dspace.core.exception.SQLRuntimeException;
 import org.dspace.event.Consumer;
 import org.dspace.event.Event;
 import org.dspace.orcid.OrcidHistory;
@@ -49,7 +48,6 @@ import org.dspace.orcid.service.OrcidTokenService;
 import org.dspace.profile.OrcidProfileSyncPreference;
 import org.dspace.services.ConfigurationService;
 import org.dspace.services.factory.DSpaceServicesFactory;
-import org.dspace.util.UUIDUtils;
 
 /**
  * The consumer to fill the ORCID queue. The addition to the queue is made for
@@ -83,7 +81,9 @@ public class OrcidQueueConsumer implements Consumer {
 
     private ConfigurationService configurationService;
 
-    private Set<UUID> itemsToConsume = new HashSet<>();
+    private RelationshipService relationshipService;
+
+    private final Set<UUID> itemsToConsume = new HashSet<>();
 
     @Override
     public void initialize() throws Exception {
@@ -92,10 +92,11 @@ public class OrcidQueueConsumer implements Consumer {
 
         this.orcidQueueService = orcidServiceFactory.getOrcidQueueService();
         this.orcidHistoryService = orcidServiceFactory.getOrcidHistoryService();
-        this.orcidTokenService = orcidServiceFactory.getOrcidTokenService();
         this.orcidSynchronizationService = orcidServiceFactory.getOrcidSynchronizationService();
+        this.orcidTokenService = orcidServiceFactory.getOrcidTokenService();
         this.profileSectionFactoryService = orcidServiceFactory.getOrcidProfileSectionFactoryService();
         this.configurationService = DSpaceServicesFactory.getInstance().getConfigurationService();
+        this.relationshipService = ContentServiceFactory.getInstance().getRelationshipService();
 
         this.itemService = ContentServiceFactory.getInstance().getItemService();
     }
@@ -139,6 +140,9 @@ public class OrcidQueueConsumer implements Consumer {
         itemsToConsume.clear();
     }
 
+    /**
+     * Consume the item if it is a profile or an ORCID entity.
+     */
     private void consumeItem(Context context, Item item) throws SQLException {
 
         String entityType = itemService.getEntityTypeLabel(item);
@@ -156,25 +160,18 @@ public class OrcidQueueConsumer implements Consumer {
 
     }
 
+    /**
+     * Search for all related items to the given entity and create a new ORCID queue
+     * record if one of this is a profile linked with ORCID and the entity item must
+     * be synchronized with ORCID.
+     */
     private void consumeEntity(Context context, Item entity) throws SQLException {
-        List<MetadataValue> metadataValues = entity.getMetadata();
 
-        for (MetadataValue metadata : metadataValues) {
+        List<Item> relatedItems = findAllRelatedItems(context, entity);
 
-            String authority = metadata.getAuthority();
+        for (Item relatedItem : relatedItems) {
 
-            if (isNestedMetadataPlaceholder(metadata) || shouldBeIgnoredForOrcid(metadata)) {
-                continue;
-            }
-
-            UUID relatedItemUuid = UUIDUtils.fromString(authority);
-            if (relatedItemUuid == null) {
-                continue;
-            }
-
-            Item relatedItem = itemService.find(context, relatedItemUuid);
-
-            if (relatedItem == null || isNotProfileItem(relatedItem) || isNotLinkedToOrcid(context, relatedItem)) {
+            if (isNotProfileItem(relatedItem) || isNotLinkedToOrcid(context, relatedItem)) {
                 continue;
             }
 
@@ -192,6 +189,20 @@ public class OrcidQueueConsumer implements Consumer {
 
     }
 
+    private List<Item> findAllRelatedItems(Context context, Item entity) throws SQLException {
+        return relationshipService.findByItem(context, entity).stream()
+            .map(relationship -> getRelatedItem(entity, relationship))
+            .collect(Collectors.toList());
+    }
+
+    private Item getRelatedItem(Item item, Relationship relationship) {
+        return item.equals(relationship.getLeftItem()) ? relationship.getRightItem() : relationship.getLeftItem();
+    }
+
+    /**
+     * If the given profile item is linked with ORCID recalculate all the ORCID
+     * queue records of the configured profile sections that can be synchronized.
+     */
     private void consumeProfile(Context context, Item item) throws SQLException {
 
         if (isNotLinkedToOrcid(context, item)) {
@@ -204,7 +215,7 @@ public class OrcidQueueConsumer implements Consumer {
 
             orcidQueueService.deleteByEntityAndRecordType(context, item, sectionType);
 
-            if (isSynchronizationDisabled(context, item, factory)) {
+            if (isProfileSectionSynchronizationDisabled(context, item, factory)) {
                 continue;
             }
 
@@ -218,11 +229,16 @@ public class OrcidQueueConsumer implements Consumer {
 
     }
 
-    private boolean isSynchronizationDisabled(Context context, Item item, OrcidProfileSectionFactory factory) {
+    private boolean isProfileSectionSynchronizationDisabled(Context context,
+        Item item, OrcidProfileSectionFactory factory) {
         List<OrcidProfileSyncPreference> preferences = this.orcidSynchronizationService.getProfilePreferences(item);
         return !preferences.contains(factory.getSynchronizationPreference());
     }
 
+    /**
+     * Add new INSERTION record in the ORCID queue based on the metadata signatures
+     * calculated from the current item state.
+     */
     private void createInsertionRecordForNewSignatures(Context context, Item item, List<OrcidHistory> historyRecords,
         OrcidProfileSectionFactory factory, List<String> signatures) throws SQLException {
 
@@ -239,6 +255,11 @@ public class OrcidQueueConsumer implements Consumer {
 
     }
 
+    /**
+     * Add new DELETION records in the ORCID queue for metadata signature presents
+     * in the ORCID history no more present in the metadata signatures calculated
+     * from the current item state.
+     */
     private void createDeletionRecordForNoMorePresentSignatures(Context context, Item profile,
         List<OrcidHistory> historyRecords, OrcidProfileSectionFactory factory, List<String> signatures)
         throws SQLException {
@@ -301,8 +322,8 @@ public class OrcidQueueConsumer implements Consumer {
             .findFirst();
     }
 
-    private boolean isAlreadyQueued(Context context, Item owner, Item entity) throws SQLException {
-        return isNotEmpty(orcidQueueService.findByProfileItemAndEntity(context, owner, entity));
+    private boolean isAlreadyQueued(Context context, Item profileItem, Item entity) throws SQLException {
+        return isNotEmpty(orcidQueueService.findByProfileItemAndEntity(context, profileItem, entity));
     }
 
     private boolean isNotLinkedToOrcid(Context context, Item profileItemItem) {
@@ -326,17 +347,8 @@ public class OrcidQueueConsumer implements Consumer {
         try {
             return !itemService.isLatestVersion(context, entity);
         } catch (SQLException e) {
-            throw new SQLRuntimeException(e);
+            throw new RuntimeException(e);
         }
-    }
-
-    private boolean isNestedMetadataPlaceholder(MetadataValue metadata) {
-        return StringUtils.equals(metadata.getValue(), CrisConstants.PLACEHOLDER_PARENT_METADATA_VALUE);
-    }
-
-    private boolean shouldBeIgnoredForOrcid(MetadataValue metadata) {
-        String[] metadataFieldToIgnore = configurationService.getArrayProperty("orcid.linkable-metadata-fields.ignore");
-        return ArrayUtils.contains(metadataFieldToIgnore, metadata.getMetadataField().toString('.'));
     }
 
     private String getMetadataValue(Item item, String metadataField) {

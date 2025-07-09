@@ -11,7 +11,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
-import org.dspace.AbstractIntegrationTestWithDatabase;
+import org.dspace.AbstractIntegrationTest;
 import org.dspace.util.FakeConsoleServiceImpl;
 import org.junit.Rule;
 import org.junit.Test;
@@ -23,7 +23,7 @@ import org.junit.contrib.java.lang.system.SystemErrRule;
  * @author Mark H. Wood <mwood@iupui.edu>
  */
 public class EPersonCLIToolIT
-    extends AbstractIntegrationTestWithDatabase {
+        extends AbstractIntegrationTest {
     private static final String NEW_PASSWORD = "secret";
     private static final String BAD_PASSWORD = "not secret";
 

@@ -32,9 +32,6 @@ import org.dspace.content.Item;
 import org.dspace.content.MetadataField;
 import org.dspace.content.MetadataValue;
 import org.dspace.content.authority.Choices;
-import org.dspace.content.authority.factory.ContentAuthorityServiceFactory;
-import org.dspace.content.authority.service.ChoiceAuthorityService;
-import org.dspace.content.authority.service.MetadataAuthorityService;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.BitstreamService;
 import org.dspace.content.service.ItemService;
@@ -42,8 +39,6 @@ import org.dspace.content.service.RelationshipService;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
 import org.dspace.core.Utils;
-import org.dspace.handle.factory.HandleServiceFactory;
-import org.dspace.handle.service.HandleService;
 import org.dspace.services.ConfigurationService;
 import org.dspace.services.factory.DSpaceServicesFactory;
 import org.dspace.xoai.data.DSpaceItem;
@@ -71,19 +66,7 @@ public class ItemUtils {
             = DSpaceServicesFactory.getInstance().getConfigurationService();
 
     private static final AuthorizeService authorizeService
-        = AuthorizeServiceFactory.getInstance().getAuthorizeService();
-
-    private static final MetadataAuthorityService mam = ContentAuthorityServiceFactory
-            .getInstance().getMetadataAuthorityService();
-
-    private static final ChoiceAuthorityService choicheAuthManager = ContentAuthorityServiceFactory
-            .getInstance().getChoiceAuthorityService();
-
-    private static final HandleService handleService = HandleServiceFactory
-            .getInstance().getHandleService();
-
-    public static Integer MAX_DEEP = 2;
-    public static String AUTHORITY = "authority";
+            = AuthorizeServiceFactory.getInstance().getAuthorizeService();
 
     /**
      * Default constructor
@@ -112,91 +95,6 @@ public class ItemUtils {
         e.setValue(value);
         e.setName(name);
         return e;
-    }
-
-    /***
-     * Write metadata into a Element structure.
-     *
-     * @param schema The reference schema
-     * @param val The metadata value
-     * @return
-     */
-    private static Element writeMetadata(Element  schema,MetadataValue val) {
-        return writeMetadata(schema, val, false);
-    }
-
-    /***
-     * Write metadata into a Element structure.
-     *
-     * @param schema The reference schema
-     * @param val The metadata value
-     * @param forceEmptyQualifier Set to true to create a qualifier element
-     *              with value "none" when qualifier is empty. Otherwise the qualifier element is not created.
-     * @return
-     */
-    private static Element writeMetadata(Element schema, MetadataValue val, boolean forceEmptyQualifier) {
-
-        Element valueElem = null;
-        valueElem = schema;
-
-        // Has element.. with XOAI one could have only schema and value
-        if (val.getElement() != null && !val.getElement().equals("")) {
-            Element element = getElement(schema.getElement(), val.getElement());
-            if (element == null) {
-                element = create(val.getElement());
-                schema.getElement().add(element);
-            }
-            valueElem = element;
-
-            // Qualified element?
-            if (val.getQualifier() != null && !val.getQualifier().equals("")) {
-                Element qualifier = getElement(element.getElement(), val.getQualifier());
-                if (qualifier == null) {
-                    qualifier = create(val.getQualifier());
-                    element.getElement().add(qualifier);
-                }
-                valueElem = qualifier;
-            } else if (forceEmptyQualifier) {
-                Element qualifier = getElement(element.getElement(), "none");
-                // if (qualifier == null)
-                {
-                    qualifier = create("none");
-                    element.getElement().add(qualifier);
-                }
-                valueElem = qualifier;
-            }
-        }
-
-        // Language?
-        if (val.getLanguage() != null && !val.getLanguage().equals("")) {
-            Element language = getElement(valueElem.getElement(), val.getLanguage());
-            // remove single language
-            // if (language == null)
-            {
-                language = create(val.getLanguage());
-                valueElem.getElement().add(language);
-            }
-            valueElem = language;
-        } else {
-            Element language = getElement(valueElem.getElement(), "none");
-            // remove single language
-            // if (language == null)
-            {
-                language = create("none");
-                valueElem.getElement().add(language);
-            }
-            valueElem = language;
-        }
-
-        valueElem.getField().add(createValue("value", val.getValue()));
-        if (val.getAuthority() != null) {
-            valueElem.getField().add(createValue("authority", val.getAuthority()));
-            if (val.getConfidence() != Choices.CF_NOVALUE) {
-                valueElem.getField().add(createValue("confidence", val.getConfidence() + ""));
-            }
-        }
-        return valueElem;
-
     }
 
     private static Element createBundlesElement(Context context, Item item) throws SQLException {

@@ -7,8 +7,6 @@
  */
 package org.dspace.content;
 
-import static org.apache.commons.lang3.BooleanUtils.toBoolean;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
@@ -22,13 +20,11 @@ import java.util.MissingResourceException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.solr.client.solrj.util.ClientUtils;
-import org.dspace.app.metrics.service.CrisMetricsService;
 import org.dspace.app.util.AuthorizeUtil;
 import org.dspace.authorize.AuthorizeConfiguration;
 import org.dspace.authorize.AuthorizeException;
@@ -41,7 +37,6 @@ import org.dspace.content.service.BitstreamService;
 import org.dspace.content.service.CollectionService;
 import org.dspace.content.service.CommunityService;
 import org.dspace.content.service.ItemService;
-import org.dspace.content.service.RelationshipService;
 import org.dspace.content.service.WorkspaceItemService;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
@@ -65,7 +60,6 @@ import org.dspace.harvest.service.HarvestedCollectionService;
 import org.dspace.identifier.IdentifierException;
 import org.dspace.identifier.service.IdentifierService;
 import org.dspace.services.ConfigurationService;
-import org.dspace.workflow.WorkflowItemService;
 import org.dspace.workflow.factory.WorkflowServiceFactory;
 import org.dspace.xmlworkflow.WorkflowConfigurationException;
 import org.dspace.xmlworkflow.factory.XmlWorkflowFactory;
@@ -111,8 +105,6 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
     @Autowired(required = true)
     protected SubscribeService subscribeService;
     @Autowired(required = true)
-    protected CrisMetricsService crisMetricsService;
-    @Autowired(required = true)
     protected WorkspaceItemService workspaceItemService;
     @Autowired(required = true)
     protected HarvestedCollectionService harvestedCollectionService;
@@ -128,12 +120,6 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
 
     @Autowired(required = true)
     protected ConfigurationService configurationService;
-
-    @Autowired(required = true)
-    protected RelationshipService relationshipService;
-
-    @Autowired(required = true)
-    protected WorkflowItemService<?> workflowItemService;
 
     @Autowired
     protected ItemCounter itemCounter;
@@ -385,7 +371,8 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
 
             // now create policy for logo bitstream
             // to match our READ policy
-            List<ResourcePolicy> policies = authorizeService.getPolicies(context, collection);
+            List<ResourcePolicy> policies = authorizeService
+                .getPoliciesActionFilter(context, collection, Constants.READ);
             authorizeService.addPolicies(context, policies, newLogo);
 
             log.info(LogHelper.getHeader(context, "set_logo",
@@ -740,8 +727,8 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
 
     @Override
     public void delete(Context context, Collection collection) throws SQLException, AuthorizeException, IOException {
-        crisMetricsService.deleteByResourceID(context, collection);
-        log.info(LogHelper.getHeader(context, "delete_collection", "collection_id=" + collection.getID()));
+        log.info(LogHelper.getHeader(context, "delete_collection",
+                                      "collection_id=" + collection.getID()));
 
         // remove harvested collections.
         HarvestedCollection hc = harvestedCollectionService.find(context, collection);
@@ -754,7 +741,7 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
 
         // remove subscriptions - hmm, should this be in Subscription.java?
         subscribeService.deleteByDspaceObject(context, collection);
-        crisMetricsService.deleteByResourceID(context, collection);
+
         // Remove Template Item
         removeTemplateItem(context, collection);
 
@@ -962,8 +949,7 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
 
     @Override
     public List<Collection> findCollectionsWithSubmit(String q, Context context, Community community,
-                                                      String entityType, int offset,
-                                                      int limit) throws SQLException, SearchServiceException {
+        int offset, int limit) throws SQLException, SearchServiceException {
 
         List<Collection> collections = new ArrayList<>();
         DiscoverQuery discoverQuery = new DiscoverQuery();
@@ -971,8 +957,7 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
         discoverQuery.setStart(offset);
         discoverQuery.setMaxResults(limit);
         discoverQuery.setSortField(SOLR_SORT_FIELD, SORT_ORDER.asc);
-        discoverQuery.setSortField(SOLR_SORT_FIELD, SORT_ORDER.asc);
-        DiscoverResult resp = retrieveCollectionsWithSubmit(context, discoverQuery, entityType, community, q);
+        DiscoverResult resp = retrieveCollectionsWithSubmit(context, discoverQuery, null, community, q);
         for (IndexableObject solrCollections : resp.getIndexableObjects()) {
             Collection c = ((IndexableCollection) solrCollections).getIndexedObject();
             collections.add(c);
@@ -981,24 +966,14 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
     }
 
     @Override
-    public int countCollectionsWithSubmit(String q, Context context, Community community, String entityType)
+    public int countCollectionsWithSubmit(String q, Context context, Community community)
         throws SQLException, SearchServiceException {
 
         DiscoverQuery discoverQuery = new DiscoverQuery();
         discoverQuery.setMaxResults(0);
         discoverQuery.setDSpaceObjectFilter(IndexableCollection.TYPE);
-        DiscoverResult resp = retrieveCollectionsWithSubmit(context, discoverQuery, entityType, community, q);
-        return (int) resp.getTotalSearchResults();
-    }
-
-    @Override
-    public boolean isSharedWorkspace(Context context, Collection collection) {
-        return toBoolean(getMetadataFirstValue(collection, "cris", "workspace", "shared", Item.ANY));
-    }
-
-    @Override
-    public String getEntityType(Collection collection) {
-        return getMetadataFirstValue(collection, new MetadataFieldName("dspace.entity.type"), Item.ANY);
+        DiscoverResult resp = retrieveCollectionsWithSubmit(context, discoverQuery, null, community, q);
+        return (int)resp.getTotalSearchResults();
     }
 
     /**
@@ -1037,17 +1012,6 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
             query.append(")");
             discoverQuery.addFilterQueries(query.toString());
         }
-        StringBuilder buildFilter = new StringBuilder();
-        if (community != null) {
-            buildFilter.append("location.comm:").append(community.getID().toString());
-        }
-        if (StringUtils.isNotBlank(entityType)) {
-            if (buildFilter.length() > 0) {
-                buildFilter.append(" AND ");
-            }
-            buildFilter.append("search.entitytype:").append(entityType);
-        }
-
         if (Objects.nonNull(community)) {
             discoverQuery.addFilterQueries("location.comm:" + community.getID().toString());
         }
@@ -1060,7 +1024,6 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
             buildQuery.append("(").append(escapedQuery).append(" OR ").append(escapedQuery).append("*").append(")");
             discoverQuery.setQuery(buildQuery.toString());
         }
-        discoverQuery.addFilterQueries(buildFilter.toString());
         DiscoverResult resp = searchService.search(context, discoverQuery);
         return resp;
     }
@@ -1121,185 +1084,31 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
     }
 
     @Override
-    public Collection retrieveCollectionByEntityType(Context context, Item item, String entityType)
-            throws SQLException {
-        Collection ownCollection = item.getOwningCollection();
-        return retrieveCollectionByEntityType(context, ownCollection.getCommunities(), entityType);
-    }
-
-    private Collection retrieveCollectionByEntityType(Context context, List<Community> communities, String entityType) {
-
-        for (Community community : communities) {
-            Collection collection = retriveCollectionByEntityType(context, community, entityType);
-            if (collection != null) {
-                return collection;
-            }
-        }
-
-        for (Community community : communities) {
-            List<Community> parentCommunities = community.getParentCommunities();
-            Collection collection = retrieveCollectionByEntityType(context, parentCommunities, entityType);
-            if (collection != null) {
-                return collection;
-            }
-        }
-
-        return retriveCollectionByEntityType(context, null, entityType);
-    }
-
-    @Override
-    public Collection retriveCollectionByEntityType(Context context, Community community, String entityType) {
-        context.turnOffAuthorisationSystem();
-        List<Collection> collections;
-        try {
-            collections = findCollectionsWithSubmit(null, context, community, entityType, 0, 1);
-        } catch (SQLException | SearchServiceException e) {
-            throw new RuntimeException(e);
-        }
-        context.restoreAuthSystemState();
-        if (collections != null && collections.size() > 0) {
-            return collections.get(0);
-        }
-        if (community != null) {
-            for (Community subCommunity : community.getSubcommunities()) {
-                Collection collection = retriveCollectionByEntityType(context, subCommunity, entityType);
-                if (collection != null) {
-                    return collection;
-                }
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public Collection findByItem(Context context, Item item) throws SQLException {
-        if (item.getOwningCollection() != null) {
-            return item.getOwningCollection();
-        }
-
-        InProgressSubmission<Integer> inProgressSubmission = findInProgressSubmission(context, item);
-        return inProgressSubmission != null ? inProgressSubmission.getCollection() : null;
-    }
-
-    private InProgressSubmission<Integer> findInProgressSubmission(Context context, Item item) throws SQLException {
-        WorkspaceItem workspaceItem = workspaceItemService.findByItem(context, item);
-        return workspaceItem != null ? workspaceItem : workflowItemService.findByItem(context, item);
-    }
-
-    @Override
-    public List<Collection> findCollectionsAdministered(String query, Context context, int offset, int limit)
-        throws SQLException, SearchServiceException {
-        DiscoverQuery discoverQuery = new DiscoverQuery();
-        discoverQuery.setDSpaceObjectFilter(IndexableCollection.TYPE);
-        discoverQuery.setStart(offset);
-        discoverQuery.setMaxResults(limit);
-
-        return retrieveCollectionsAdministered(context, discoverQuery, query).getIndexableObjects().stream()
-            .map(indexableObject -> ((IndexableCollection) indexableObject).getIndexedObject())
-            .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<Collection> findCollectionsAdministeredByEntityType(String query, String entityType,
-                                                                    Context context, int offset, int limit)
-            throws SQLException, SearchServiceException {
-
+    public List<Collection> findCollectionsWithSubmit(String q, Context context, Community community, String entityType,
+            int offset, int limit) throws SQLException, SearchServiceException {
+        List<Collection> collections = new ArrayList<>();
         DiscoverQuery discoverQuery = new DiscoverQuery();
         discoverQuery.setDSpaceObjectFilter(IndexableCollection.TYPE);
         discoverQuery.setStart(offset);
         discoverQuery.setMaxResults(limit);
         discoverQuery.setSortField(SOLR_SORT_FIELD, SORT_ORDER.asc);
-
-        return retrieveCollectionsAdministeredByEntityType(context, discoverQuery,
-                query, entityType).getIndexableObjects().stream()
-                .map(indexableObject -> ((IndexableCollection) indexableObject).getIndexedObject())
-                .collect(Collectors.toList());
+        DiscoverResult resp = retrieveCollectionsWithSubmit(context, discoverQuery,
+                entityType, community, q);
+        for (IndexableObject solrCollections : resp.getIndexableObjects()) {
+            Collection c = ((IndexableCollection) solrCollections).getIndexedObject();
+            collections.add(c);
+        }
+        return collections;
     }
 
     @Override
-    public int countCollectionsAdministered(String query, Context context) throws SQLException, SearchServiceException {
-        DiscoverQuery discoverQuery = new DiscoverQuery();
-        discoverQuery.setMaxResults(0);
-        discoverQuery.setDSpaceObjectFilter(IndexableCollection.TYPE);
-        return (int) retrieveCollectionsAdministered(context, discoverQuery, query).getTotalSearchResults();
-    }
-
-    private DiscoverResult retrieveCollectionsAdministered(Context context, DiscoverQuery discoverQuery, String query)
-        throws SQLException, SearchServiceException {
-
-        if (!authorizeService.isAdmin(context)) {
-
-            String filterQuery = groupService.allMemberGroupsSet(context, context.getCurrentUser()).stream()
-                .map(group -> "g" + group.getID())
-                .collect(Collectors.joining(" OR ", "admin:(", ")"));
-
-            discoverQuery.addFilterQueries(filterQuery);
-        }
-
-        if (StringUtils.isNotBlank(query)) {
-            StringBuilder buildQuery = new StringBuilder();
-            String escapedQuery = ClientUtils.escapeQueryChars(query);
-            buildQuery.append(escapedQuery).append(" OR ").append(escapedQuery).append("*");
-            discoverQuery.setQuery(buildQuery.toString());
-        }
-
-        return searchService.search(context, discoverQuery);
-    }
-
-    private DiscoverResult retrieveCollectionsAdministeredByEntityType(Context context,
-                                                                       DiscoverQuery discoverQuery,
-                                                                       String query, String entityType)
-            throws SQLException, SearchServiceException {
-        String filterQuery = "";
-        if (!authorizeService.isAdmin(context)) {
-            filterQuery = groupService.allMemberGroupsSet(context, context.getCurrentUser()).stream()
-                    .map(group -> "g" + group.getID())
-                    .collect(Collectors.joining(" OR ", "admin:(", ")"));
-            discoverQuery.addFilterQueries(filterQuery);
-        }
-        if (StringUtils.isNoneBlank(entityType)) {
-            if (filterQuery.length() > 0) {
-                filterQuery += " AND ";
-            }
-            filterQuery += "search.entitytype: " + entityType;
-            discoverQuery.addFilterQueries(filterQuery);
-        }
-        if (StringUtils.isNotBlank(query)) {
-            StringBuilder buildQuery = new StringBuilder();
-            String escapedQuery = ClientUtils.escapeQueryChars(query);
-            buildQuery.append(escapedQuery).append(" OR ").append(escapedQuery).append("*");
-            discoverQuery.setQuery(buildQuery.toString());
-        }
-        return searchService.search(context, discoverQuery);
-    }
-    @Override
-    public int countCollectionsAdministeredByEntityType(String query, String entityType, Context context)
+    public int countCollectionsWithSubmit(String q, Context context, Community community, String entityType)
             throws SQLException, SearchServiceException {
         DiscoverQuery discoverQuery = new DiscoverQuery();
         discoverQuery.setMaxResults(0);
         discoverQuery.setDSpaceObjectFilter(IndexableCollection.TYPE);
-        return (int) retrieveCollectionsAdministeredByEntityType(context,
-                discoverQuery, query, entityType).getTotalSearchResults();
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes")
-    public List<Collection> findAllCollectionsByEntityType(Context context, String entityType)
-            throws SearchServiceException {
-        List<Collection> collectionList = new ArrayList<>();
-
-        DiscoverQuery discoverQuery = new DiscoverQuery();
-        discoverQuery.setDSpaceObjectFilter(IndexableCollection.TYPE);
-        discoverQuery.addFilterQueries("dspace.entity.type:" + entityType);
-
-        DiscoverResult discoverResult = searchService.search(context, discoverQuery);
-        List<IndexableObject> solrIndexableObjects = discoverResult.getIndexableObjects();
-
-        for (IndexableObject solrCollection : solrIndexableObjects) {
-            Collection c = ((IndexableCollection) solrCollection).getIndexedObject();
-            collectionList.add(c);
-        }
-        return collectionList;
+        DiscoverResult resp = retrieveCollectionsWithSubmit(context, discoverQuery, entityType, community, q);
+        return (int) resp.getTotalSearchResults();
     }
 
     /**
@@ -1312,10 +1121,5 @@ public class CollectionServiceImpl extends DSpaceObjectServiceImpl<Collection> i
     @Override
     public int countArchivedItems(Context context, Collection collection) {
         return itemCounter.getCount(context, collection);
-    }
-
-    @Override
-    public boolean exists(Context context, UUID id) throws SQLException {
-        return this.collectionDAO.exists(context, Collection.class, id);
     }
 }

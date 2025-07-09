@@ -13,7 +13,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.dspace.services.ConfigurationService;
 import org.springframework.util.Assert;
@@ -39,19 +38,9 @@ public class SimpleMapConverter {
     private String defaultValue = "";
 
     /**
-     * This flag would inform the caller of the converter that it expects to deal
-     * with authority values instead than text value
-     */
-    private boolean useAuthority = false;
-
-    /**
      * Parse the configured property file.
      */
     public void init() {
-
-        if (MapUtils.isNotEmpty(mapping)) {
-            return;
-        }
 
         Assert.notNull(converterNameFile, "No properties file name provided");
         Assert.notNull(configurationService, "No configuration service provided");
@@ -91,14 +80,6 @@ public class SimpleMapConverter {
         return value;
     }
 
-    public boolean isUseAuthority() {
-        return useAuthority;
-    }
-
-    public void setUseAuthority(boolean useAuthority) {
-        this.useAuthority = useAuthority;
-    }
-
     private Map<String, String> parseProperties(Properties properties) {
 
         Map<String, String> mapping = new HashMap<String, String>();
@@ -110,14 +91,6 @@ public class SimpleMapConverter {
 
         return mapping;
 
-    }
-
-    public Map<String, String> getMapping() {
-        return mapping;
-    }
-
-    public void setMapping(Map<String, String> mapping) {
-        this.mapping = new HashMap<>(mapping);
     }
 
     public void setDefaultValue(String defaultValue) {

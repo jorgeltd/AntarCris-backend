@@ -24,11 +24,17 @@ public class FacetValueMatcher {
         return allOf(
             hasJsonPath("$.label", is(label)),
             hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
             hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
             hasJsonPath("$._links.search.href", containsString(
                     "f.author=" + urlPathSegmentEscaper().escape(label) + ",equals"
             ))
+        );
+    }
+
+    public static Matcher<? super Object> entryFacetWithoutSelfLink(String label) {
+        return allOf(
+            hasJsonPath("$.label", is(label)),
+            hasJsonPath("$.type", is("discover"))
         );
     }
 
@@ -38,9 +44,19 @@ public class FacetValueMatcher {
             hasJsonPath("$.count", is(count)),
             hasJsonPath("$.label", is(label)),
             hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
             hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
             hasJsonPath("$._links.search.href", containsString("f.author=" + authority + ",authority"))
+        );
+    }
+
+    public static Matcher<? super Object> entrySubject(String label, int count) {
+        return allOf(
+            hasJsonPath("$.label", is(label)),
+            hasJsonPath("$.type", is("discover")),
+            hasJsonPath("$.count", is(count)),
+            hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
+            hasJsonPath("$._links.search.href", containsString(
+                "f.subject=" + urlPathSegmentEscaper().escape(label) + ",equals"))
         );
     }
 
@@ -48,10 +64,21 @@ public class FacetValueMatcher {
         return allOf(
                 hasJsonPath("$.label", is(label)),
                 hasJsonPath("$.type", is("discover")),
-                hasJsonPath("$.uniqueType", is("discover.discover")),
                 hasJsonPath("$.count", is(count)),
                 hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
                 hasJsonPath("$._links.search.href", containsString("f." + facet + "=" + label + ",equals"))
+        );
+    }
+
+
+    public static Matcher<? super Object> entrySubjectWithAuthority(String label, String authority, int count) {
+        return allOf(
+            hasJsonPath("$.authorityKey", is(authority)),
+            hasJsonPath("$.count", is(count)),
+            hasJsonPath("$.label", is(label)),
+            hasJsonPath("$.type", is("discover")),
+            hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
+            hasJsonPath("$._links.search.href", containsString("f.subject=" + authority + ",authority"))
         );
     }
 
@@ -59,7 +86,6 @@ public class FacetValueMatcher {
         return allOf(
             hasJsonPath("$.label", Matchers.notNullValue()),
             hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
             hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
             hasJsonPath("$._links.search.href", containsString("f.dateIssued=")),
             hasJsonPath("$._links.search.href", containsString(",equals"))
@@ -70,7 +96,6 @@ public class FacetValueMatcher {
         return allOf(
             hasJsonPath("$.label", Matchers.notNullValue()),
             hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
             hasJsonPath("$.count", is(1)),
             hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
             hasJsonPath("$._links.search.href", containsString("f.dateIssued=")),
@@ -82,41 +107,9 @@ public class FacetValueMatcher {
         return allOf(
             hasJsonPath("$.label", is(label)),
             hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
             hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
             hasJsonPath("$._links.search.href", containsString("f.dateIssued=")),
             hasJsonPath("$._links.search.href", containsString(",equals"))
-        );
-    }
-
-    public static Matcher<? super Object> entryDateIssuedWithLabelAndCount(String label, int count) {
-        return allOf(
-            hasJsonPath("$.label", is(label)),
-            hasJsonPath("$.count", is(count)),
-            hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
-            hasJsonPath("$._links.search.href", containsString(",equals"))
-        );
-    }
-
-    public static Matcher<? super Object> entryText(String facetName, String label, int count) {
-        return allOf(
-            hasJsonPath("$.label", is(label)),
-            hasJsonPath("$.count", is(count)),
-            hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
-            hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
-            hasJsonPath("$._links.search.href", containsString("f." + facetName + "=" + label + ",equals"))
-        );
-    }
-
-    public static Matcher<? super Object> entryLanguage(String label) {
-        return allOf(
-            hasJsonPath("$.label", is(label)),
-            hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
-            hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
-            hasJsonPath("$._links.search.href", containsString("f.language="))
         );
     }
 
@@ -126,7 +119,6 @@ public class FacetValueMatcher {
             hasJsonPath("$.count", is(count)),
             hasJsonPath("$.label", is(label)),
             hasJsonPath("$.type", is("discover")),
-            hasJsonPath("$.uniqueType", is("discover.discover")),
             hasJsonPath("$._links.search.href", containsString("api/discover/search/objects")),
             hasJsonPath("$._links.search.href", containsString("f.supervisedBy=" + authority + ",authority"))
         );

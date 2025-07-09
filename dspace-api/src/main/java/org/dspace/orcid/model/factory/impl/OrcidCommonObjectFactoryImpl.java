@@ -13,19 +13,16 @@ import static java.util.Optional.ofNullable;
 import static org.apache.commons.lang3.EnumUtils.isValidEnum;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
-import static org.dspace.core.CrisConstants.PLACEHOLDER_PARENT_METADATA_VALUE;
 import static org.dspace.orcid.model.factory.OrcidFactoryUtils.parseConfigurations;
 import static org.orcid.jaxb.model.common.SequenceType.ADDITIONAL;
 import static org.orcid.jaxb.model.common.SequenceType.FIRST;
 
-import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.apache.commons.lang3.StringUtils;
 import org.dspace.content.Item;
@@ -40,19 +37,15 @@ import org.dspace.orcid.model.factory.OrcidCommonObjectFactory;
 import org.dspace.orcid.model.validator.OrcidValidationError;
 import org.dspace.util.MultiFormatDateParser;
 import org.dspace.util.SimpleMapConverter;
-import org.dspace.util.UUIDUtils;
 import org.orcid.jaxb.model.common.ContributorRole;
 import org.orcid.jaxb.model.common.FundingContributorRole;
 import org.orcid.jaxb.model.common.Iso3166Country;
 import org.orcid.jaxb.model.v3.release.common.Contributor;
 import org.orcid.jaxb.model.v3.release.common.ContributorAttributes;
-import org.orcid.jaxb.model.v3.release.common.ContributorEmail;
-import org.orcid.jaxb.model.v3.release.common.ContributorOrcid;
 import org.orcid.jaxb.model.v3.release.common.Country;
 import org.orcid.jaxb.model.v3.release.common.CreditName;
 import org.orcid.jaxb.model.v3.release.common.DisambiguatedOrganization;
 import org.orcid.jaxb.model.v3.release.common.FuzzyDate;
-import org.orcid.jaxb.model.v3.release.common.OrcidIdBase;
 import org.orcid.jaxb.model.v3.release.common.Organization;
 import org.orcid.jaxb.model.v3.release.common.OrganizationAddress;
 import org.orcid.jaxb.model.v3.release.common.Url;
@@ -108,23 +101,17 @@ public class OrcidCommonObjectFactoryImpl implements OrcidCommonObjectFactory {
     }
 
     @Override
-    public Optional<Organization> createOrganization(Context context, MetadataValue metadataValue) {
+    public Optional<Organization> createOrganization(Context context, Item orgUnit) {
 
-        if (isUnprocessableValue(metadataValue)) {
-            return empty();
+        if (orgUnit == null) {
+            return Optional.empty();
         }
 
         Organization organization = new Organization();
 
-        organization.setName(metadataValue.getValue());
-
-        Item organizationItem = findRelatedItem(context, metadataValue);
-        if (organizationItem != null) {
-            organization.setAddress(createOrganizationAddress(organizationItem));
-            organization.setDisambiguatedOrganization(
-                createDisambiguatedOrganization(context, organizationItem)
-            );
-        }
+        organization.setName(getMetadataValue(orgUnit, organizationTitleField));
+        organization.setAddress(createOrganizationAddress(orgUnit));
+        organization.setDisambiguatedOrganization(createDisambiguatedOrganization(orgUnit));
 
         return of(organization);
     }
@@ -139,12 +126,6 @@ public class OrcidCommonObjectFactoryImpl implements OrcidCommonObjectFactory {
         contributor.setCreditName(new CreditName(metadataValue.getValue()));
         contributor.setContributorAttributes(getContributorAttributes(metadataValue, role));
 
-        Item authorItem = findItem(context, UUIDUtils.fromString(metadataValue.getAuthority()));
-        if (authorItem != null) {
-            contributor.setContributorEmail(getContributorEmail(authorItem));
-            contributor.setContributorOrcid(getContributorOrcid(authorItem));
-        }
-
         return of(contributor);
     }
 
@@ -158,13 +139,7 @@ public class OrcidCommonObjectFactoryImpl implements OrcidCommonObjectFactory {
 
         FundingContributor contributor = new FundingContributor();
         contributor.setCreditName(new CreditName(metadataValue.getValue()));
-        contributor.setContributorAttributes(getFundingContributorAttributes(role));
-
-        Item authorItem = findItem(context, UUIDUtils.fromString(metadataValue.getAuthority()));
-        if (authorItem != null) {
-            contributor.setContributorEmail(getContributorEmail(authorItem));
-            contributor.setContributorOrcid(getContributorOrcid(authorItem));
-        }
+        contributor.setContributorAttributes(getFundingContributorAttributes(metadataValue, role));
 
         return of(contributor);
     }
@@ -192,7 +167,7 @@ public class OrcidCommonObjectFactoryImpl implements OrcidCommonObjectFactory {
             throw new OrcidValidationException(OrcidValidationError.INVALID_COUNTRY);
         }
 
-        return country.map(Country::new);
+        return country.map(isoCountry -> new Country(isoCountry));
     }
 
     private ContributorAttributes getContributorAttributes(MetadataValue metadataValue, ContributorRole role) {
@@ -213,7 +188,8 @@ public class OrcidCommonObjectFactoryImpl implements OrcidCommonObjectFactory {
         return address;
     }
 
-    private FundingContributorAttributes getFundingContributorAttributes(FundingContributorRole role) {
+    private FundingContributorAttributes getFundingContributorAttributes(MetadataValue metadataValue,
+        FundingContributorRole role) {
         FundingContributorAttributes attributes = new FundingContributorAttributes();
         attributes.setContributorRole(role != null ? role.value() : null);
         return attributes;
@@ -238,57 +214,15 @@ public class OrcidCommonObjectFactoryImpl implements OrcidCommonObjectFactory {
         return null;
     }
 
-    private DisambiguatedOrganization createDisambiguatedOrganization(Context context, Item organizationItem) {
-        DisambiguatedOrganization disambiguatedOrganization = createDisambiguatedOrganization(organizationItem);
-        Item parentOrganization = findParentOrganization(context, organizationItem);
-
-        while (disambiguatedOrganization == null && parentOrganization != null) {
-            disambiguatedOrganization = createDisambiguatedOrganization(parentOrganization);
-            parentOrganization = findParentOrganization(context, parentOrganization);
-        }
-
-        return disambiguatedOrganization;
-    }
-
     private Optional<Iso3166Country> convertToIso3166Country(String countryValue) {
         return ofNullable(countryValue)
             .map(value -> countryConverter != null ? countryConverter.getValue(value) : value)
             .filter(value -> isValidEnum(Iso3166Country.class, value))
-            .map(Iso3166Country::fromValue);
+            .map(value -> Iso3166Country.fromValue(value));
     }
 
     private boolean isUnprocessableValue(MetadataValue value) {
-        return value == null || isBlank(value.getValue())
-            || value.getValue().equals(PLACEHOLDER_PARENT_METADATA_VALUE);
-    }
-
-    private Item findParentOrganization(Context context, Item item) {
-        try {
-            Optional<MetadataValue> metadataValue =
-                itemService.getMetadataByMetadataString(item, "organization.parentOrganization")
-                           .stream().findFirst();
-            return metadataValue.isPresent()
-                ? itemService.find(context, UUIDUtils.fromString(metadataValue.get().getAuthority()))
-                : null;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private Item findRelatedItem(Context context, MetadataValue metadataValue) {
-        try {
-            return itemService.find(context, UUIDUtils.fromString(metadataValue.getAuthority()));
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private Item findItem(Context context, UUID uuid) {
-        try {
-            return itemService.find(context, uuid);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return value == null || isBlank(value.getValue());
     }
 
     private String getMetadataValue(Item item, String metadataField) {
@@ -297,31 +231,6 @@ public class OrcidCommonObjectFactoryImpl implements OrcidCommonObjectFactory {
         } else {
             return null;
         }
-    }
-
-    private ContributorOrcid getContributorOrcid(Item authorItem) {
-        String orcid = getMetadataValue(authorItem, contributorOrcidField);
-        return isNotBlank(orcid) ? new ContributorOrcid(getOrcidIdBase(orcid)) : null;
-    }
-
-    private OrcidIdBase getOrcidIdBase(String orcid) {
-
-        OrcidIdBase orcidBase = new OrcidIdBase();
-        orcidBase.setPath(orcid);
-
-        String orcidDomain = orcidConfiguration.getDomainUrl();
-
-        if (StringUtils.isNotBlank(orcidDomain)) {
-            orcidBase.setHost(orcidDomain);
-            orcidBase.setUri(orcidDomain + "/" + orcid);
-        }
-
-        return orcidBase;
-    }
-
-    private ContributorEmail getContributorEmail(Item authorItem) {
-        String email = getMetadataValue(authorItem, contributorEmailField);
-        return isNotBlank(email) ? new ContributorEmail(email) : null;
     }
 
     private LocalDate convertToLocalDate(Date date) {

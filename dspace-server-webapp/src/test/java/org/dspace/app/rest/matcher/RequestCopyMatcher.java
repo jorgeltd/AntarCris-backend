@@ -38,7 +38,6 @@ public class RequestCopyMatcher {
                 hasJsonPath("$.decisionDate", dateMatcher(request.getDecision_date())),
                 hasJsonPath("$.expires", dateMatcher(request.getExpires())),
                 hasJsonPath("$.type", is(RequestItemRest.NAME)),
-                hasJsonPath("$.uniqueType", is("tools.itemrequest")),
                 hasJsonPath("$._links.self.href",
                         Matchers.containsString(RequestItemRepositoryIT.URI_ROOT))
         );

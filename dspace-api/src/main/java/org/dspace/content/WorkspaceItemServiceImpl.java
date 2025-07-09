@@ -25,14 +25,11 @@ import org.dspace.content.logic.Filter;
 import org.dspace.content.logic.FilterUtils;
 import org.dspace.content.service.CollectionService;
 import org.dspace.content.service.ItemService;
-import org.dspace.content.service.MetadataFieldService;
-import org.dspace.content.service.MetadataValueService;
 import org.dspace.content.service.WorkspaceItemService;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
 import org.dspace.core.LogHelper;
 import org.dspace.eperson.EPerson;
-import org.dspace.eperson.Group;
 import org.dspace.event.Event;
 import org.dspace.identifier.DOI;
 import org.dspace.identifier.DOIIdentifierProvider;
@@ -67,13 +64,6 @@ public class WorkspaceItemServiceImpl implements WorkspaceItemService {
     protected ItemService itemService;
     @Autowired(required = true)
     protected WorkflowService workflowService;
-
-    @Autowired
-    private MetadataFieldService metadataFieldService;
-    @Autowired
-    private MetadataValueService metadataValueService;
-
-
     @Autowired(required = true)
     protected DOIService doiService;
 
@@ -132,15 +122,20 @@ public class WorkspaceItemServiceImpl implements WorkspaceItemService {
         }
         item.setSubmitter(context.getCurrentUser());
 
-        // Now create the policies for the submitter to modify item and contents (bitstreams, bundles)
-        int[] actionIds = { Constants.READ, Constants.WRITE, Constants.ADD, Constants.REMOVE, Constants.DELETE };
-        for (int actionId : actionIds) {
-            authorizeService.addPolicy(context, item, actionId, item.getSubmitter(), ResourcePolicy.TYPE_SUBMISSION);
-        }
-
-        if (collectionService.isSharedWorkspace(context, collection)) {
-            addPoliciesToSubmitterGroup(context, item, collection, actionIds);
-        }
+        // Now create the policies for the submitter to modify item and contents
+        // contents = bitstreams, bundles
+        // read permission
+        authorizeService.addPolicy(context, item, Constants.READ, item.getSubmitter(), ResourcePolicy.TYPE_SUBMISSION);
+        // write permission
+        authorizeService.addPolicy(context, item, Constants.WRITE, item.getSubmitter(), ResourcePolicy.TYPE_SUBMISSION);
+        // add permission
+        authorizeService.addPolicy(context, item, Constants.ADD, item.getSubmitter(), ResourcePolicy.TYPE_SUBMISSION);
+        // remove contents permission
+        authorizeService
+            .addPolicy(context, item, Constants.REMOVE, item.getSubmitter(), ResourcePolicy.TYPE_SUBMISSION);
+        // delete permission
+        authorizeService
+            .addPolicy(context, item, Constants.DELETE, item.getSubmitter(), ResourcePolicy.TYPE_SUBMISSION);
 
         // Copy template if appropriate
         itemService.populateWithTemplateItemMetadata(context, collection, template, item);
@@ -183,6 +178,14 @@ public class WorkspaceItemServiceImpl implements WorkspaceItemService {
 
     @Override
     public WorkspaceItem create(Context c, WorkflowItem workflowItem) throws SQLException, AuthorizeException {
+        WorkspaceItem potentialDuplicate = findByItem(c, workflowItem.getItem());
+        if (potentialDuplicate != null) {
+            throw new IllegalArgumentException(String.format(
+                "A workspace item referring to item %s already exists (%d)",
+                workflowItem.getItem().getID(),
+                potentialDuplicate.getID()
+            ));
+        }
         WorkspaceItem workspaceItem = workspaceItemDAO.create(c, new WorkspaceItem());
         workspaceItem.setItem(workflowItem.getItem());
         workspaceItem.setCollection(workflowItem.getCollection());
@@ -238,11 +241,19 @@ public class WorkspaceItemServiceImpl implements WorkspaceItemService {
     @Override
     public void deleteAll(Context context, WorkspaceItem workspaceItem)
         throws SQLException, AuthorizeException, IOException {
+        /*
+         * Authorisation is a special case. The submitter won't have REMOVE
+         * permission on the collection, so our policy is this: Only the
+         * original submitter or an administrator can delete a workspace item.
 
+         */
         Item item = workspaceItem.getItem();
-        if (isNotAuthorizedToDelete(context, item)) {
+        if (!authorizeService.isAdmin(context)
+            && (item.getSubmitter() == null || (context.getCurrentUser() == null)
+                || (context.getCurrentUser().getID() != item.getSubmitter().getID()))) {
             // Not an admit, not the submitter
-            throw new AuthorizeException("Must be an administrator or the submitter to delete a workspace item");
+            throw new AuthorizeException("Must be an administrator or the "
+                                             + "original submitter to delete a workspace item");
         }
 
         log.info(LogHelper.getHeader(context, "delete_workspace_item",
@@ -305,28 +316,6 @@ public class WorkspaceItemServiceImpl implements WorkspaceItemService {
 
         source.getItem().removeMetadata(remove);
 
-    }
-
-    private void addPoliciesToSubmitterGroup(Context context, Item item, Collection collection, int[] actionIds)
-        throws SQLException, AuthorizeException {
-
-        Group submitters = collection.getSubmitters();
-        if (submitters == null) {
-            return;
-        }
-
-        for (int actionId : actionIds) {
-            authorizeService.addPolicy(context, item, actionId, submitters, ResourcePolicy.TYPE_SUBMISSION);
-        }
-
-    }
-
-    private boolean isNotAuthorizedToDelete(Context context, Item item) throws SQLException {
-        EPerson submitter = item.getSubmitter();
-        EPerson currentUser = context.getCurrentUser();
-        return !authorizeService.isAdmin(context)
-            && (submitter == null || (currentUser == null) || (!submitter.getID().equals(currentUser.getID())))
-            && !authorizeService.authorizeActionBoolean(context, item, Constants.DELETE);
     }
 
 }

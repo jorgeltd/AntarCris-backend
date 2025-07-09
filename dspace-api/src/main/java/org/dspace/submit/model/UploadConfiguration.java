@@ -25,7 +25,6 @@ public class UploadConfiguration {
     private Long maxSize;
     private Boolean required;
     private String name;
-    private boolean singleAccessCondition = false;
 
     /**
      * Construct a bitstream uploading configuration.
@@ -123,13 +122,5 @@ public class UploadConfiguration {
      */
     public void setName(String name) {
         this.name = name;
-    }
-
-    public boolean getSingleAccessCondition() {
-        return singleAccessCondition;
-    }
-
-    public void setSingleAccessCondition(boolean singleAccessCondition) {
-        this.singleAccessCondition = singleAccessCondition;
     }
 }

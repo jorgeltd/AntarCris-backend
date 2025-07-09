@@ -110,13 +110,6 @@
             <class>org.dspace.authority.indexer.AuthorityIndexClient</class>
         </step>
     </command>
-	<command>
-        <name>index-deduplication</name>
-        <description>Update Deduplication Solr Search Index</description>
-        <step>
-            <class>org.dspace.app.batch.DedupClient</class>
-        </step>
-    </command>
     <command>
         <name>itemupdate</name>
         <description>Item update tool for altering metadata and bitstream content in items</description>
@@ -336,13 +329,6 @@
         <description>Initialize the entities with a provided xml</description>
         <step>
             <class>org.dspace.app.util.InitializeEntities</class>
-        </step>
-    </command>
-        <command>
-        <name>initialize-only-entity-types</name>
-        <description>Initialize only the entity types as needed by DSpace-CRIS</description>
-        <step>
-            <class>org.dspace.app.util.InitializeEntityTypesOnly</class>
         </step>
     </command>
     <command>

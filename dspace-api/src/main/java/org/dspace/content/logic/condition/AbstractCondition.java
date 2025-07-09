@@ -7,7 +7,6 @@
  */
 package org.dspace.content.logic.condition;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.logging.log4j.LogManager;
@@ -27,7 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public abstract class AbstractCondition implements Condition {
 
-    private Map<String, Object> parameters = new HashMap<>();
+    // Parameters map (injected, required -- see setter annotation)
+    private Map<String, Object> parameters;
 
     // Declare and instantiate spring services
     @Autowired(required = true)
@@ -71,15 +71,13 @@ public abstract class AbstractCondition implements Condition {
      * @throws LogicalStatementException
      */
     @Override
-    public Boolean getResult(Context context, Item item) throws LogicalStatementException {
+    public boolean getResult(Context context, Item item) throws LogicalStatementException {
         if (item == null) {
-            throw new LogicalStatementException("Item is null");
+            log.error("Error evaluating item. Passed item is null, returning false");
+            return false;
         }
         if (context == null) {
-            throw new LogicalStatementException("Context is null");
-        }
-        if (this.parameters == null) {
-            throw new LogicalStatementException("Parameters are null");
+            throw new IllegalStateException("Context is null");
         }
         return true;
     }

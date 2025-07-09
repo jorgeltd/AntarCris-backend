@@ -128,6 +128,7 @@ public class ItemExport extends DSpaceRunnable<ItemExportScriptConfiguration> {
         validate();
 
         Context context = new Context();
+        context.turnOffAuthorisationSystem();
 
         if (type == Constants.ITEM) {
             // first, is myIDString a handle?
@@ -170,12 +171,8 @@ public class ItemExport extends DSpaceRunnable<ItemExportScriptConfiguration> {
                 .getItemExportService();
         try {
             itemExportService.setHandler(handler);
-            handleAuthorizationSystem(context);
-
             process(context, itemExportService);
-
             context.complete();
-            handleAuthorizationSystem(context);
         } catch (Exception e) {
             context.abort();
             throw new Exception(e);
@@ -204,14 +201,13 @@ public class ItemExport extends DSpaceRunnable<ItemExportScriptConfiguration> {
      */
     protected void process(Context context, ItemExportService itemExportService) throws Exception {
         setEPerson(context);
-        assignSpecialGroupsInContext(context);
         setDestDirName(context, itemExportService);
         setZip(context);
 
         Iterator<Item> items;
         if (item != null) {
             List<Item> myItems = new ArrayList<>();
-            myItems.add(context.reloadEntity(item));
+            myItems.add(item);
             items = myItems.iterator();
         } else {
             handler.logInfo("Exporting from collection: " + idString);
@@ -254,7 +250,7 @@ public class ItemExport extends DSpaceRunnable<ItemExportScriptConfiguration> {
         }
     }
 
-    protected void setEPerson(Context context) throws SQLException {
+    private void setEPerson(Context context) throws SQLException {
         EPerson myEPerson = epersonService.find(context, this.getEpersonIdentifier());
 
         // check eperson
@@ -264,11 +260,5 @@ public class ItemExport extends DSpaceRunnable<ItemExportScriptConfiguration> {
         }
 
         context.setCurrentUser(myEPerson);
-    }
-
-    private void assignSpecialGroupsInContext(Context context) throws SQLException {
-        for (UUID uuid : handler.getSpecialGroups()) {
-            context.setSpecialGroup(uuid);
-        }
     }
 }

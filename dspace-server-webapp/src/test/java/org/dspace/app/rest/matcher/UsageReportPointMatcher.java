@@ -38,7 +38,6 @@ public class UsageReportPointMatcher {
             hasJsonPath("$.id", is(id)),
             hasJsonPath("$.label", is(label)),
             hasJsonPath("$.type", is(type)),
-            hasJsonPath("$.uniqueType", is(String.format("statistics.%s",type))),
             hasJsonPath("$.values.views", is(views))
         );
     }

@@ -7,11 +7,9 @@
  */
 package org.dspace.harvest.factory;
 
-import org.dspace.harvest.OAIHarvester;
 import org.dspace.harvest.service.HarvestSchedulingService;
 import org.dspace.harvest.service.HarvestedCollectionService;
 import org.dspace.harvest.service.HarvestedItemService;
-import org.dspace.harvest.service.OAIHarvesterClient;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -28,10 +26,6 @@ public class HarvestServiceFactoryImpl extends HarvestServiceFactory {
     private HarvestedCollectionService harvestedCollectionService;
     @Autowired(required = true)
     private HarvestSchedulingService harvestSchedulingService;
-    @Autowired(required = true)
-    private OAIHarvesterClient oaiHarvesterClient;
-    @Autowired(required = true)
-    private OAIHarvester oaiHarvester;
 
     @Override
     public HarvestedCollectionService getHarvestedCollectionService() {
@@ -46,15 +40,5 @@ public class HarvestServiceFactoryImpl extends HarvestServiceFactory {
     @Override
     public HarvestSchedulingService getHarvestSchedulingService() {
         return harvestSchedulingService;
-    }
-
-    @Override
-    public OAIHarvesterClient getOAIHarvesterClient() {
-        return oaiHarvesterClient;
-    }
-
-    @Override
-    public OAIHarvester getOAIHarvester() {
-        return oaiHarvester;
     }
 }

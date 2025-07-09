@@ -10,12 +10,12 @@ package org.dspace.orcid.client;
 import java.util.List;
 import java.util.Optional;
 
+import org.dspace.orcid.OrcidToken;
+import org.dspace.orcid.exception.OrcidClientException;
 import org.dspace.orcid.model.OrcidTokenResponseDTO;
 import org.orcid.jaxb.model.v3.release.record.Person;
-import org.orcid.jaxb.model.v3.release.record.Record;
 import org.orcid.jaxb.model.v3.release.record.WorkBulk;
 import org.orcid.jaxb.model.v3.release.record.summary.Works;
-import org.orcid.jaxb.model.v3.release.search.expanded.ExpandedSearch;
 
 /**
  * Interface for classes that allow to contact ORCID.
@@ -33,16 +33,6 @@ public interface OrcidClient {
      * @throws OrcidClientException if some error occurs during the exchange
      */
     OrcidTokenResponseDTO getReadPublicAccessToken();
-
-    /**
-     * Retrieves a /webhook access token using a client-credentials OAuth flow, or
-     * 2-step OAuth. A single token can be used to register webhooks for multiple
-     * records.
-     *
-     * @return                      the ORCID token
-     * @throws OrcidClientException if some error occurs during the exchange
-     */
-    OrcidTokenResponseDTO getWebhookAccessToken();
 
     /**
      * Exchange the authorization code for an ORCID iD and 3-legged access token.
@@ -63,16 +53,6 @@ public interface OrcidClient {
      * @throws OrcidClientException if some error occurs during the search
      */
     Person getPerson(String accessToken, String orcid);
-
-    /**
-     * Retrieves a summary of the ORCID record related to the given orcid.
-     *
-     * @param  accessToken          the access token
-     * @param  orcid                the orcid id of the record to retrieve
-     * @return                      the Record
-     * @throws OrcidClientException if some error occurs during the search
-     */
-    Record getRecord(String accessToken, String orcid);
 
     /**
      * Retrieves all the works related to the given orcid.
@@ -183,49 +163,10 @@ public interface OrcidClient {
     OrcidResponse deleteByPutCode(String accessToken, String orcid, String putCode, String path);
 
     /**
-     * Register a webhook against the user’s ORCID record with the given orcid id.
-     *
-     * @param  accessToken          the access token
-     * @param  orcid                the orcid id
-     * @param  url                  the webhook url
-     * @return                      the orcid response if no error occurs
+     * Revokes the given {@param accessToken} with a POST method.
+     * @param orcidToken   the access token to revoke
      * @throws OrcidClientException if some error occurs during the search
      */
-    OrcidResponse registerWebhook(String accessToken, String orcid, String url);
-
-    /**
-     * Unregister the webhook related to the user’s ORCID record with the given
-     * orcid id.
-     *
-     * @param  accessToken          the access token
-     * @param  orcid                the orcid id
-     * @param  url                  the webhook url
-     * @return                      the orcid response if no error occurs
-     * @throws OrcidClientException if some error occurs during the search
-     */
-    OrcidResponse unregisterWebhook(String accessToken, String orcid, String url);
-
-    /**
-     * Perform an expanded search with the given query and pagination using the api
-     * endpoint.
-     *
-     * @param  accessToken the access token
-     * @param  query       the query
-     * @param  start       the start index
-     * @param  rows        the number of rows to retrieve
-     * @return             the expanded search result
-     */
-    ExpandedSearch expandedSearch(String accessToken, String query, int start, int rows);
-
-    /**
-     * Perform an expanded search with the given query and pagination using the
-     * public endpoint.
-     *
-     * @param  query       the query
-     * @param  start       the start index
-     * @param  rows        the number of rows to retrieve
-     * @return             the expanded search result
-     */
-    ExpandedSearch expandedSearch(String query, int start, int rows);
+    void revokeToken(OrcidToken orcidToken);
 
 }

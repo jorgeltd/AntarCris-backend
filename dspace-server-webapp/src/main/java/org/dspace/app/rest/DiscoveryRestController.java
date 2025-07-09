@@ -121,22 +121,13 @@ public class DiscoveryRestController implements InitializingBean {
                     + ", filters: " + Objects.toString(searchFilters));
         }
 
-        try {
-            SearchResultsRest searchResultsRest = discoveryRestRepository
-                .getAllFacets(query, dsoTypes, dsoScope, configuration, searchFilters);
+        SearchResultsRest searchResultsRest = discoveryRestRepository
+            .getAllFacets(query, dsoTypes, dsoScope, configuration, searchFilters);
 
-            FacetsResource facetsResource = new FacetsResource(searchResultsRest, page);
-            halLinkService.addLinks(facetsResource, page);
+        FacetsResource facetsResource = new FacetsResource(searchResultsRest, page);
+        halLinkService.addLinks(facetsResource, page);
 
-            return facetsResource;
-        } catch (IllegalArgumentException e) {
-            boolean isParsingException = e.getMessage().contains(SOLR_PARSE_ERROR_CLASS);
-            if (isParsingException) {
-                throw new UnprocessableEntityException(e.getMessage());
-            } else {
-                throw e;
-            }
-        }
+        return facetsResource;
     }
 
     @RequestMapping(method = RequestMethod.GET, value = "/search/objects")

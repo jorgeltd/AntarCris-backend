@@ -118,38 +118,6 @@ public class CollectionBuilder extends AbstractDSpaceObjectBuilder<Collection> {
         return addMetadataValue(collection, MetadataSchemaEnum.DC.getName(), "title", null, language, name);
     }
 
-    public CollectionBuilder withSubmissionDefinition(final String name) {
-        return addMetadataValue(collection, "cris", "submission", "definition", null, name);
-    }
-
-    public CollectionBuilder withCorrectionSubmissionDefinition(final String name) {
-        return addMetadataValue(collection, "cris", "submission", "definition-correction", null, name);
-    }
-
-    public CollectionBuilder withWorkflow(final String name) {
-        return addMetadataValue(collection, "cris", "workflow", "name", null, name);
-    }
-
-    public CollectionBuilder withHarvestingPreTrasform(String preTransform) {
-        return addMetadataValue(collection, "cris", "harvesting", "preTransform", null, preTransform);
-    }
-
-    public CollectionBuilder withHarvestingPostTrasform(String postTransform) {
-        return addMetadataValue(collection, "cris", "harvesting", "postTransform", null, postTransform);
-    }
-
-    public CollectionBuilder withHarvestingEmail(String email) {
-        return addMetadataValue(collection, "cris", "harvesting", "email", null, email);
-    }
-
-    public CollectionBuilder withHarvestingItemValidationEnabled() {
-        return addMetadataValue(collection, "cris", "harvesting", "itemValidationEnabled", null, "true");
-    }
-
-    public CollectionBuilder withHarvestingRecordValidationEnabled() {
-        return addMetadataValue(collection, "cris", "harvesting", "recordValidationEnabled", null, "true");
-    }
-
     /**
      * Set the Collection's logo.
      * <em>To a String.  Should this not be the bytes of an image of some sort?</em>
@@ -270,10 +238,6 @@ public class CollectionBuilder extends AbstractDSpaceObjectBuilder<Collection> {
         }
         groupService.update(context, g);
         return this;
-    }
-
-    public CollectionBuilder withSharedWorkspace() {
-        return setMetadataSingleValue(collection, "cris", "workspace", "shared", "true");
     }
 
     /**

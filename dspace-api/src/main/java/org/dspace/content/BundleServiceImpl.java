@@ -212,7 +212,7 @@ public class BundleServiceImpl extends DSpaceObjectServiceImpl<Bundle> implement
 
     @Override
     public void removeBitstream(Context context, Bundle bundle, Bitstream bitstream)
-        throws AuthorizeException, SQLException, IOException {
+            throws AuthorizeException, SQLException, IOException {
         // Check authorisation
         authorizeService.authorizeAction(context, bundle, Constants.REMOVE);
 
@@ -582,9 +582,5 @@ public class BundleServiceImpl extends DSpaceObjectServiceImpl<Bundle> implement
     @Override
     public int countTotal(Context context) throws SQLException {
         return bundleDAO.countRows(context);
-    }
-
-    public boolean exists(Context context, UUID id) throws SQLException {
-        return this.bundleDAO.exists(context, Bundle.class, id);
     }
 }

@@ -21,7 +21,9 @@ import org.dspace.app.rest.RestResourceController;
  *
  * @author Andrea Bollini (andrea.bollini at 4science.it)
  */
-@LinksRest(links = { @LinkRest(name = SuggestionRest.TARGET, method = "getTarget") })
+@LinksRest(links = {
+    @LinkRest(name = SuggestionRest.TARGET, method = "getTarget")
+})
 public class SuggestionRest extends BaseObjectRest<String> {
     private static final long serialVersionUID = 1L;
     public static final String NAME = "suggestion";
@@ -105,7 +107,7 @@ public class SuggestionRest extends BaseObjectRest<String> {
         this.metadata = metadata;
     }
 
-    /**
+    /** 
      * inner class to encapsulate score & notes
      * and map {@link SuggestionEvidence}
      * */

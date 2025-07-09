@@ -8,44 +8,55 @@
 
 package org.dspace.app.rest.model;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Objects;
 
-import com.fasterxml.jackson.annotation.JsonAnyGetter;
-import com.fasterxml.jackson.annotation.JsonAnySetter;
-
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 /**
  * The SubmissionVisibility REST Resource. It is not addressable directly, only
  * used as inline object in the SubmissionPanel resource and SubmissionForm's fields
  *
  * @author Andrea Bollini (andrea.bollini at 4science.it)
- * @author Luca Giamminonni (luca.giamminonni at 4science.it)
  */
 public class SubmissionVisibilityRest {
+    /**
+     * The visibility to apply within the main scope
+     */
+    private VisibilityEnum main;
 
     /**
-     * Attribute indicating the associated visibility of the specified scopes. The
-     * absence of a scope in this map indicates that the submission section/field is
-     * visible for that scope.
+     * The visibility to apply outside the main scope
      */
-    private Map<ScopeEnum, VisibilityEnum> visibilities;
+    private VisibilityEnum other;
 
-    public void addVisibility(ScopeEnum scope, VisibilityEnum visibility) {
-        if (visibilities == null) {
-            visibilities = new HashMap<>();
+    public SubmissionVisibilityRest(VisibilityEnum main, VisibilityEnum other) {
+        super();
+        this.main = main;
+        this.other = other;
+    }
+
+    public VisibilityEnum getMain() {
+        return main;
+    }
+
+    public VisibilityEnum getOther() {
+        return other;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof SubmissionVisibilityRest) {
+            SubmissionVisibilityRest vis2 = (SubmissionVisibilityRest) obj;
+            return Objects.equals(main, vis2.getMain()) && Objects.equals(other, vis2.getOther());
         }
-        visibilities.put(scope, visibility);
+        return super.equals(obj);
     }
 
-    @JsonAnyGetter
-    public Map<ScopeEnum, VisibilityEnum> getVisibilities() {
-        return visibilities;
+    @Override
+    public int hashCode() {
+        return new HashCodeBuilder(5, 31)
+            .append(this.getMain())
+            .append(this.getOther())
+            .toHashCode();
     }
-
-    @JsonAnySetter
-    public void setVisibilities(Map<ScopeEnum, VisibilityEnum> visibilities) {
-        this.visibilities = visibilities;
-    }
-
 }

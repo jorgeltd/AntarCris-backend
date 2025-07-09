@@ -45,14 +45,12 @@ import org.dspace.authorize.AuthorizeException;
 import org.dspace.authorize.ResourcePolicy;
 import org.dspace.content.Bitstream;
 import org.dspace.content.Collection;
-import org.dspace.content.EntityType;
 import org.dspace.content.InProgressSubmission;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataValue;
 import org.dspace.content.WorkspaceItem;
 import org.dspace.content.service.CollectionService;
 import org.dspace.content.service.DuplicateDetectionService;
-import org.dspace.content.service.EntityTypeService;
 import org.dspace.content.service.ItemService;
 import org.dspace.content.service.WorkspaceItemService;
 import org.dspace.content.virtual.PotentialDuplicate;
@@ -61,7 +59,6 @@ import org.dspace.core.Context;
 import org.dspace.core.Utils;
 import org.dspace.discovery.SearchServiceException;
 import org.dspace.license.service.CreativeCommonsService;
-import org.dspace.profile.service.ResearcherProfileService;
 import org.dspace.services.ConfigurationService;
 import org.dspace.services.RequestService;
 import org.dspace.services.model.Request;
@@ -110,13 +107,6 @@ public class SubmissionService {
     private ConverterService converter;
     @Autowired
     private org.dspace.app.rest.utils.Utils utils;
-
-    @Autowired
-    private EntityTypeService entityTypeService;
-
-    @Autowired
-    private ResearcherProfileService researcherProfileService;
-
     private SubmissionConfigService submissionConfigService;
     @Autowired
     private DuplicateDetectionService duplicateDetectionService;
@@ -140,35 +130,27 @@ public class SubmissionService {
         WorkspaceItem wsi = null;
         Collection collection = null;
         String collectionUUID = request.getHttpServletRequest().getParameter("owningCollection");
-        String entityType = request.getHttpServletRequest().getParameter("entityType");
 
         if (StringUtils.isBlank(collectionUUID)) {
             collectionUUID = configurationService.getProperty("submission.default.collection");
         }
-        if (StringUtils.isBlank(entityType) && !StringUtils.isNotBlank(collectionUUID)) {
-            entityType = configurationService.getProperty("submission.default.entitytype");
-        }
-        if (StringUtils.isNotBlank(entityType) && getEntityType(context, entityType) == null) {
-            throw new UnprocessableEntityException("Entity type is not valid");
-        }
+
         try {
             if (StringUtils.isNotBlank(collectionUUID)) {
                 collection = collectionService.find(context, UUID.fromString(collectionUUID));
             } else {
-                final String type = entityType;
-                collection = collectionService.findAuthorizedOptimized(context,Constants.ADD).stream()
-                    .filter(coll -> StringUtils.isBlank(type) ? true : type.equalsIgnoreCase(coll.getEntityType()))
-                    .findFirst().orElse(null);
+                final List<Collection> findAuthorizedOptimized = collectionService.findAuthorizedOptimized(context,
+                        Constants.ADD);
+                if (findAuthorizedOptimized != null && findAuthorizedOptimized.size() > 0) {
+                    collection = findAuthorizedOptimized.get(0);
+                } else {
+                    throw new RESTAuthorizationException("No collection suitable for submission for the current user");
+                }
             }
 
             if (collection == null) {
-                throw new RESTAuthorizationException("No collection suitable for submission for the current user");
+                throw new RESTAuthorizationException("collectionUUID=" + collectionUUID + " not found");
             }
-
-            if (StringUtils.isNotEmpty(entityType) && !collection.getEntityType().equalsIgnoreCase(entityType)) {
-                throw new UnprocessableEntityException("Collection relationship type does not match with entity type");
-            }
-
             wsi = workspaceItemService.create(context, collection, true);
         } catch (SQLException e) {
             // wrap in a runtime exception as we cannot change the method signature
@@ -178,11 +160,6 @@ public class SubmissionService {
         }
 
         return wsi;
-    }
-
-    private EntityType getEntityType(Context context, String entityType) throws SQLException {
-        return entityTypeService.findByEntityType(context, entityType);
-
     }
 
     public void saveWorkspaceItem(Context context, WorkspaceItem wsi) {
@@ -295,14 +272,11 @@ public class SubmissionService {
                     "Start workflow failed due to validation error on workspaceitem");
         }
 
-        context.turnOffAuthorisationSystem();
         try {
             wi = workflowService.start(context, wsi);
         } catch (IOException e) {
             throw new RuntimeException("The workflow could not be started for workspaceItem with" +
                                                " id:  " + id, e);
-        } finally {
-            context.restoreAuthSystemState();
         }
 
         return wi;
@@ -397,7 +371,7 @@ public class SubmissionService {
      * Utility method used by the {@link WorkspaceItemRestRepository} and
      * {@link WorkflowItemRestRepository} to deal with the upload in an inprogress
      * submission
-     *
+     * 
      * @param context DSpace Context Object
      * @param request the http request containing the upload request
      * @param wsi     the inprogress submission current rest representation
@@ -408,10 +382,6 @@ public class SubmissionService {
     public List<ErrorRest> uploadFileToInprogressSubmission(Context context, HttpServletRequest request,
             AInprogressSubmissionRest wsi, InProgressSubmission source, MultipartFile file) {
         List<ErrorRest> errors = new ArrayList<ErrorRest>();
-        // coauthors can upload files
-        if (researcherProfileService.isAuthorOf(context, context.getCurrentUser(), source.getItem())) {
-            context.turnOffAuthorisationSystem();
-        }
         SubmissionConfig submissionConfig =
             submissionConfigService.getSubmissionConfigByName(wsi.getSubmissionDefinition().getName());
         List<Object[]> stepInstancesAndConfigs = new ArrayList<Object[]>();
@@ -450,7 +420,6 @@ public class SubmissionService {
                 err = uploadableStep.upload(context, this, (SubmissionStepConfig) stepInstanceAndCfg[1],
                         source, file);
             } catch (IOException e) {
-                context.restoreAuthSystemState();
                 throw new RuntimeException(e);
             }
             if (err != null) {
@@ -463,7 +432,6 @@ public class SubmissionService {
                 ((ListenerProcessingStep) uploadableStep).doPostProcessing(context, source);
             }
         }
-        context.restoreAuthSystemState();
         return errors;
     }
 
@@ -471,7 +439,7 @@ public class SubmissionService {
      * Utility method used by the {@link WorkspaceItemRestRepository} and
      * {@link WorkflowItemRestRepository} to deal with the patch of an inprogress
      * submission
-     *
+     * 
      * @param context DSpace Context Object
      * @param request the http request
      * @param source  the current inprogress submission

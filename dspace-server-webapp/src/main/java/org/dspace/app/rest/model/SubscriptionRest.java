@@ -12,7 +12,6 @@ import java.util.List;
 
 import org.dspace.app.rest.RestResourceController;
 
-
 @LinksRest(links = {
     @LinkRest(name = SubscriptionRest.DSPACE_OBJECT, method = "getDSpaceObject"),
     @LinkRest(name = SubscriptionRest.EPERSON, method = "getEPerson")

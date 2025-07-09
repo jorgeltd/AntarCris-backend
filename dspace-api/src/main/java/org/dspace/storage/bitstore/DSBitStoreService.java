@@ -252,32 +252,6 @@ public class DSBitStoreService extends BaseBitStoreService {
         return new File(bufFilename.toString());
     }
 
-    /**
-     * Return the intermediate path derived from the internal_id. This method
-     * splits the id into groups which become subdirectories.
-     *
-     * @param iInternalId The internal_id
-     * @return The path based on the id without leading or trailing separators
-     */
-    protected String getIntermediatePath(String iInternalId) {
-        StringBuilder buf = new StringBuilder();
-        for (int i = 0; i < directoryLevels; i++) {
-            int digits = i * digitsPerLevel;
-            if (i > 0) {
-                buf.append(File.separator);
-            }
-            buf.append(iInternalId.substring(digits, digits
-                + digitsPerLevel));
-        }
-        buf.append(File.separator);
-        return buf.toString();
-    }
-
-    @Override
-    public String path(Bitstream bitstream) throws IOException {
-        return getFile(bitstream).getAbsolutePath();
-    }
-
     public boolean isRegisteredBitstream(String internalId) {
         return internalId.startsWith(REGISTERED_FLAG);
     }

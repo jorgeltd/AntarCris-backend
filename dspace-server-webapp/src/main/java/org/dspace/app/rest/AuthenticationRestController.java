@@ -7,7 +7,6 @@
  */
 package org.dspace.app.rest;
 
-import static org.dspace.app.rest.security.StatelessAuthenticationFilter.ON_BEHALF_OF_REQUEST_PARAM;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
@@ -18,7 +17,6 @@ import java.util.stream.Collectors;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.apache.commons.lang3.StringUtils;
 import org.dspace.app.rest.converter.ConverterService;
 import org.dspace.app.rest.converter.EPersonConverter;
 import org.dspace.app.rest.link.HalLinkService;
@@ -36,7 +34,6 @@ import org.dspace.app.rest.projection.Projection;
 import org.dspace.app.rest.security.RestAuthenticationService;
 import org.dspace.app.rest.utils.ContextUtil;
 import org.dspace.app.rest.utils.Utils;
-import org.dspace.authorize.AuthorizeException;
 import org.dspace.core.Context;
 import org.dspace.service.ClientInfoService;
 import org.springframework.beans.factory.InitializingBean;
@@ -208,72 +205,6 @@ public class AuthenticationRestController implements InitializingBean {
     }
 
     /**
-     * This method will generate a machine token.
-     *
-     * @param  request the HttpServletRequest
-     * @return         the created token
-     * @throws AuthorizeException if the 'login as' feature is used
-     */
-    @PreAuthorize("hasAuthority('AUTHENTICATED')")
-    @RequestMapping(value = "/machinetokens", method = RequestMethod.POST)
-    public AuthenticationTokenResource machineToken(HttpServletRequest request) throws AuthorizeException {
-
-        if (isLoginAsFeatureUsed(request)) {
-            throw new AuthorizeException("You're unable to use the 'login as' feature to generate a new machine token");
-        }
-
-        Context context = ContextUtil.obtainContext(request);
-        AuthenticationToken machineToken = restAuthenticationService.getMachineAuthenticationToken(context, request);
-        AuthenticationTokenRest authenticationTokenRest = converter.toRest(machineToken, utils.obtainProjection());
-
-        return converter.toResource(authenticationTokenRest);
-    }
-
-    /**
-     * This method will invalidate the machine token related to the current user.
-     * @param  request   the HttpServletRequest
-     * @return           a no content response
-     * @throws Exception if an error occurs during the invalidation
-     */
-    @PreAuthorize("hasAuthority('AUTHENTICATED')")
-    @RequestMapping(value = "/machinetokens", method = RequestMethod.DELETE)
-    public ResponseEntity<?> invalidateMachineToken(HttpServletRequest request) throws Exception {
-
-        if (isLoginAsFeatureUsed(request)) {
-            throw new AuthorizeException("You're unable to use the login as feature to invalidate a machine token");
-        }
-
-        restAuthenticationService.invalidateMachineAuthenticationToken(ContextUtil.obtainContext(request), request);
-        return ResponseEntity.noContent().build();
-    }
-
-    /**
-     * This method will generate a short lived token to be used for bitstream downloads among other things.
-     *
-     * For security reasons, this endpoint only responds to a explicitly defined list of ips.
-     *
-     * curl -v -X GET https://{dspace-server.url}/api/authn/shortlivedtokens -H "Authorization: Bearer eyJhbG...COdbo"
-     *
-     * Example:
-     * <pre>
-     * {@code
-     * curl -v -X GET https://{dspace-server.url}/api/authn/shortlivedtokens -H "Authorization: Bearer eyJhbG...COdbo"
-     * }
-     * </pre>
-     * @param request The StandardMultipartHttpServletRequest
-     * @return        The created short lived token
-     */
-    @PreAuthorize("hasAuthority('AUTHENTICATED')")
-    @RequestMapping(value = "/shortlivedtokens", method = RequestMethod.GET)
-    public AuthenticationTokenResource shortLivedTokenViaGet(HttpServletRequest request) throws AuthorizeException {
-        if (!clientInfoService.isRequestFromTrustedProxy(request.getRemoteAddr())) {
-            throw new AuthorizeException("Requests to this endpoint should be made from a trusted IP address.");
-        }
-
-        return shortLivedTokenResponse(request);
-    }
-
-    /**
      * See {@link #shortLivedToken}
      */
     private AuthenticationTokenResource shortLivedTokenResponse(HttpServletRequest request) {
@@ -342,10 +273,6 @@ public class AuthenticationRestController implements InitializingBean {
             //We have a user, so the login was successful.
             return ResponseEntity.ok().build();
         }
-    }
-
-    private boolean isLoginAsFeatureUsed(HttpServletRequest request) {
-        return StringUtils.isNotBlank(request.getHeader(ON_BEHALF_OF_REQUEST_PARAM));
     }
 
 }

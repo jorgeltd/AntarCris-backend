@@ -19,13 +19,6 @@
 
     <context:annotation-config/> <!-- allows us to use spring annotations in beans -->
 
-    <!--If multiple importServices have been configured here but only one is to be used during the lookup step (StartSubmissionLookupStep),
-        this can be accomplished by specifying the property "publication-lookup.url" to the baseAddress of the required importService
-        So for example
-        publication-lookup.url=https://eutils.ncbi.nlm.nih.gov/entrez/eutils/
-        Will result in using the PubmedImportService for the lookup step
-        Omitting this property will default to searching over all configured ImportService implementations
-    -->
     <bean id="org.dspace.importer.external.service.ImportService"
         class="org.dspace.importer.external.service.ImportService"
         lazy-init="false" autowire="byType" destroy-method="destroy">
@@ -37,7 +30,6 @@
                 <ref bean="csvImportService" />
                 <ref bean="tsvImportService" />
                 <ref bean="endnoteImportService" />
-                <ref bean="grobidImportMetadataSourceService" />
                 <ref bean="DoiImportService" />
             </list>
          </property>
@@ -158,7 +150,7 @@
     <bean id="openairePublicationMetadataFieldMapping"
           class="org.dspace.importer.external.openaire.metadatamapping.OpenAIREPublicationFieldMapping">
     </bean>
-
+    
     <bean id="CrossRefImportService" class="org.dspace.importer.external.crossref.CrossRefImportMetadataSourceServiceImpl" scope="singleton">
         <property name="metadataFieldMapping" ref="CrossRefMetadataFieldMapping"/>
         <property name="url" value="${crossref.url}"/>
@@ -173,7 +165,7 @@
         <property name="authUrl" value="${epo.authUrl}" />
         <property name="searchUrl" value="${epo.searchUrl}" />
         <!-- date filed mapped metadata, see epo-integration.xml -->
-        <property name="dateFilled" ref="epo.dcterms.dateSubmitted" />
+        <property name="dateFiled" ref="epo.dc.date.filed" />
         <property name="applicationNumber" ref="epo.dc.identifier" />
     </bean>
     <bean id="epoMetadataFieldMapping" class="org.dspace.importer.external.epo.service.EpoFieldMapping"/>
@@ -186,8 +178,7 @@
         <property name="viewMode" value="${scopus.search-api.viewMode}"/>
     </bean>
     <bean id="scopusMetadataFieldMapping" class="org.dspace.importer.external.scopus.service.ScopusFieldMapping"/>
-
-    <bean id="rorServiceFactory" class="org.dspace.importer.external.ror.service.RorServicesFactoryImpl"/>
+    
     <bean id="rorImportService" class="org.dspace.importer.external.ror.service.RorImportMetadataSourceServiceImpl">
           <property name="metadataFieldMapping" ref="rorMetadataFieldMapping"/>
           <property name="url" value="${ror.orgunit-import.api-url}"/>
@@ -241,23 +232,6 @@
     <!-- Metadatafield used to check against if it's already imported or not during the JSONLookupSearcher-->
     <bean id="lookupID" class="org.dspace.importer.external.metadatamapping.MetadataFieldConfig">
         <constructor-arg value="dc.identifier.other"/>
-    </bean>
-
-    <bean id="OpenAIREService"
-          class="org.dspace.importer.external.openaire.service.OpenAireProjectImportMetadataSourceServiceImpl" scope="singleton">
-          <property name="metadataFieldMapping" ref="openaireProjectMetadataFieldMapping"/>
-    </bean>
-    <bean id="openaireProjectMetadataFieldMapping"
-          class="org.dspace.importer.external.openaire.metadatamapping.OpenAIREProjectFieldMapping">
-    </bean>
-
-    <bean id="grobidImportMetadataSourceService" class="org.dspace.submit.extraction.GrobidImportMetadataSourceServiceImpl">
-        <property name="supportedExtensions">
-            <list>
-                <value>pdf</value>
-            </list>
-        </property>
-        <property name="metadataFieldMap" ref="grobidMetadataFieldMap"></property>
     </bean>
 
 </beans>

@@ -77,8 +77,4 @@ public class SubmissionConfigServiceImpl implements SubmissionConfigService, Ini
         return submissionConfigReader.getCollectionsBySubmissionConfig(context, submitName);
     }
 
-    public SubmissionConfig getCorrectionSubmissionConfigByCollection(Collection collection) {
-        return submissionConfigReader.getCorrectionSubmissionConfigByCollection(collection);
-    }
-
 }

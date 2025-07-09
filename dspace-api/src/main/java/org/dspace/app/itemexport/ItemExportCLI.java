@@ -93,13 +93,4 @@ public class ItemExportCLI extends ItemExport {
             seqStart = Integer.parseInt(commandLine.getOptionValue('n'));
         }
     }
-
-    @Override
-    protected void handleAuthorizationSystem(Context context) {
-        if (context.ignoreAuthorization()) {
-            context.restoreAuthSystemState();
-        } else {
-            context.turnOffAuthorisationSystem();
-        }
-    }
 }

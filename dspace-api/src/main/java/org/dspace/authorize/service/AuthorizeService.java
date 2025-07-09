@@ -10,17 +10,12 @@ package org.dspace.authorize.service;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.authorize.ResourcePolicy;
-import org.dspace.authorize.ResourcePolicyOwnerVO;
 import org.dspace.content.Collection;
 import org.dspace.content.Community;
 import org.dspace.content.DSpaceObject;
-import org.dspace.content.Item;
-import org.dspace.content.Relationship;
-import org.dspace.content.RelationshipType;
 import org.dspace.core.Context;
 import org.dspace.discovery.SearchServiceException;
 import org.dspace.eperson.EPerson;
@@ -316,27 +311,13 @@ public interface AuthorizeService {
     public List<ResourcePolicy> getPoliciesActionFilter(Context c, DSpaceObject o, int actionID) throws SQLException;
 
     /**
-     * Return a list of date valid policy owners for a list of object that match the
-     * action.
+     * Return a list of policies for an object that match the action except the record labeled with the rpType
      *
-     * @param  c            context
-     * @param  dsoIds       DSpaceObject ids policies relate to
-     * @param  actionID     action (defined in class Constants)
-     * @return              list of resource policies
-     * @throws SQLException if there's a database problem
-     */
-    public List<ResourcePolicyOwnerVO> getValidPolicyOwnersActionFilter(Context c, List<UUID> dsoIds, int actionID)
-        throws SQLException;
-
-    /**
-     * Return a list of policies for an object that match the action except the
-     * record labeled with the rpType
-     *
-     * @param  c            context
-     * @param  o            DSpaceObject policies relate to
-     * @param  actionID     action (defined in class Constants)
-     * @param  rpType       the resource policy type
-     * @return              list of resource policies
+     * @param c        context
+     * @param o        DSpaceObject policies relate to
+     * @param actionID action (defined in class Constants)
+     * @param rpType   the resource policy type
+     * @return list of resource policies
      * @throws SQLException if there's a database problem
      */
     public List<ResourcePolicy> getPoliciesActionFilterExceptRpType(Context c, DSpaceObject o, int actionID,
@@ -602,30 +583,6 @@ public interface AuthorizeService {
      */
     long countAdminAuthorizedCollection(Context context, String query)
         throws SearchServiceException, SQLException;
-
-    /**
-     * Check if the current user is authorized to create/edit/delete a relationship
-     * of the given type between the leftItem and the rigthItem.
-     *
-     * @param  context          The DSpace context
-     * @param  relationshipType the type of the relationship to be checked
-     * @param  leftItem         the left item of the relationship
-     * @param  rightItem        the right item of the relationship
-     * @return                  true if the current user can create/edit or delete
-     *                          the relationship, false otherwise
-     */
-    boolean canHandleRelationship(Context context, RelationshipType relationshipType, Item leftItem, Item rightItem);
-
-    /**
-     * Check if the current user is authorized to create/edit/delete the given
-     * relationship.
-     *
-     * @param  context      The DSpace context
-     * @param  relationship the type of the relationship to be created
-     * @return              true if the current user can create/edit or delete the
-     *                      relationship, false otherwise
-     */
-    boolean canHandleRelationship(Context context, Relationship relationship);
 
     /**
      * Returns true if the current user can manage accounts.

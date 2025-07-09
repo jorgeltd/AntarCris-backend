@@ -22,7 +22,6 @@ import org.dspace.content.logic.Filter;
 import org.dspace.core.Context;
 import org.dspace.identifier.doi.DOIConnector;
 import org.dspace.identifier.doi.DOIIdentifierException;
-import org.dspace.identifier.generators.DoiGenerationStrategy;
 import org.dspace.services.ConfigurationService;
 import org.dspace.versioning.Version;
 import org.dspace.versioning.VersionHistory;
@@ -104,10 +103,10 @@ public class VersionedDOIIdentifierProvider extends DOIIdentifierProvider implem
         checkMintable(context, filter, dso);
 
         // check whether we have a DOI in the metadata and if we have to remove it
-        String metadataDOI = getDOIOutOfObject(context, dso);
+        String metadataDOI = getDOIOutOfObject(dso);
         if (metadataDOI != null) {
             // check whether doi and version number matches
-            String bareDOI = getBareDOI(context, item, metadataDOI);
+            String bareDOI = getBareDOI(metadataDOI);
             int versionNumber;
             try {
                 versionNumber = versionHistoryService.getVersion(context, history, item).getVersionNumber();
@@ -217,7 +216,7 @@ public class VersionedDOIIdentifierProvider extends DOIIdentifierProvider implem
             return;
         }
 
-        String metadataDOI = getDOIOutOfObject(context, dso);
+        String metadataDOI = getDOIOutOfObject(dso);
         if (!StringUtils.isEmpty(metadataDOI)
             && !metadataDOI.equalsIgnoreCase(doiIdentifier)) {
             // remove doi of older version from the metadata
@@ -239,21 +238,29 @@ public class VersionedDOIIdentifierProvider extends DOIIdentifierProvider implem
         }
     }
 
-    protected String getBareDOI(Context context, Item item, String identifier)
+    protected String getBareDOI(String identifier)
         throws DOIIdentifierException {
         doiService.formatIdentifier(identifier);
-        DoiGenerationStrategy strategy =
-            DoiGenerationStrategy.getApplicableStrategy(context, getDoiGenerationStrategies(), item);
-
         String doiPrefix = DOI.SCHEME.concat(getPrefix())
                                      .concat(String.valueOf(SLASH))
-                                     .concat(strategy.getDoiNamespaceGenerator().getNamespace(context, item));
+                                     .concat(getNamespaceSeparator());
         String doiPostfix = identifier.substring(doiPrefix.length());
         if (doiPostfix.matches(pattern) && doiPostfix.lastIndexOf(DOT) != -1) {
             return doiPrefix.concat(doiPostfix.substring(0, doiPostfix.lastIndexOf(DOT)));
         }
         // if the pattern does not match, we are already working on a bare handle.
         return identifier;
+    }
+
+    protected String getDOIPostfix(String identifier)
+        throws DOIIdentifierException {
+
+        String doiPrefix = DOI.SCHEME.concat(getPrefix()).concat(String.valueOf(SLASH)).concat(getNamespaceSeparator());
+        String doiPostfix = null;
+        if (null != identifier) {
+            doiPostfix = identifier.substring(doiPrefix.length());
+        }
+        return doiPostfix;
     }
 
     protected String makeIdentifierBasedOnHistory(Context context, DSpaceObject dso, VersionHistory history)
@@ -293,9 +300,8 @@ public class VersionedDOIIdentifierProvider extends DOIIdentifierProvider implem
             DOI doi = doiService.create(context);
 
             // as we reuse the DOI ID, we do not have to check whether the DOI exists already.
-            DoiGenerationStrategy strategy =
-                DoiGenerationStrategy.getApplicableStrategy(context, getDoiGenerationStrategies(), item);
-            String identifier = strategy.generateDoi(context, item, doi);
+            String identifier = this.getPrefix() + "/" + this.getNamespaceSeparator() +
+                doi.getID().toString();
 
             if (version.getVersionNumber() > 1) {
                 identifier = identifier.concat(String.valueOf(DOT).concat(String.valueOf(version.getVersionNumber())));
@@ -308,7 +314,7 @@ public class VersionedDOIIdentifierProvider extends DOIIdentifierProvider implem
             return doi.getDoi();
         }
 
-        String identifier = getBareDOI(context, item,previousVersionDOI);
+        String identifier = getBareDOI(previousVersionDOI);
 
         if (version.getVersionNumber() > 1) {
             identifier = identifier.concat(String.valueOf(DOT)).concat(
@@ -325,7 +331,7 @@ public class VersionedDOIIdentifierProvider extends DOIIdentifierProvider implem
             throw new IllegalArgumentException("Old DOI must be neither empty nor null!");
         }
 
-        String bareDoi = getBareDOI(c, item, doiService.formatIdentifier(oldDoi));
+        String bareDoi = getBareDOI(doiService.formatIdentifier(oldDoi));
         String bareDoiRef = doiService.DOIToExternalForm(bareDoi);
 
         List<MetadataValue> identifiers = itemService
@@ -348,7 +354,10 @@ public class VersionedDOIIdentifierProvider extends DOIIdentifierProvider implem
         if (changed) {
             try {
                 itemService.clearMetadata(c, item, MD_SCHEMA, DOI_ELEMENT, DOI_QUALIFIER, Item.ANY);
-                itemService.addMetadata(c, item, MD_SCHEMA, DOI_ELEMENT, DOI_QUALIFIER, null, newIdentifiers);
+                // Checks if Array newIdentifiers is empty to avoid adding null values to the metadata field.
+                if (!newIdentifiers.isEmpty()) {
+                    itemService.addMetadata(c, item, MD_SCHEMA, DOI_ELEMENT, DOI_QUALIFIER, null, newIdentifiers);
+                }
                 itemService.update(c, item);
             } catch (SQLException ex) {
                 throw new RuntimeException("A problem with the database connection occured.", ex);

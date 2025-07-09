@@ -88,9 +88,9 @@ public class BrowseIndex {
     /**
      * additional 'internal' tables that are always defined
      */
-    private static BrowseIndex itemIndex = new BrowseIndex("bi_item", "item");
-    private static BrowseIndex withdrawnIndex = new BrowseIndex("bi_withdrawn", "item");
-    private static BrowseIndex privateIndex = new BrowseIndex("bi_private", "item");
+    private static BrowseIndex itemIndex = new BrowseIndex("bi_item");
+    private static BrowseIndex withdrawnIndex = new BrowseIndex("bi_withdrawn");
+    private static BrowseIndex privateIndex = new BrowseIndex("bi_private");
 
 
     /**
@@ -105,20 +105,10 @@ public class BrowseIndex {
      * @param baseName The base of the table name
      */
     protected BrowseIndex(String baseName) {
-        this(baseName, "item");
-    }
-
-    /**
-     * Constructor for creating generic / internal index objects
-     *
-     * @param baseName The base of the table name
-     * @param type     the display type
-     */
-    private BrowseIndex(String baseName, String type) {
         try {
             number = -1;
             tableBaseName = baseName;
-            displayType = type;
+            displayType = "item";
             sortOption = SortOption.getDefaultSortOption();
         } catch (SortException se) {
             // FIXME Exception handling
@@ -215,7 +205,7 @@ public class BrowseIndex {
                         }
                     }
 
-                    tableBaseName = getItemBrowseIndex(displayType).tableBaseName;
+                    tableBaseName = getItemBrowseIndex().tableBaseName;
                 } else if (isItemIndex()) {
                     String sortName = matcher.group(3);
 
@@ -238,7 +228,7 @@ public class BrowseIndex {
                         }
                     }
 
-                    tableBaseName = getItemBrowseIndex(displayType).tableBaseName;
+                    tableBaseName = getItemBrowseIndex().tableBaseName;
                 } else {
                     valid = false;
                 }
@@ -628,7 +618,7 @@ public class BrowseIndex {
      * @return true if full, false if not
      */
     public boolean isItemIndex() {
-        return !isMetadataIndex();
+        return "item".equals(displayType);
     }
 
     /**
@@ -738,16 +728,10 @@ public class BrowseIndex {
     /**
      * Get the internally defined browse index for archived items.
      *
-     * @param displayType
-     *
      * @return browse index
      */
-    public static BrowseIndex getItemBrowseIndex(String displayType) {
-        if ("item".equals(displayType)) {
-            return BrowseIndex.itemIndex;
-        } else {
-            return new BrowseIndex("bi_" + displayType, displayType);
-        }
+    public static BrowseIndex getItemBrowseIndex() {
+        return BrowseIndex.itemIndex;
     }
 
     /**

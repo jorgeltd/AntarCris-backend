@@ -11,7 +11,9 @@ import java.util.HashMap;
 import java.util.Set;
 
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.dspace.content.DSpaceObject;
 import org.dspace.eperson.EPerson;
 import org.dspace.eperson.Group;
@@ -24,10 +26,9 @@ public class ContextReadOnlyCache {
 
     /**
      * Authorized actions cache that is used when the context is in READ_ONLY mode.
-     * The key of the cache is: DSpace Object ID, action ID, Eperson ID and
-     * inheritance boolean.
+     * The key of the cache is: DSpace Object ID, action ID, Eperson ID.
      */
-    private final HashMap<AuthorizedActionKey, Boolean> authorizedActionsCache = new HashMap<>();
+    private final HashMap<Triple<String, Integer, String>, Boolean> authorizedActionsCache = new HashMap<>();
 
     /**
      * Group membership cache that is used when the context is in READ_ONLY mode.
@@ -40,14 +41,12 @@ public class ContextReadOnlyCache {
      */
     private final HashMap<String, Set<Group>> allMemberGroupsCache = new HashMap<>();
 
-    public Boolean getCachedAuthorizationResult(DSpaceObject dspaceObject, int action,
-        EPerson eperson, Boolean useInheritance) {
-        return authorizedActionsCache.get(AuthorizedActionKey.of(dspaceObject, action, eperson, useInheritance));
+    public Boolean getCachedAuthorizationResult(DSpaceObject dspaceObject, int action, EPerson eperson) {
+        return authorizedActionsCache.get(buildAuthorizedActionKey(dspaceObject, action, eperson));
     }
 
-    public void cacheAuthorizedAction(DSpaceObject dspaceObject, int action, EPerson eperson,
-        Boolean inheritance, Boolean result) {
-        authorizedActionsCache.put(AuthorizedActionKey.of(dspaceObject, action, eperson, inheritance), result);
+    public void cacheAuthorizedAction(DSpaceObject dspaceObject, int action, EPerson eperson, Boolean result) {
+        authorizedActionsCache.put(buildAuthorizedActionKey(dspaceObject, action, eperson), result);
     }
 
     public Boolean getCachedGroupMembership(Group group, EPerson eperson) {
@@ -90,13 +89,16 @@ public class ContextReadOnlyCache {
         return ePerson == null ? "" : ePerson.getID().toString();
     }
 
+    private ImmutableTriple<String, Integer, String> buildAuthorizedActionKey(DSpaceObject dspaceObject, int action,
+                                                                              EPerson eperson) {
+        return new ImmutableTriple<>(dspaceObject == null ? "" : dspaceObject.getID().toString(),
+                                     Integer.valueOf(action),
+                                     eperson == null ? "" : eperson.getID().toString());
+    }
+
     private Pair<String, String> buildGroupMembershipKey(Group group, EPerson eperson) {
         return new ImmutablePair<>(group == null ? "" : group.getName(),
                                    eperson == null ? "" : eperson.getID().toString());
-    }
-
-    protected void clearAllMembershipGroupCache(EPerson eperson) {
-        allMemberGroupsCache.remove(buildAllMembersGroupKey(eperson));
     }
 
 }

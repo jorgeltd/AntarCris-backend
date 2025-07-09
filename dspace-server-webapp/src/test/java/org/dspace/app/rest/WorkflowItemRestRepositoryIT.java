@@ -9,15 +9,6 @@ package org.dspace.app.rest;
 
 import static com.jayway.jsonpath.JsonPath.read;
 import static com.jayway.jsonpath.matchers.JsonPathMatchers.hasJsonPath;
-import static org.dspace.app.matcher.ResourcePolicyMatcher.matches;
-import static org.dspace.authorize.ResourcePolicy.TYPE_SUBMISSION;
-import static org.dspace.authorize.ResourcePolicy.TYPE_WORKFLOW;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -50,8 +41,6 @@ import org.dspace.app.rest.model.patch.Operation;
 import org.dspace.app.rest.model.patch.RemoveOperation;
 import org.dspace.app.rest.model.patch.ReplaceOperation;
 import org.dspace.app.rest.test.AbstractControllerIntegrationTest;
-import org.dspace.authorize.ResourcePolicy;
-import org.dspace.authorize.service.AuthorizeService;
 import org.dspace.builder.BitstreamBuilder;
 import org.dspace.builder.ClaimedTaskBuilder;
 import org.dspace.builder.CollectionBuilder;
@@ -65,23 +54,17 @@ import org.dspace.content.Collection;
 import org.dspace.content.Community;
 import org.dspace.content.Item;
 import org.dspace.content.WorkspaceItem;
-import org.dspace.content.service.WorkspaceItemService;
-import org.dspace.core.Constants;
 import org.dspace.eperson.EPerson;
-import org.dspace.eperson.Group;
 import org.dspace.services.ConfigurationService;
-import org.dspace.workflow.WorkflowItem;
 import org.dspace.xmlworkflow.factory.XmlWorkflowFactory;
 import org.dspace.xmlworkflow.state.Step;
 import org.dspace.xmlworkflow.storedcomponents.ClaimedTask;
 import org.dspace.xmlworkflow.storedcomponents.XmlWorkflowItem;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.rest.webmvc.RestMediaTypes;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 
 /**
  * Test suite for the WorkflowItem endpoint
@@ -95,12 +78,6 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
 
     @Autowired
     private XmlWorkflowFactory xmlWorkflowFactory;
-
-    @Autowired
-    private AuthorizeService authorizeService;
-
-    @Autowired
-    private WorkspaceItemService workspaceItemService;
 
     @Before
     @Override
@@ -685,10 +662,6 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
         getClient(token).perform(delete("/api/workflow/workflowitems/" + witem.getID()))
                     .andExpect(status().is(204));
 
-        // Delete the workflowitem a second time should result in 404
-        getClient(token).perform(delete("/api/workflow/workflowitems/" + witem.getID()))
-                    .andExpect(status().is(404));
-
         // Trying to get deleted workflowitem should fail with 404
         getClient(token).perform(get("/api/workflow/workflowitems/" + witem.getID()))
                    .andExpect(status().is(404));
@@ -711,6 +684,71 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
                 .andExpect(jsonPath("$._links.self.href", Matchers.containsString("/api/submission/workspaceitems")))
                 .andExpect(jsonPath("$.page.size", is(20)))
                 .andExpect(jsonPath("$.page.totalElements", is(1)));
+    }
+
+    @Test
+    /**
+     * A delete request over a workflowitem with expunge param should result in delete item over detabase
+     * workspace
+     *
+     * @throws Exception
+     */
+    public void deleteOneWithExpungeTest() throws Exception {
+        context.turnOffAuthorisationSystem();
+
+        //** GIVEN **
+        //1. A community with one collection.
+        parentCommunity = CommunityBuilder.createCommunity(context)
+                                          .withName("Parent Community")
+                                          .build();
+        Collection col1 = CollectionBuilder.createCollection(context, parentCommunity).withName("Collection 1")
+                .withWorkflowGroup(1, admin).build();
+
+        //2. create a normal user to use as submitter
+        EPerson submitter = EPersonBuilder.createEPerson(context)
+                .withEmail("submitter@example.com")
+                .withPassword("dspace")
+                .build();
+
+        context.setCurrentUser(submitter);
+
+        //3. a workflow item
+        XmlWorkflowItem witem = WorkflowItemBuilder.createWorkflowItem(context, col1)
+                .withTitle("Workflow Item 1")
+                .withIssueDate("2017-10-17")
+                .build();
+
+        Item item = witem.getItem();
+
+        //Add a bitstream to the item
+        String bitstreamContent = "ThisIsSomeDummyText";
+        Bitstream bitstream = null;
+        try (InputStream is = IOUtils.toInputStream(bitstreamContent, Charset.defaultCharset())) {
+            bitstream = BitstreamBuilder
+                    .createBitstream(context, item, is)
+                    .withName("Bitstream1")
+                    .withMimeType("text/plain").build();
+        }
+
+        context.restoreAuthSystemState();
+
+        String token = getAuthToken(admin.getEmail(), password);
+
+        // Delete the workflowitem
+        getClient(token).perform(delete("/api/workflow/workflowitems/" + witem.getID() + "?expunge=true"))
+                    .andExpect(status().is(204));
+
+        // Trying to get deleted workflowitem should fail with 404
+        getClient(token).perform(get("/api/workflow/workflowitems/" + witem.getID()))
+                   .andExpect(status().is(404));
+
+        // the workflowitem's item should fail with 404
+        getClient(token).perform(get("/api/core/items/" + item.getID()))
+                   .andExpect(status().is(404));
+
+        // the workflowitem's bitstream should fail with 404
+        getClient(token).perform(get("/api/core/bitstreams/" + bitstream.getID()))
+                   .andExpect(status().is(404));
     }
 
     @Test
@@ -874,7 +912,6 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
      *
      * @throws Exception
      */
-    @Test
     public void validationErrorsRequiredMetadataTest() throws Exception {
         context.turnOffAuthorisationSystem();
 
@@ -896,27 +933,25 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
 
         //3. a workflow item will all the required fields
         XmlWorkflowItem witem = WorkflowItemBuilder.createWorkflowItem(context, col1)
-                .withTitle("Workflow Item")
+                .withTitle("Workflow Item 1")
                 .withIssueDate("2017-10-17")
-                .grantLicense()
                 .build();
 
         //4. a workflow item without the dateissued required field
         XmlWorkflowItem witemMissingFields = WorkflowItemBuilder.createWorkflowItem(context, col1)
-                .withTitle("Test Workflow Item 2")
-                .grantLicense()
+                .withTitle("Workflow Item 1")
                 .build();
 
         context.restoreAuthSystemState();
 
         String authToken = getAuthToken(eperson.getEmail(), password);
 
-        getClient(authToken).perform(get("/api/workflow/workflowitems/" + witem.getID()))
+        getClient(authToken).perform(get("/api/workflow/worfklowitems/" + witem.getID()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.errors").doesNotExist())
         ;
 
-        getClient(authToken).perform(get("/api/workflow/workflowitems/" + witemMissingFields.getID()))
+        getClient(authToken).perform(get("/api/workflow/worfklowitems/" + witemMissingFields.getID()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.errors[?(@.message=='error.validation.required')]",
                         Matchers.contains(
@@ -924,135 +959,6 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
                                         hasJsonPath("$", Matchers.is("/sections/traditionalpageone/dc.date.issued"))
                                 )))))
         ;
-    }
-
-    /**
-     * Test a global submission validation error
-     *
-     * @throws Exception
-     */
-    @Test
-    public void globalValidationErrorsTest() throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        // ** GIVEN **
-        // 1. A community with one collection.
-        parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
-        Collection col1 = CollectionBuilder.createCollection(context, parentCommunity).withName("Collection 1")
-            .withWorkflowGroup(1, eperson).build();
-
-        // 2. create a normal user to use as submitter
-        EPerson submitter = EPersonBuilder.createEPerson(context)
-            .withEmail("submitter@example.com")
-            .withPassword("dspace")
-            .build();
-
-        context.setCurrentUser(submitter);
-
-        // 3. a workflow item will all the required fields
-        XmlWorkflowItem witem = WorkflowItemBuilder.createWorkflowItem(context, col1)
-            .withTitle("Test publication with mandatory DOI 1")
-            .withIssueDate("2017-10-17")
-            .withDoiIdentifier("10.1000/182")
-            .grantLicense()
-            .build();
-
-        // 4. a workflow item without the dateissued required field
-        XmlWorkflowItem witemMissingFields = WorkflowItemBuilder.createWorkflowItem(context, col1)
-            .withTitle("Test publication with mandatory DOI 2")
-            .withIssueDate("2018-10-17")
-            .grantLicense()
-            .build();
-
-        context.restoreAuthSystemState();
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        getClient(authToken).perform(get("/api/workflow/workflowitems/" + witem.getID()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.errors[?(@.message=='error.validation.test')]").doesNotExist());
-
-        getClient(authToken).perform(get("/api/workflow/workflowitems/" + witemMissingFields.getID()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.errors[?(@.message=='error.validation.test')]", allOf(
-                    contains(hasJsonPath("$.paths[0]", is("/sections/traditionalpageone/dc.title"))),
-                    contains(hasJsonPath("$.paths[1]", is("/sections/traditionalpageone/dc.identifier.doi"))))));
-    }
-
-    /**
-     * Test step and global submission validation error
-     *
-     * @throws Exception
-     */
-    @Test
-    public void stepAndGlobalValidationErrorsTest() throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        // ** GIVEN **
-        // 1. A community with one collection.
-        parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
-        Collection col1 = CollectionBuilder.createCollection(context, parentCommunity).withName("Collection 1")
-            .withWorkflowGroup(1, eperson).build();
-
-        // 2. create a normal user to use as submitter
-        EPerson submitter = EPersonBuilder.createEPerson(context)
-            .withEmail("submitter@example.com")
-            .withPassword("dspace")
-            .build();
-
-        context.setCurrentUser(submitter);
-
-        // 3. a workflow item will all the required fields
-        XmlWorkflowItem witem = WorkflowItemBuilder.createWorkflowItem(context, col1)
-            .withTitle("Test publication with mandatory DOI")
-            .withIssueDate("2017-10-17")
-            .withDoiIdentifier("10.1000/182")
-            .grantLicense()
-            .build();
-
-        // 4. a workflow item without the dateissued required field
-        XmlWorkflowItem witemMissingFields = WorkflowItemBuilder.createWorkflowItem(context, col1)
-            .withTitle("Test publication with mandatory DOI second")
-            .grantLicense()
-            .build();
-
-        context.restoreAuthSystemState();
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        getClient(authToken).perform(get("/api/workflow/workflowitems/" + witem.getID()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.errors").doesNotExist());
-
-        getClient(authToken).perform(get("/api/workflow/workflowitems/" + witemMissingFields.getID()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.errors[?(@.message=='error.validation.required')]",
-                contains(hasJsonPath("$.paths[0]", is("/sections/traditionalpageone/dc.date.issued")))))
-            .andExpect(jsonPath("$.errors[?(@.message=='error.validation.test')]", allOf(
-                contains(hasJsonPath("$.paths[0]", is("/sections/traditionalpageone/dc.title"))),
-                contains(hasJsonPath("$.paths[1]", is("/sections/traditionalpageone/dc.identifier.doi"))))));
-    }
-
-    @Test
-    public void patchNotExistingWorkflowItemTest() throws Exception {
-        List<Operation> update = new ArrayList<Operation>();
-        List<Map<String, String>> values = new ArrayList<>();
-        Map<String, String> value = new HashMap<String, String>();
-        value.put("value", "Title");
-        values.add(value);
-        update.add(new AddOperation("/sections/traditionalpageone/dc.title", values));
-
-        String patchBody = getPatchContent(update);
-        String authToken = getAuthToken(admin.getEmail(), password);
-        getClient(authToken).perform(patch("/api/workflow/workflowitems/" + Integer.MAX_VALUE)
-                        .content(patchBody)
-                        .contentType(MediaType.APPLICATION_JSON_PATCH_JSON))
-                .andExpect(status().isNotFound());
-
     }
 
     @Test
@@ -1125,6 +1031,7 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
     }
 
     @Test
+    @Ignore(value = "This demonstrate the bug logged in DS-4179")
     /**
      * Verify that update of metadata is forbidden in step 1.
      *
@@ -1179,7 +1086,7 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
             .andExpect(status().isOk())
             .andExpect(jsonPath("$",
                     Matchers.is(WorkflowItemMatcher.matchItemWithTitleAndDateIssuedAndSubject(witem,
-                            "Workflow Item 1", "2017-10-17", "ExtraEntry"))))
+                            "New Title", "2017-10-17", "ExtraEntry"))))
         ;
     }
 
@@ -1279,7 +1186,7 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
 
         //3. some claimed tasks with workflow items in edit step
         ClaimedTask claimedTask = ClaimedTaskBuilder.createClaimedTask(context, col1, eperson)
-            .withTitle("First Workflow Item")
+            .withTitle("Workflow Item 1")
             .withIssueDate("2017-10-17")
             .withAuthor("Smith, Donald").withAuthor("Doe, John")
             .withSubject("ExtraEntry")
@@ -1290,7 +1197,7 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
         XmlWorkflowItem witem = claimedTask.getWorkflowItem();
 
         ClaimedTask claimedTask2 = ClaimedTaskBuilder.createClaimedTask(context, col1, eperson)
-            .withTitle("Second Workflow Item")
+            .withTitle("Workflow Item 2")
             .withIssueDate("2017-10-17")
             .withSubject("Subject1")
             .withSubject("Subject2")
@@ -1303,7 +1210,7 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
         XmlWorkflowItem witemMultipleSubjects  = claimedTask2.getWorkflowItem();
 
         ClaimedTask claimedTask3 = ClaimedTaskBuilder.createClaimedTask(context, col1, eperson)
-            .withTitle("Third Workflow Item")
+            .withTitle("Workflow Item 3")
             .withIssueDate("2017-10-17")
             .withSubject("Subject1")
             .withSubject("Subject2")
@@ -2028,394 +1935,6 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
     }
 
     @Test
-    public void testWorkflowItemPoliciesWithSharedWorkspace() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-        context.setCurrentUser(eperson);
-
-        parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
-
-        Collection collection = CollectionBuilder.createCollection(context, parentCommunity)
-            .withName("Collection")
-            .withEntityType("Publication")
-            .withSubmitterGroup(eperson)
-            .withWorkflowGroup(1, admin)
-            .withSharedWorkspace()
-            .build();
-
-        WorkspaceItem wsitem = WorkspaceItemBuilder.createWorkspaceItem(context, collection)
-            .withTitle("Submission Item")
-            .withIssueDate("2017-10-17")
-            .withType("other")
-            .grantLicense()
-            .build();
-
-        Item item = wsitem.getItem();
-        Group submitters = collection.getSubmitters();
-
-        context.restoreAuthSystemState();
-
-        List<ResourcePolicy> policies = authorizeService.getPolicies(context, item);
-        assertThat(policies, hasSize(10));
-
-        assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.READ, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.WRITE, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.DELETE, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.REMOVE, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.ADD, submitters, TYPE_SUBMISSION)));
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        AtomicReference<Integer> idRef = new AtomicReference<Integer>();
-        try {
-
-            getClient(authToken).perform(post(BASE_REST_SERVER_URL + "/api/workflow/workflowitems")
-                .content("/api/submission/workspaceitems/" + wsitem.getID())
-                .contentType(textUriContentType))
-                .andExpect(status().isCreated())
-                .andDo(result -> idRef.set(read(result.getResponse().getContentAsString(), "$.id")));
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(7));
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.READ, submitters, TYPE_SUBMISSION)));
-
-            Group workflowStepGroup = collection.getWorkflowStep1(context);
-            assertThat(policies, hasItem(matches(Constants.READ, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.ADD, workflowStepGroup, TYPE_WORKFLOW)));
-
-            claimTaskAndReject(admin, idRef.get());
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(10));
-
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.READ, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.ADD, submitters, TYPE_SUBMISSION)));
-
-        } finally {
-            context.turnOffAuthorisationSystem();
-            WorkspaceItem workspaceItem = workspaceItemService.findByItem(context, item);
-            if (workspaceItem != null) {
-                workspaceItemService.deleteWrapper(context, workspaceItem);
-            }
-            WorkflowItemBuilder.deleteWorkflowItem(idRef.get());
-            context.restoreAuthSystemState();
-        }
-
-    }
-
-    @Test
-    public void testWorkflowItemPoliciesWithoutSharedWorkspace() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-        context.setCurrentUser(eperson);
-
-        parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
-
-        Collection collection = CollectionBuilder.createCollection(context, parentCommunity)
-            .withName("Collection")
-            .withEntityType("Publication")
-            .withSubmitterGroup(eperson)
-            .withWorkflowGroup(1, admin)
-            .build();
-
-        WorkspaceItem wsitem = WorkspaceItemBuilder.createWorkspaceItem(context, collection)
-            .withTitle("Submission Item")
-            .withIssueDate("2017-10-17")
-            .withType("other")
-            .grantLicense()
-            .build();
-
-        Item item = wsitem.getItem();
-        Group submitters = collection.getSubmitters();
-
-        context.restoreAuthSystemState();
-
-        List<ResourcePolicy> policies = authorizeService.getPolicies(context, item);
-        assertThat(policies, hasSize(5));
-
-        assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        AtomicReference<Integer> idRef = new AtomicReference<Integer>();
-        try {
-
-            getClient(authToken).perform(post(BASE_REST_SERVER_URL + "/api/workflow/workflowitems")
-                .content("/api/submission/workspaceitems/" + wsitem.getID())
-                .contentType(textUriContentType))
-                .andExpect(status().isCreated())
-                .andDo(result -> idRef.set(read(result.getResponse().getContentAsString(), "$.id")));
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(6));
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-
-            Group workflowStepGroup = collection.getWorkflowStep1(context);
-            assertThat(policies, hasItem(matches(Constants.READ, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.ADD, workflowStepGroup, TYPE_WORKFLOW)));
-
-            claimTaskAndReject(admin, idRef.get());
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(5));
-
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-
-        } finally {
-            context.turnOffAuthorisationSystem();
-            WorkspaceItem workspaceItem = workspaceItemService.findByItem(context, item);
-            if (workspaceItem != null) {
-                workspaceItemService.deleteWrapper(context, workspaceItem);
-            }
-            WorkflowItemBuilder.deleteWorkflowItem(idRef.get());
-            context.restoreAuthSystemState();
-        }
-
-    }
-
-    @Test
-    public void testWorkflowItemPoliciesWithSharedWorkspaceAndReviewerEqualsToSubmitter() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-        context.setCurrentUser(eperson);
-
-        parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
-
-        Collection collection = CollectionBuilder.createCollection(context, parentCommunity)
-            .withName("Collection")
-            .withEntityType("Publication")
-            .withSubmitterGroup(eperson)
-            .withWorkflowGroup(1, eperson)
-            .withSharedWorkspace()
-            .build();
-
-        WorkspaceItem wsitem = WorkspaceItemBuilder.createWorkspaceItem(context, collection)
-            .withTitle("Submission Item")
-            .withIssueDate("2017-10-17")
-            .withType("other")
-            .grantLicense()
-            .build();
-
-        Item item = wsitem.getItem();
-        Group submitters = collection.getSubmitters();
-
-        context.restoreAuthSystemState();
-
-        List<ResourcePolicy> policies = authorizeService.getPolicies(context, item);
-        assertThat(policies, hasSize(10));
-
-        assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.READ, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.WRITE, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.DELETE, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.REMOVE, submitters, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.ADD, submitters, TYPE_SUBMISSION)));
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        AtomicReference<Integer> idRef = new AtomicReference<Integer>();
-        try {
-
-            getClient(authToken).perform(post(BASE_REST_SERVER_URL + "/api/workflow/workflowitems")
-                .content("/api/submission/workspaceitems/" + wsitem.getID())
-                .contentType(textUriContentType))
-                .andExpect(status().isCreated())
-                .andDo(result -> idRef.set(read(result.getResponse().getContentAsString(), "$.id")));
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(7));
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.READ, submitters, TYPE_SUBMISSION)));
-
-            Group workflowStepGroup = collection.getWorkflowStep1(context);
-            assertThat(policies, hasItem(matches(Constants.READ, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.ADD, workflowStepGroup, TYPE_WORKFLOW)));
-
-            claimTaskAndReject(eperson, idRef.get());
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(10));
-
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.READ, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, submitters, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.ADD, submitters, TYPE_SUBMISSION)));
-
-        } finally {
-            context.turnOffAuthorisationSystem();
-            WorkspaceItem workspaceItem = workspaceItemService.findByItem(context, item);
-            if (workspaceItem != null) {
-                workspaceItemService.deleteWrapper(context, workspaceItem);
-            }
-            WorkflowItemBuilder.deleteWorkflowItem(idRef.get());
-            context.restoreAuthSystemState();
-        }
-
-    }
-
-    @Test
-    public void testWorkflowItemPoliciesWithoutSharedWorkspaceAndReviewerEqualsToSubmitter() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-        context.setCurrentUser(eperson);
-
-        parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
-
-        Collection collection = CollectionBuilder.createCollection(context, parentCommunity)
-            .withName("Collection")
-            .withEntityType("Publication")
-            .withSubmitterGroup(eperson)
-            .withWorkflowGroup(1, eperson)
-            .build();
-
-        WorkspaceItem wsitem = WorkspaceItemBuilder.createWorkspaceItem(context, collection)
-            .withTitle("Submission Item")
-            .withIssueDate("2017-10-17")
-            .withType("other")
-            .grantLicense()
-            .build();
-
-        Item item = wsitem.getItem();
-        Group submitters = collection.getSubmitters();
-
-        context.restoreAuthSystemState();
-
-        List<ResourcePolicy> policies = authorizeService.getPolicies(context, item);
-        assertThat(policies, hasSize(5));
-
-        assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-        assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        AtomicReference<Integer> idRef = new AtomicReference<Integer>();
-        try {
-
-            getClient(authToken).perform(post(BASE_REST_SERVER_URL + "/api/workflow/workflowitems")
-                .content("/api/submission/workspaceitems/" + wsitem.getID())
-                .contentType(textUriContentType))
-                .andExpect(status().isCreated())
-                .andDo(result -> idRef.set(read(result.getResponse().getContentAsString(), "$.id")));
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(6));
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-
-            Group workflowStepGroup = collection.getWorkflowStep1(context);
-            assertThat(policies, hasItem(matches(Constants.READ, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, workflowStepGroup, TYPE_WORKFLOW)));
-            assertThat(policies, hasItem(matches(Constants.ADD, workflowStepGroup, TYPE_WORKFLOW)));
-
-            claimTaskAndReject(eperson, idRef.get());
-
-            policies = authorizeService.getPolicies(context, item);
-            assertThat(policies, hasSize(5));
-
-            assertThat(policies, hasItem(matches(Constants.READ, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.WRITE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.DELETE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.REMOVE, eperson, TYPE_SUBMISSION)));
-            assertThat(policies, hasItem(matches(Constants.ADD, eperson, TYPE_SUBMISSION)));
-
-        } finally {
-            context.turnOffAuthorisationSystem();
-            WorkspaceItem workspaceItem = workspaceItemService.findByItem(context, item);
-            if (workspaceItem != null) {
-                workspaceItemService.deleteWrapper(context, workspaceItem);
-            }
-            WorkflowItemBuilder.deleteWorkflowItem(idRef.get());
-            context.restoreAuthSystemState();
-        }
-
-    }
-
-    private void claimTaskAndReject(EPerson user, Integer workflowItemid) throws Exception {
-
-        String authToken = getAuthToken(user.getEmail(), password);
-
-        AtomicReference<Integer> taskId = new AtomicReference<Integer>();
-        getClient(authToken).perform(get("/api/workflow/pooltasks/search/findByUser")
-                .param("uuid", user.getID().toString()))
-            .andExpect(status().isOk())
-            .andDo(r -> taskId.set(read(r.getResponse().getContentAsString(), "$._embedded.pooltasks[0].id")));
-
-        getClient(authToken).perform(post("/api/workflow/claimedtasks")
-            .contentType(RestMediaTypes.TEXT_URI_LIST)
-            .content("/api/workflow/pooltasks/" + taskId.get()))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$", Matchers.allOf(hasJsonPath("$.type", is("claimedtask")))));
-
-        getClient(authToken).perform(get("/api/workflow/claimedtasks/search/findByUser")
-            .param("uuid", user.getID().toString()))
-            .andExpect(status().isOk())
-            .andDo(r -> taskId.set(read(r.getResponse().getContentAsString(), "$._embedded.claimedtasks[0].id")));
-
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<String, String>();
-        params.add("submit_reject", "submit_reject");
-        params.add("reason", "reason");
-
-        getClient(authToken).perform(post("/api/workflow/claimedtasks/{id}", taskId.get())
-            .contentType("application/x-www-form-urlencoded")
-            .params(params))
-            .andExpect(status().isNoContent());
-
-    }
-
-    @Test
     public void whenWorkspaceitemBecomeWorkflowitemWithAccessConditionsTheBitstreamMustBeDownloableTest()
             throws Exception {
         context.turnOffAuthorisationSystem();
@@ -2675,18 +2194,17 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
         context.turnOffAuthorisationSystem();
 
         parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
+                                          .withName("Parent Community")
+                                          .build();
 
-        Collection collection = CollectionBuilder.createCollection(context, parentCommunity)
-            .withName("Collection 1")
-            .withSubmissionDefinition("test-hidden")
-            .withWorkflowGroup(1, eperson)
-            .build();
+        Collection collection = CollectionBuilder.createCollection(context, parentCommunity, "123456789/test-hidden")
+                                                 .withName("Collection 1")
+                                                 .withWorkflowGroup(1, eperson)
+                                                 .build();
 
-        WorkflowItem workflowItem = WorkflowItemBuilder.createWorkflowItem(context, collection)
-            .withTitle("Workflow Item")
-            .build();
+        XmlWorkflowItem workflowItem = WorkflowItemBuilder.createWorkflowItem(context, collection)
+                                                          .withTitle("Workflow Item")
+                                                          .build();
 
         context.restoreAuthSystemState();
 
@@ -2698,192 +2216,6 @@ public class WorkflowItemRestRepositoryIT extends AbstractControllerIntegrationT
             .andExpect(jsonPath("$.sections.test-never-hidden").exists())
             .andExpect(jsonPath("$.sections.test-always-hidden").doesNotExist());
 
-    }
-
-    @Test
-    public void testValidationWithHiddenSteps() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        parentCommunity = CommunityBuilder.createCommunity(context)
-            .withName("Parent Community")
-            .build();
-
-        Collection collection = CollectionBuilder.createCollection(context, parentCommunity)
-            .withName("Collection 1")
-            .withSubmissionDefinition("test-hidden")
-            .withWorkflowGroup(1, eperson)
-            .build();
-
-        WorkflowItem workflowItem = WorkflowItemBuilder.createWorkflowItem(context, collection)
-            .build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(admin.getEmail(), password))
-            .perform(get("/api/workflow/workflowitems/" + workflowItem.getID()))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.errors", hasSize(1)))
-            .andExpect(jsonPath("$.errors[0].message", is("error.validation.required")))
-            .andExpect(jsonPath("$.errors[0].paths", contains("/sections/test-outside-workflow-hidden/dc.title")));
-    }
-
-    @Test
-    /**
-     * Test the addition of metadata
-     *
-     * @throws Exception
-     */
-    public void patchAddMetadataToInlineGroupTypeMetadataShouldReturnErrorsTest() throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        //** GIVEN **
-        //1. A community with one collection.
-        parentCommunity = CommunityBuilder.createCommunity(context)
-                .withName("Parent Community")
-                .build();
-        Collection col1 = CollectionBuilder.createCollection(context, parentCommunity)
-                .withName("Collection 1")
-                .withEntityType("Funding")
-                .withWorkflowGroup(1, eperson).build();
-
-        //2. create a normal user to use as submitter
-        EPerson submitter = EPersonBuilder.createEPerson(context)
-                .withEmail("submitter@example.com")
-                .withPassword("dspace")
-                .build();
-
-        context.setCurrentUser(submitter);
-
-        //3. a claimed task with workflow item in edit step
-        ClaimedTask claimedTask = ClaimedTaskBuilder.createClaimedTask(context, col1, eperson)
-                .withIssueDate("2017-10-17")
-                .withSubject("ExtraEntry")
-                .grantLicense()
-                .build();
-        claimedTask.setStepID("editstep");
-        claimedTask.setActionID("editaction");
-        XmlWorkflowItem witem = claimedTask.getWorkflowItem();
-
-        context.restoreAuthSystemState();
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        List<Operation> list = new ArrayList<>();
-        List<Map<String, String>> currencyValues = new ArrayList<>();
-        Map<String, String> currencyMap = new HashMap<>();
-        List<Map<String, String>> amountValues = new ArrayList<>();
-        Map<String, String> amountMap = new HashMap<>();
-        currencyMap.put("value", "Euro");
-        currencyValues.add(currencyMap);
-        amountMap.put("value", "12312");
-        amountValues.add(amountMap);
-        list.add(new AddOperation("/sections/funding/oairecerif.amount.currency", currencyValues));
-        list.add(new AddOperation("/sections/funding/oairecerif.amount", amountValues));
-
-        String patchBody = getPatchContent(list);
-        getClient(authToken).perform(patch("/api/workflow/workflowitems/" + witem.getID())
-                        .content(patchBody)
-                        .contentType(MediaType.APPLICATION_JSON_PATCH_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.errors[?(@.message=='error.validation.required')]",
-                        contains(
-                                hasJsonPath("$.paths", containsInAnyOrder(
-                                        hasJsonPath("$", Matchers.is("/sections/funding/dc.title")),
-                                        hasJsonPath("$", Matchers.is("/sections/funding/oairecerif.funder"))
-                                )))))
-                .andExpect(jsonPath("$.sections.funding['oairecerif.amount.currency'][0].value",
-                        is("Euro")))
-                .andExpect(jsonPath("$.sections.funding['oairecerif.amount'][0].value",
-                        is("12312")));
-
-    }
-
-    @Test
-    /**
-     * Test the addition of metadata
-     *
-     * @throws Exception
-     */
-    public void patchAddMetadataToInlineGroupTypeMetadataShouldCompletedWithoutErrorsTest() throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        //** GIVEN **
-        //1. A community with one collection.
-        parentCommunity = CommunityBuilder.createCommunity(context)
-                .withName("Parent Community")
-                .build();
-        Collection col1 = CollectionBuilder.createCollection(context, parentCommunity)
-                .withName("Collection 1")
-                .withEntityType("Funding")
-                .withWorkflowGroup(1, eperson).build();
-
-        //2. create a normal user to use as submitter
-        EPerson submitter = EPersonBuilder.createEPerson(context)
-                .withEmail("submitter@example.com")
-                .withPassword("dspace")
-                .build();
-
-        Collection orgunitCollection = CollectionBuilder.createCollection(context, parentCommunity)
-                .withName("Collection 1")
-                .withEntityType("OrgUnit")
-                .withSubmissionDefinition("orgunit")
-                .build();
-
-        context.setCurrentUser(submitter);
-
-        Item orgUnit = ItemBuilder.createItem(context, orgunitCollection)
-                .withTitle("OrgUnit")
-                .withIssueDate("1957")
-                .build();
-
-        //3. a claimed task with workflow item in edit step
-        ClaimedTask claimedTask = ClaimedTaskBuilder.createClaimedTask(context, col1, eperson)
-                .withTitle("Title")
-                .withIssueDate("2017-10-17")
-                .withSubject("ExtraEntry")
-                .grantLicense()
-                .build();
-        claimedTask.setStepID("editstep");
-        claimedTask.setActionID("editaction");
-        XmlWorkflowItem witem = claimedTask.getWorkflowItem();
-
-        context.restoreAuthSystemState();
-
-        String authToken = getAuthToken(eperson.getEmail(), password);
-
-        List<Operation> list = new ArrayList<>();
-        List<Map<String, String>> funderValues = new ArrayList<>();
-        Map<String, String> funderValuesMap = new HashMap<>();
-        List<Map<String, String>> currencyValues = new ArrayList<>();
-        Map<String, String> currencyMap = new HashMap<>();
-        List<Map<String, String>> amountValues = new ArrayList<>();
-        Map<String, String> amountMap = new HashMap<>();
-        funderValuesMap.put("value", "OrgUnit");
-        funderValuesMap.put("authority", orgUnit.getID().toString());
-        funderValues.add(funderValuesMap);
-        currencyMap.put("value", "Euro");
-        currencyValues.add(currencyMap);
-        amountMap.put("value", "12312");
-        amountValues.add(amountMap);
-        list.add(new AddOperation("/sections/funding/oairecerif.funder", funderValues));
-        list.add(new AddOperation("/sections/funding/oairecerif.amount.currency", currencyValues));
-        list.add(new AddOperation("/sections/funding/oairecerif.amount", amountValues));
-
-        String patchBody = getPatchContent(list);
-        getClient(authToken).perform(patch("/api/workflow/workflowitems/" + witem.getID())
-                        .content(patchBody)
-                        .contentType(MediaType.APPLICATION_JSON_PATCH_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.errors").doesNotExist())
-                .andExpect(jsonPath("$.sections.funding['oairecerif.funder'][0].value",
-                        is("OrgUnit")))
-                .andExpect(jsonPath("$.sections.funding['oairecerif.funder'][0].authority",
-                        is(orgUnit.getID().toString())))
-                .andExpect(jsonPath("$.sections.funding['oairecerif.amount.currency'][0].value",
-                        is("Euro")))
-                .andExpect(jsonPath("$.sections.funding['oairecerif.amount'][0].value",
-                        is("12312")));;
     }
 
 }

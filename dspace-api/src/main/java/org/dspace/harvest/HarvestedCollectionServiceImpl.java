@@ -11,7 +11,6 @@ import static org.dspace.harvest.OAIHarvester.OAI_ADDRESS_ERROR;
 import static org.dspace.harvest.OAIHarvester.OAI_DMD_ERROR;
 import static org.dspace.harvest.OAIHarvester.OAI_ORE_ERROR;
 import static org.dspace.harvest.OAIHarvester.OAI_SET_ERROR;
-import static org.dspace.harvest.util.NamespaceUtils.getORENamespace;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -26,8 +25,6 @@ import org.dspace.content.Collection;
 import org.dspace.core.Context;
 import org.dspace.harvest.dao.HarvestedCollectionDAO;
 import org.dspace.harvest.service.HarvestedCollectionService;
-import org.dspace.harvest.service.OAIHarvesterClient;
-import org.dspace.harvest.util.NamespaceUtils;
 import org.dspace.services.ConfigurationService;
 import org.dspace.services.factory.DSpaceServicesFactory;
 import org.jdom2.Document;
@@ -55,9 +52,6 @@ public class HarvestedCollectionServiceImpl implements HarvestedCollectionServic
     @Autowired(required = true)
     protected HarvestedCollectionDAO harvestedCollectionDAO;
 
-    @Autowired(required = true)
-    protected OAIHarvesterClient oaiHarvesterClient;
-
     protected HarvestedCollectionServiceImpl() {
     }
 
@@ -77,15 +71,19 @@ public class HarvestedCollectionServiceImpl implements HarvestedCollectionServic
 
     @Override
     public boolean isHarvestable(Context context, Collection collection) throws SQLException {
-        return isHarvestable(find(context, collection));
+        HarvestedCollection hc = find(context, collection);
+        if (hc != null && hc.getHarvestType() > 0 && hc.getOaiSource() != null && hc.getOaiSetId() != null &&
+            hc.getHarvestStatus() != HarvestedCollection.STATUS_UNKNOWN_ERROR) {
+            return true;
+        }
+        return false;
     }
 
     @Override
     public boolean isHarvestable(HarvestedCollection harvestedCollection) throws SQLException {
-        if (harvestedCollection.getHarvestType() > 0 && harvestedCollection.getOaiSource() != null &&
-            harvestedCollection.getOaiSetId() != null && harvestedCollection.getCollection() != null &&
-            harvestedCollection.getHarvestStatus() != HarvestedCollection.STATUS_UNKNOWN_ERROR &&
-            harvestedCollection.getHarvestStatus() != HarvestedCollection.STATUS_BUSY) {
+        if (harvestedCollection.getHarvestType() > 0 && harvestedCollection
+            .getOaiSource() != null && harvestedCollection.getOaiSetId() != null &&
+            harvestedCollection.getHarvestStatus() != HarvestedCollection.STATUS_UNKNOWN_ERROR) {
             return true;
         }
 
@@ -206,7 +204,7 @@ public class HarvestedCollectionServiceImpl implements HarvestedCollectionServic
         }
 
         // Next, make sure the metadata we need is supported by the target server
-        Namespace DMD_NS = NamespaceUtils.getMetadataFormatNamespace(metaPrefix);
+        Namespace DMD_NS = OAIHarvester.getDMDNamespace(metaPrefix);
         if (null == DMD_NS) {
             errorSet.add(OAI_DMD_ERROR + ":  " + metaPrefix);
             return errorSet;
@@ -215,8 +213,17 @@ public class HarvestedCollectionServiceImpl implements HarvestedCollectionServic
         String OREOAIPrefix = null;
         String DMDOAIPrefix = null;
 
-        OREOAIPrefix = oaiHarvesterClient.resolveNamespaceToPrefix(oaiSource, getORENamespace().getURI());
-        DMDOAIPrefix = oaiHarvesterClient.resolveNamespaceToPrefix(oaiSource, DMD_NS.getURI());
+        try {
+            OREOAIPrefix = OAIHarvester.oaiResolveNamespaceToPrefix(oaiSource, OAIHarvester.getORENamespace().getURI());
+            DMDOAIPrefix = OAIHarvester.oaiResolveNamespaceToPrefix(oaiSource, DMD_NS.getURI());
+        } catch (IOException | ParserConfigurationException | XPathExpressionException | SAXException ex) {
+            errorSet.add(OAI_ADDRESS_ERROR
+                + ": OAI did not respond to ListMetadataFormats query  ("
+                + ORE_NS.getPrefix() + ":" + OREOAIPrefix + " ; "
+                + DMD_NS.getPrefix() + ":" + DMDOAIPrefix + "):  "
+                + ex.getMessage());
+            return errorSet;
+        }
 
         if (testORE && OREOAIPrefix == null) {
             errorSet.add(OAI_ORE_ERROR + ": The OAI server does not support ORE dissemination");

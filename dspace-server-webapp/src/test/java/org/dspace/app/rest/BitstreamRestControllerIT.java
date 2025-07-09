@@ -36,7 +36,6 @@ import static org.springframework.data.rest.webmvc.RestMediaTypes.TEXT_URI_LIST_
 import static org.springframework.http.MediaType.parseMediaType;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -100,8 +99,6 @@ import org.springframework.test.util.ReflectionTestUtils;
  * @author Frederic Van Reet (frederic dot vanreet at atmire dot com)
  */
 public class BitstreamRestControllerIT extends AbstractControllerIntegrationTest {
-
-    public static final String[] PASS_ONLY = {"org.dspace.authenticate.PasswordAuthentication"};
 
     protected SolrLoggerService solrLoggerService = StatisticsServiceFactory.getInstance().getSolrLoggerService();
 
@@ -760,68 +757,52 @@ public class BitstreamRestControllerIT extends AbstractControllerIntegrationTest
 
     @Test
     public void restrictedSpecialGroupBitstreamTest() throws Exception {
+        context.turnOffAuthorisationSystem();
 
-        String authenticationMethod =
-            configurationService.getProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod");
+        parentCommunity = CommunityBuilder.createCommunity(context)
+            .withName("Parent Community")
+            .build();
 
-        try {
+        Collection col1 = CollectionBuilder.createCollection(context, parentCommunity)
+            .withName("Collection 1")
+            .build();
 
-            configurationService.setProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod", PASS_ONLY);
+        Group restrictedGroup = GroupBuilder.createGroup(context)
+            .withName("Restricted Group")
+            .build();
 
-            context.turnOffAuthorisationSystem();
+        String bitstreamContent = "Private!";
+        try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
 
-            parentCommunity = CommunityBuilder.createCommunity(context)
-                                              .withName("Parent Community")
-                                              .build();
+            Item item = ItemBuilder.createItem(context, col1)
+                .withTitle("item 1")
+                .withIssueDate("2013-01-17")
+                .withAuthor("Doe, John")
+                .build();
 
-            Collection col1 = CollectionBuilder.createCollection(context, parentCommunity)
-                                               .withName("Collection 1")
-                                               .build();
-
-            Group restrictedGroup = GroupBuilder.createGroup(context)
-                                                .withName("Restricted Group")
-                                                .build();
-
-            String bitstreamContent = "Private!";
-            try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-
-                Item item = ItemBuilder.createItem(context, col1)
-                                       .withTitle("item 1")
-                                       .withIssueDate("2013-01-17")
-                                       .withAuthor("Doe, John")
-                                       .build();
-
-                bitstream = BitstreamBuilder
-                    .createBitstream(context, item, is)
-                    .withName("Test Embargoed Bitstream")
-                    .withDescription("This bitstream is embargoed")
-                    .withMimeType("text/plain")
-                    .withReaderGroup(restrictedGroup)
-                    .build();
-            }
-
-            context.restoreAuthSystemState();
-
-            String authToken = getAuthToken(eperson.getEmail(), password);
-            getClient(authToken).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-                                .andExpect(status().isForbidden());
-
-            getClient(authToken).perform(post("/api/authn/logout")).andExpect(status().isNoContent());
-
-            configurationService.setProperty("authentication-password.login.specialgroup", "Restricted Group");
-
-            authToken = getAuthToken(eperson.getEmail(), password);
-            getClient(authToken).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-                                .andExpect(status().isOk());
-
-            checkNumberOfStatsRecords(bitstream, 1);
-
-        } finally {
-            configurationService.setProperty(
-                "plugin.sequence.org.dspace.authenticate.AuthenticationMethod",
-                authenticationMethod
-            );
+            bitstream = BitstreamBuilder
+                .createBitstream(context, item, is)
+                .withName("Test Embargoed Bitstream")
+                .withDescription("This bitstream is embargoed")
+                .withMimeType("text/plain")
+                .withReaderGroup(restrictedGroup)
+                .build();
         }
+
+        context.restoreAuthSystemState();
+
+        String authToken = getAuthToken(eperson.getEmail(), password);
+        getClient(authToken).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
+            .andExpect(status().isForbidden());
+
+        configurationService.setProperty("authentication-password.login.specialgroup", "Restricted Group");
+
+        authToken = getAuthToken(eperson.getEmail(), password);
+        getClient(authToken).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
+            .andExpect(status().isOk());
+
+        checkNumberOfStatsRecords(bitstream, 1);
+
     }
 
     @Test
@@ -907,7 +888,7 @@ public class BitstreamRestControllerIT extends AbstractControllerIntegrationTest
 
             // child1's admin user is NOT allowed access to the item belong collection1
             String tokenAdminChild1 = getAuthToken(adminChild1.getEmail(), "qwerty05");
-            getClient(tokenAdminChild1).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
+            getClient(tokenAdminCol2).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
                                 .andExpect(status().isForbidden());
 
             checkNumberOfStatsRecords(bitstream, 2);
@@ -1265,93 +1246,6 @@ public class BitstreamRestControllerIT extends AbstractControllerIntegrationTest
 
         Mockito.verify(bitstreamStorageServiceSpy, times(1)).retrieve(any(), eq(bitstream));
         Mockito.verify(inputStreamSpy, times(1)).close();
-    }
-
-    @Test
-    public void testEmbargoedBitstreamWithCrisSecurity() throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        //** GIVEN **
-        //1. A community-collection structure with one parent community and one collections.
-        parentCommunity = CommunityBuilder.createCommunity(context)
-                                          .withName("Parent Community")
-                                          .build();
-        // this should be a publication collection but right now no control are enforced
-        Collection col1 = CollectionBuilder.createCollection(context, parentCommunity)
-                .withName("Collection 1").build();
-        // this should be a person collection
-        Collection col2 = CollectionBuilder.createCollection(context, parentCommunity)
-                .withName("Person").build();
-
-        //2. A public item with an embargoed bitstream
-        String bitstreamContent = "Embargoed!";
-        EPerson authorEp = EPersonBuilder.createEPerson(context)
-                .withEmail("author@example.com")
-                .withPassword(password)
-                .build();
-        Item profile = ItemBuilder.createItem(context, col2)
-                .withTitle("Author")
-                .withDspaceObjectOwner(authorEp)
-                .build();
-        // set our submitter
-        EPerson submitter = EPersonBuilder.createEPerson(context)
-                .withEmail("submitter@example.com")
-                .withPassword(password)
-                .build();
-        context.setCurrentUser(submitter);
-        try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            // we need a publication to check our cris enhanced security
-            Item publicItem1 =
-                    ItemBuilder.createItem(context, col1)
-                            .withEntityType("Publication")
-                            .withTitle("Public item 1")
-                            .withIssueDate("2017-10-17")
-                            .withAuthor("Just an author without profile")
-                            .withAuthor("A profile not longer in the system",
-                                    UUID.randomUUID().toString())
-                            .withAuthor("An author with invalid authority",
-                                    "this is not an uuid")
-                            .withAuthor("Author",
-                                    profile.getID().toString())
-                            .build();
-
-            bitstream = BitstreamBuilder
-                .createBitstream(context, publicItem1, is)
-                .withName("Test Embargoed Bitstream")
-                .withDescription("This bitstream is embargoed")
-                .withMimeType("text/plain")
-                .withEmbargoPeriod(Period.ofMonths(6))
-                .build();
-        }
-        context.restoreAuthSystemState();
-
-        //** WHEN **
-        //anonymous try to download the bitstream
-        getClient()
-                .perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-                // ** THEN **
-                .andExpect(status().isUnauthorized());
-
-        // another unrelated eperson should get forbidden
-        getClient(getAuthToken(eperson.getEmail(), password))
-                .perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-                // ** THEN **
-                .andExpect(status().isForbidden());
-
-        // the submitter should be able to download according to our custom cris policy
-        getClient(getAuthToken(submitter.getEmail(), password))
-                .perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-                // ** THEN **
-                .andExpect(status().isOk());
-
-        // the author should be able to download according to our custom cris policy
-        getClient(getAuthToken(authorEp.getEmail(), password))
-                .perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-                // ** THEN **
-                .andExpect(status().isOk());
-
-        // unauthorized request should not log statistics so we have only 2 successful visits
-        checkNumberOfStatsRecords(bitstream, 2);
     }
 
     @Test

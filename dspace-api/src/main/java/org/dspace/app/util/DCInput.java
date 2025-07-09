@@ -7,8 +7,6 @@
  */
 package org.dspace.app.util;
 
-import static org.apache.commons.lang3.StringUtils.equalsAnyIgnoreCase;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -165,7 +163,7 @@ public class DCInput {
      * The scope of the input sets, this restricts hidden metadata fields from
      * view by the end user during submission.
      */
-    public static final String SUBMISSION_SCOPE = "submit";
+    public static final String SUBMISSION_SCOPE = "submission";
 
     /**
      * Class constructor for creating a DCInput object based on the contents of
@@ -264,7 +262,7 @@ public class DCInput {
 
     /**
      * Is this DCInput for display in the given scope? The scope should be
-     * either "workflow" or "submit", as per the input forms definition. If the
+     * either "workflow" or "submission", as per the input forms definition. If the
      * internal visibility is set to "null" then this will always return true.
      *
      * @param scope String identifying the scope that this input's visibility
@@ -276,17 +274,21 @@ public class DCInput {
     }
 
     /**
-     * Check if this DCInput should be read only for the given scope. To be
-     * read-only a dc input must be visible and the read-only field must be either
-     * equal to the input scope or equal to 'all'.
+     * Is this DCInput for display in readonly mode in the given scope?
+     * If the scope differ from which in visibility field then we use the out attribute
+     * of the visibility element. Possible values are: hidden (default) and readonly.
+     * If the DCInput is visible in the scope then this methods must return false
      *
-     * @param  scope String identifying the scope that this input's readonly
-     *               visibility should be tested for
-     * @return       whether the input should be displayed in a readonly way or
-     *               fully hidden
+     * @param scope String identifying the scope that this input's readonly visibility
+     *              should be tested for
+     * @return whether the input should be displayed in a readonly way or fully hidden
      */
     public boolean isReadOnly(String scope) {
-        return isVisible(scope) && readOnly != null && equalsAnyIgnoreCase(readOnly, scope, "all");
+        if (isVisible(scope)) {
+            return false;
+        } else {
+            return readOnly != null && readOnly.equalsIgnoreCase("readonly");
+        }
     }
 
 
@@ -457,21 +459,15 @@ public class DCInput {
     }
 
     /**
-     * Returns true if the DC input is controlled vocabulary, false otherwise.
-     */
-    public boolean isControlledVocabulary() {
-        return StringUtils.isNotBlank(getVocabulary());
-    }
-
-    /**
      * Gets the display string that corresponds to the passed storage string in
      * a particular display-storage pair set.
      *
+     * @param pairTypeName Name of display-storage pair set to search
      * @param storedString the string that gets stored
      * @return the displayed string whose selection causes storageString to be
      * stored, null if no match
      */
-    public String getDisplayString(String storedString) {
+    public String getDisplayString(String pairTypeName, String storedString) {
         if (valueList != null && storedString != null) {
             for (int i = 0; i < valueList.size(); i += 2) {
                 if (storedString.equals(valueList.get(i + 1))) {
@@ -500,32 +496,6 @@ public class DCInput {
             }
         }
         return null;
-    }
-
-    /**
-     * Gets all the stored values in the value-pairs.
-     *
-     * @return all the stored values
-     */
-    public List<String> getAllStoredValues() {
-        List<String> storedString = new ArrayList<String>();
-        for (int i = 1; i < valueList.size(); i += 2) {
-            storedString.add(valueList.get(i));
-        }
-        return storedString;
-    }
-
-    /**
-     * Gets all the stored value languages in the value-pairs.
-     *
-     * @return all the stored values
-     */
-    public List<String> getAllLanguageValues() {
-        List<String> storedString = new ArrayList<String>();
-        for (int i = 1; i < valueLanguageList.size(); i += 2) {
-            storedString.add(valueLanguageList.get(i));
-        }
-        return storedString;
     }
 
     /**
@@ -597,14 +567,6 @@ public class DCInput {
             return true;
         }
         return false;
-    }
-
-    public boolean isDropDown() {
-        return "dropdown".equals(getInputType());
-    }
-
-    public boolean isList() {
-        return "list".equals(getInputType());
     }
 
     public boolean validate(String value) {

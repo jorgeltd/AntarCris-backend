@@ -9,15 +9,11 @@ package org.dspace.eperson.service;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.List;
-import java.util.UUID;
 
 import jakarta.mail.MessagingException;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.core.Context;
 import org.dspace.eperson.EPerson;
-import org.dspace.eperson.RegistrationData;
-import org.dspace.eperson.dto.RegistrationDataPatch;
 
 /**
  * Methods for handling registration by email and forgotten passwords. When
@@ -35,15 +31,11 @@ import org.dspace.eperson.dto.RegistrationDataPatch;
  */
 public interface AccountService {
 
-    public void sendRegistrationInfo(Context context, String email, List<UUID> groups)
+    public void sendRegistrationInfo(Context context, String email)
         throws SQLException, IOException, MessagingException, AuthorizeException;
 
-    public void sendForgotPasswordInfo(Context context, String email, List<UUID> groups)
+    public void sendForgotPasswordInfo(Context context, String email)
         throws SQLException, IOException, MessagingException, AuthorizeException;
-
-    boolean existsAccountFor(Context context, String token) throws SQLException, AuthorizeException;
-
-    boolean existsAccountWithEmail(Context context, String email) throws SQLException;
 
     public EPerson getEPerson(Context context, String token)
         throws SQLException, AuthorizeException;
@@ -54,14 +46,4 @@ public interface AccountService {
 
     public void deleteToken(Context context, String token)
         throws SQLException;
-
-    EPerson mergeRegistration(Context context, UUID userId, String token, List<String> overrides)
-        throws AuthorizeException, SQLException;
-
-    RegistrationData renewRegistrationForEmail(
-        Context context, RegistrationDataPatch registrationDataPatch
-    ) throws AuthorizeException;
-
-
-    boolean isTokenValidForCreation(RegistrationData registrationData);
 }

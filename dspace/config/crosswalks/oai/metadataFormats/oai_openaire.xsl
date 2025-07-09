@@ -13,13 +13,13 @@
 <xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
     xmlns:oaire="http://namespace.openaire.eu/schema/oaire/" xmlns:datacite="http://datacite.org/schema/kernel-4"
     xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:doc="http://www.lyncode.com/xoai"
-                version="1.0">
+    xmlns:rdf="http://www.w3.org/TR/rdf-concepts/" version="1.0">
     <xsl:output omit-xml-declaration="yes" method="xml" indent="yes"/>
 
     <xsl:template match="/">
-        <oaire:resource
-                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xsi:schemaLocation="http://namespace.openaire.eu/schema/oaire/ https://www.openaire.eu/schema/repo-lit/4.0/openaire.xsd">
+        <oaire:resource xmlns:vc="http://www.w3.org/2007/XMLSchema-versioning"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://namespace.openaire.eu/schema/oaire/ https://www.openaire.eu/schema/repo-lit/4.0/openaire.xsd">
 
             <!-- datacite:title -->
             <xsl:apply-templates
@@ -96,14 +96,6 @@
             <!-- CREATIVE COMMON LICENSE -->
             <xsl:apply-templates
                 select="doc:metadata/doc:element[@name='others']/doc:element[@name='cc']" mode="oaire" />
-            <!-- primary doi identifier -->
-            <xsl:apply-templates
-                    select="doc:metadata/doc:element[@name='others']/doc:element[@name='datacite']/doc:element[@name='primary']"
-                    mode="datacite" />
-<!--            alternative doi identifiers-->
-            <xsl:apply-templates
-                    select="doc:metadata/doc:element[@name='others']/doc:element[@name='datacite']/doc:element[@name='alternative']"
-                    mode="datacite_altid" />
         </oaire:resource>
     </xsl:template>
 
@@ -1786,26 +1778,6 @@
             </xsl:attribute>
             <xsl:value-of select="./doc:field[@name='name']/text()" />
         </oaire:licenseCondition>
-    </xsl:template>
-
-    <xsl:template match="doc:element[@name='others']/doc:element[@name='datacite']/doc:element[@name='primary']"
-                  mode="datacite">
-        <!-- only process the first element -->
-        <datacite:identifier>
-            <xsl:attribute name="identifierType">doi</xsl:attribute>
-            <xsl:value-of select="./doc:field[@name='doi']/text()"/>
-        </datacite:identifier>
-    </xsl:template>
-
-    <!-- for each alternative doi -->
-    <xsl:template match="doc:element[@name='others']/doc:element[@name='datacite']/doc:element[@name='alternative']" mode="datacite_altid">
-        <xsl:for-each select="./doc:field[@name='doi']">
-
-                <datacite:alternateIdentifier>
-                    <xsl:attribute name="alternateIdentifierType">doi</xsl:attribute>
-                    <xsl:value-of select="./text()"/>
-                </datacite:alternateIdentifier>
-        </xsl:for-each>
     </xsl:template>
 
     <!-- ignore all non specified text values or attributes -->

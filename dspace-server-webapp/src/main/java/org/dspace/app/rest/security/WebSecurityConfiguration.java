@@ -9,7 +9,6 @@ package org.dspace.app.rest.security;
 
 import org.dspace.app.rest.exception.DSpaceAccessDeniedHandler;
 import org.dspace.authenticate.service.AuthenticationService;
-import org.dspace.services.ConfigurationService;
 import org.dspace.services.RequestService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -66,9 +65,6 @@ public class WebSecurityConfiguration {
     @Autowired
     private DSpaceAccessDeniedHandler accessDeniedHandler;
 
-    @Autowired
-    private ConfigurationService configurationService;
-
     @Value("${management.endpoints.web.base-path:/actuator}")
     private String actuatorBasePath;
 
@@ -115,7 +111,6 @@ public class WebSecurityConfiguration {
             // (both are defined below as methods).
             // While we primarily use JWT in headers, CSRF protection is needed because we also support JWT via Cookies
             .csrf((csrf) -> csrf
-                .ignoringRequestMatchers(configurationService.getArrayProperty("csrf.ignore-paths"))
                 .csrfTokenRepository(this.csrfTokenRepository())
                 .sessionAuthenticationStrategy(this.dSpaceCsrfAuthenticationStrategy())
                 // Disable SpringSecurity BREACH protection, as this is not working well with Cookie-based storage.
@@ -170,9 +165,7 @@ public class WebSecurityConfiguration {
             // before each URL
             .addFilterBefore(new StatelessAuthenticationFilter(authenticationManager, restAuthenticationService,
                                                                ePersonRestAuthenticationProvider, requestService),
-                             StatelessLoginFilter.class)
-            // Add a filter to verify that the user accepted terms and conditions
-            .addFilterBefore(new UserAgreementFilter(configurationService), LogoutFilter.class);
+                             StatelessLoginFilter.class);
         return http.build();
     }
 
@@ -194,10 +187,6 @@ public class WebSecurityConfiguration {
     @Bean
     public CsrfTokenRepository csrfTokenRepository() {
         return new DSpaceCsrfTokenRepository();
-    }
-
-    public DSpaceCsrfIgnoringRequestMatcher dspaceCsrfRequestMatcher() {
-        return new DSpaceCsrfIgnoringRequestMatcher(csrfTokenRepository());
     }
 
     /**

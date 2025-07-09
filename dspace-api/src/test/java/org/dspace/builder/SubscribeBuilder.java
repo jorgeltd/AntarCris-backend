@@ -81,19 +81,6 @@ public class SubscribeBuilder extends AbstractBuilder<Subscription, SubscribeSer
         return subscription;
     }
 
-    public void delete(Subscription subscription) throws Exception {
-        try (Context c = new Context()) {
-            c.turnOffAuthorisationSystem();
-            Subscription subscription1 = c.reloadEntity(subscription);
-            if (subscription1 != null) {
-                getService().deleteSubscription(c, subscription1);
-            }
-            c.complete();
-        }
-
-        indexingService.commit();
-    }
-
     public static SubscribeBuilder subscribeBuilder(final Context context, String type, DSpaceObject dSpaceObject,
             EPerson ePerson, List<SubscriptionParameter> subscriptionParameterList) {
         SubscribeBuilder builder = new SubscribeBuilder(context);

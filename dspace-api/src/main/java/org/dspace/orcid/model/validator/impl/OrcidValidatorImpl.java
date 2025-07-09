@@ -21,9 +21,7 @@ import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION
 import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION_CITY_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION_COUNTRY_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION_NAME_REQUIRED;
-import static org.dspace.orcid.model.validator.OrcidValidationError.ORGANIZATION_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.PUBLICATION_DATE_INVALID;
-import static org.dspace.orcid.model.validator.OrcidValidationError.START_DATE_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.TITLE_REQUIRED;
 import static org.dspace.orcid.model.validator.OrcidValidationError.TYPE_REQUIRED;
 
@@ -39,7 +37,6 @@ import org.orcid.jaxb.model.v3.release.common.Organization;
 import org.orcid.jaxb.model.v3.release.common.OrganizationAddress;
 import org.orcid.jaxb.model.v3.release.common.PublicationDate;
 import org.orcid.jaxb.model.v3.release.common.Year;
-import org.orcid.jaxb.model.v3.release.record.Affiliation;
 import org.orcid.jaxb.model.v3.release.record.ExternalIDs;
 import org.orcid.jaxb.model.v3.release.record.Funding;
 import org.orcid.jaxb.model.v3.release.record.FundingTitle;
@@ -71,13 +68,13 @@ public class OrcidValidatorImpl implements OrcidValidator {
             return validateFunding((Funding) object);
         }
 
-        if (object instanceof Affiliation && isAffiliationValidationEnabled()) {
-            return validateAffiliation((Affiliation) object);
-        }
-
         return Collections.emptyList();
     }
 
+    /**
+     * A work is valid if has title, type, a valid publication date and at least one
+     * external id.
+     */
     @Override
     public List<OrcidValidationError> validateWork(Work work) {
         List<OrcidValidationError> errors = new ArrayList<OrcidValidationError>();
@@ -105,6 +102,10 @@ public class OrcidValidatorImpl implements OrcidValidator {
         return errors;
     }
 
+    /**
+     * A funding is valid if has title, a valid funder organization and at least one
+     * external id. If it has an amount, the amount currency is required.
+     */
     @Override
     public List<OrcidValidationError> validateFunding(Funding funding) {
 
@@ -134,22 +135,10 @@ public class OrcidValidatorImpl implements OrcidValidator {
         return errors;
     }
 
-    @Override
-    public List<OrcidValidationError> validateAffiliation(Affiliation affiliation) {
-        List<OrcidValidationError> errors = new ArrayList<OrcidValidationError>();
-        if (affiliation.getStartDate() == null) {
-            errors.add(START_DATE_REQUIRED);
-        }
-
-        if (affiliation.getOrganization() == null) {
-            errors.add(ORGANIZATION_REQUIRED);
-        } else {
-            errors.addAll(validate(affiliation.getOrganization()));
-        }
-
-        return errors;
-    }
-
+    /**
+     * The organization is valid if it has a name, a valid address and a valid
+     * disambiguated-organization complex type.
+     */
     private List<OrcidValidationError> validate(Organization organization) {
         List<OrcidValidationError> errors = new ArrayList<OrcidValidationError>();
         if (isBlank(organization.getName())) {
@@ -241,10 +230,6 @@ public class OrcidValidatorImpl implements OrcidValidator {
 
     private boolean isFundingValidationEnabled() {
         return configurationService.getBooleanProperty("orcid.validation.funding.enabled", true);
-    }
-
-    private boolean isAffiliationValidationEnabled() {
-        return configurationService.getBooleanProperty("orcid.validation.affiliation.enabled", true);
     }
 
 }

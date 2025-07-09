@@ -7,9 +7,7 @@
  */
 package org.dspace.app.rest.iiif;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -39,7 +37,6 @@ import org.dspace.eperson.EPerson;
 import org.dspace.eperson.Group;
 import org.dspace.services.ConfigurationService;
 import org.hamcrest.Matchers;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -131,7 +128,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.service.profile", is("http://iiif.io/api/search/0/search")))
-                .andExpect(jsonPath("$.thumbnail.@id", containsString("/iiif-server/"
+                .andExpect(jsonPath("$.thumbnail.@id", Matchers.containsString("/iiif/2/"
                         + bitstream1.getID())))
                 .andExpect(jsonPath("$.metadata[0].label", is("Title")))
                 .andExpect(jsonPath("$.metadata[0].value", is("Public item 1")))
@@ -141,8 +138,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.metadata[2].value[0]", is("Smith, Donald")))
                 .andExpect(jsonPath("$.metadata[2].value[1]", is("Doe, John")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas")))
-                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("1")))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
+                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Page 1")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].width", is(64)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].height", is(64)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].images[0].resource.service.@id",
@@ -159,14 +156,13 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.sequences[0].canvases[0].metadata[4].value",
                         is("11e23c5702595ba512c1c2ee8e8d6153 (MD5)")))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream2.getID().toString())))
-                .andExpect(jsonPath("$.sequences[0].canvases[1].label", is("2")))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c1")))
+                .andExpect(jsonPath("$.sequences[0].canvases[1].label", is("Page 2")))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].images[0].resource.service.@id",
                         Matchers.endsWith(bitstream2.getID().toString())))
                 .andExpect(jsonPath("$.structures").doesNotExist())
                 .andExpect(jsonPath("$.related.@id",
-                        containsString("/items/" + publicItem1.getID())));
+                        Matchers.containsString("/items/" + publicItem1.getID())));
     }
 
     @Test
@@ -189,10 +185,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeText";
-        Bitstream bitstream1 = null;
-        Bitstream bitstream2 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
@@ -202,7 +196,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                     .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is)
                     .withName("Bitstream2.jpg")
                     .withMimeType("image/jpeg")
@@ -214,14 +208,12 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Custom Label")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].width", is(3163)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].height", is(4220)))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream2.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c1")))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].label", is("Global 2")))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].width", is(2000)))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].height", is(3000)))
@@ -233,55 +225,43 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
     public void findOneWithExcludedBitstreamIT() throws Exception {
         context.turnOffAuthorisationSystem();
         parentCommunity = CommunityBuilder.createCommunity(context)
-                                          .withName("Parent Community")
-                                          .build();
+                .withName("Parent Community")
+                .build();
         Collection col1 = CollectionBuilder.createCollection(context, parentCommunity).withName("Collection 1")
-                                           .build();
+                .build();
         Item publicItem1 = ItemBuilder.createItem(context, col1)
-                                      .withTitle("Public item 1")
-                                      .withIssueDate("2017-10-17")
-                                      .withAuthor("Smith, Donald").withAuthor("Doe, John")
-                                      .enableIIIF()
-                                      .build();
+                .withTitle("Public item 1")
+                .withIssueDate("2017-10-17")
+                .withAuthor("Smith, Donald").withAuthor("Doe, John")
+                .enableIIIF()
+                .build();
 
         String bitstreamContent = "ThisIsSomeText";
-        Bitstream bitstream1;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
-                .createBitstream(context, publicItem1, is)
-                .withName("Bitstream1.jpg")
-                .withMimeType("image/jpeg")
-                .withIIIFLabel("Custom Label")
-                .build();
+            BitstreamBuilder
+                    .createBitstream(context, publicItem1, is)
+                    .withName("Bitstream1.jpg")
+                    .withMimeType("image/jpeg")
+                    .withIIIFLabel("Custom Label")
+                    .build();
         }
-        Bitstream bitstream2;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder
-                .createBitstream(context, publicItem1, is)
-                .withName("Bitstream2.jpg")
-                .withMimeType("image/jpeg")
-                .withIIIFDisabled()
-                .build();
+            BitstreamBuilder
+                    .createBitstream(context, publicItem1, is)
+                    .withName("Bitstream2.jpg")
+                    .withMimeType("image/jpeg")
+                    .withIIIFDisabled()
+                    .build();
         }
         context.restoreAuthSystemState();
         // Expect canvas label, width and height to match bitstream description.
         getClient().perform(get("/iiif/" + publicItem1.getID() + "/manifest"))
-                   .andExpect(status().isOk())
-                   .andExpect(jsonPath("$.sequences[0].canvases", Matchers.hasSize(1)))
-                   .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
-                   .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                       containsString(
-                           "/iiif/" + publicItem1.getID().toString() + "/canvas/" + bitstream1.getID().toString()
-                       )
-                   ))
-                   .andExpect(jsonPath("$.sequences[0].canvases[*].@id",
-                       not(
-                           containsString(
-                               "/iiif/" + publicItem1.getID().toString() + "/canvas/" + bitstream2.getID().toString()
-                           )
-                       )
-                   ))
-                   .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Custom Label")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sequences[0].canvases", Matchers.hasSize(1)))
+                .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
+                .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
+                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Custom Label")));
     }
 
     @Test
@@ -300,9 +280,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeText";
-        Bitstream bitstream1 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
@@ -310,9 +289,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                     .build();
         }
         // Add bitstream
-        Bitstream bitstream2 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is, "ExcludedBundle", false)
                     .withName("Bitstream2.jpg")
                     .withMimeType("image/jpeg")
@@ -325,17 +303,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.sequences[0].canvases", Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                    containsString(
-                        "/iiif/" + publicItem1.getID().toString() + "/canvas/" + bitstream1.getID().toString()
-                    )
-                ))
-                .andExpect(jsonPath("$.sequences[0].canvases[*].@id",
-                    not(
-                        containsString(
-                            "/iiif/" + publicItem1.getID().toString() + "/canvas/" + bitstream2.getID().toString()
-                        )
-                    )
-                ))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Custom Label")));
     }
 
@@ -357,9 +325,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeText";
-        Bitstream bitstream1 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is, IIIFBundle)
                     .withName("Bitstream1.png")
                     .withMimeType("image/png")
@@ -375,8 +342,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Custom Label")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].width", is(3163)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].height", is(4220)))
@@ -495,11 +461,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeText";
-        Bitstream bitstream1 = null;
-        Bitstream bitstream2 = null;
-        Bitstream bitstream3 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is, IIIFBundle)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
@@ -507,7 +470,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                     .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is, IIIFBundle)
                     .withName("Bitstream2.png")
                     .withMimeType("image/png")
@@ -515,7 +478,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                     .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream3 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is, IIIFBundle)
                     .withName("Bitstream3.tiff")
                     .withMimeType("image/tiff")
@@ -529,8 +492,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Global 1")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].width", is(2000)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].height", is(3000)))
@@ -548,17 +510,14 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                         Matchers.endsWith("/iiif/" + publicItem1.getID() + "/manifest/range/r0-0")))
                 .andExpect(jsonPath("$.structures[1].label", is("Section 1")))
                 .andExpect(jsonPath("$.structures[1].canvases[0]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.structures[2].@id",
                         Matchers.endsWith("/iiif/" + publicItem1.getID() + "/manifest/range/r0-1")))
                 .andExpect(jsonPath("$.structures[2].label", is("Section 2")))
                 .andExpect(jsonPath("$.structures[2].canvases[0]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream2.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c1")))
                 .andExpect(jsonPath("$.structures[2].canvases[1]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream3.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c2")))
                 .andExpect(jsonPath("$.service").exists());
     }
 
@@ -583,25 +542,22 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeText";
-        Bitstream bitstream1 = null;
-        Bitstream bitstream2 = null;
-        Bitstream bitstream3 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
                     .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is, IIIFBundle)
                     .withName("Bitstream2.png")
                     .withMimeType("image/png")
                     .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream3 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, publicItem1, is, IIIFBundle)
                     .withName("Bitstream3.tiff")
                     .withMimeType("image/tiff")
@@ -740,45 +696,37 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases", Matchers.hasSize(8)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].images[0].resource.@id",
-                        containsString(bitstream1.getID().toString())))
+                        Matchers.containsString(bitstream1.getID().toString())))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream2.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c1")))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].images[0].resource.@id",
-                        containsString(bitstream2.getID().toString())))
+                        Matchers.containsString(bitstream2.getID().toString())))
                 .andExpect(jsonPath("$.sequences[0].canvases[2].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream3.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c2")))
                 .andExpect(jsonPath("$.sequences[0].canvases[2].images[0].resource.@id",
-                        containsString(bitstream3.getID().toString())))
+                        Matchers.containsString(bitstream3.getID().toString())))
                 .andExpect(jsonPath("$.sequences[0].canvases[3].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream4.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c3")))
                 .andExpect(jsonPath("$.sequences[0].canvases[3].images[0].resource.@id",
-                        containsString(bitstream4.getID().toString())))
+                        Matchers.containsString(bitstream4.getID().toString())))
                 .andExpect(jsonPath("$.sequences[0].canvases[4].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream5.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c4")))
                 .andExpect(jsonPath("$.sequences[0].canvases[4].images[0].resource.@id",
-                        containsString(bitstream5.getID().toString())))
+                        Matchers.containsString(bitstream5.getID().toString())))
                 .andExpect(jsonPath("$.sequences[0].canvases[5].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream6.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c5")))
                 .andExpect(jsonPath("$.sequences[0].canvases[5].images[0].resource.@id",
-                        containsString(bitstream6.getID().toString())))
+                        Matchers.containsString(bitstream6.getID().toString())))
                 .andExpect(jsonPath("$.sequences[0].canvases[6].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream7.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c6")))
                 .andExpect(jsonPath("$.sequences[0].canvases[6].images[0].resource.@id",
-                        containsString(bitstream7.getID().toString())))
+                        Matchers.containsString(bitstream7.getID().toString())))
                 .andExpect(jsonPath("$.sequences[0].canvases[7].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream8.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c7")))
                 .andExpect(jsonPath("$.sequences[0].canvases[7].images[0].resource.@id",
-                        containsString(bitstream8.getID().toString())))
+                        Matchers.containsString(bitstream8.getID().toString())))
                 .andExpect(jsonPath("$.structures[0].@id",
                         Matchers.endsWith("/iiif/" + publicItem1.getID() + "/manifest/range/r0")))
                 // the toc contains two top sections 1 & 2 without direct children canvases
@@ -801,21 +749,17 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                         Matchers.endsWith("/iiif/" + publicItem1.getID() + "/manifest/range/r0-0-1")))
                 .andExpect(jsonPath("$.structures[1].canvases", Matchers.hasSize(2)))
                 .andExpect(jsonPath("$.structures[1].canvases[0]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.structures[1].canvases[1]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream5.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c4")))
                 // section 1 > a contains bitstream 2 and 3, no sub sections
                 .andExpect(jsonPath("$.structures[2].label", is("a")))
                 .andExpect(jsonPath("$.structures[2].ranges").doesNotExist())
                 .andExpect(jsonPath("$.structures[2].canvases", Matchers.hasSize(2)))
                 .andExpect(jsonPath("$.structures[2].canvases[0]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream2.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c1")))
                 .andExpect(jsonPath("$.structures[2].canvases[1]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream3.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c2")))
                 // section 1 > b contains only the bitstream 4 and no sub sections
                 .andExpect(jsonPath("$.structures[3].@id",
                         Matchers.endsWith("/iiif/" + publicItem1.getID() + "/manifest/range/r0-0-1")))
@@ -823,8 +767,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.structures[3].ranges").doesNotExist())
                 .andExpect(jsonPath("$.structures[3].canvases", Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.structures[3].canvases[0]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream4.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c3")))
                 // section 2 contains bitstream 6 and 7, sub section "sub 2-1"
                 .andExpect(jsonPath("$.structures[4].label", is("Section 2")))
                 .andExpect(jsonPath("$.structures[4].ranges", Matchers.hasSize(1)))
@@ -832,11 +775,9 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                         Matchers.endsWith("/iiif/" + publicItem1.getID() + "/manifest/range/r0-1-0")))
                 .andExpect(jsonPath("$.structures[4].canvases", Matchers.hasSize(2)))
                 .andExpect(jsonPath("$.structures[4].canvases[0]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream6.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c5")))
                 .andExpect(jsonPath("$.structures[4].canvases[1]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream7.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c6")))
                 // section 2 > sub 2-1 contains only the bitstream 8 no sub sections
                 .andExpect(jsonPath("$.structures[5].@id",
                         Matchers.endsWith("/iiif/" + publicItem1.getID() + "/manifest/range/r0-1-0")))
@@ -844,8 +785,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.structures[5].ranges").doesNotExist())
                 .andExpect(jsonPath("$.structures[5].canvases", Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.structures[5].canvases[0]",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream8.getID().toString())))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c7")))
                 .andExpect(jsonPath("$.service").exists());
     }
 
@@ -884,17 +824,15 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
         }
         // Add images to the alternate IIIF bundle
-        Bitstream bitstream1 = null;
-        Bitstream bitstream2 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
+            BitstreamBuilder
                 .createBitstream(context, publicItem1, is, altBundle)
                 .withName("Bitstream2.png")
                 .withMimeType("image/png")
                 .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder
+            BitstreamBuilder
                 .createBitstream(context, publicItem1, is, altBundle)
                 .withName("Bitstream3.tiff")
                 .withMimeType("image/tiff")
@@ -941,9 +879,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeDummyText";
-        Bitstream bitstream1 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder.
+            BitstreamBuilder.
                     createBitstream(context, publicItem1, is)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
@@ -957,9 +894,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.license", is("https://license.org")))
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
-                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("1")))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
+                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Page 1")))
                 .andExpect(jsonPath("$.service").doesNotExist());
 
     }
@@ -981,17 +917,15 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeDummyText";
-        Bitstream bitstream1 = null;
-        Bitstream bitstream2 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder.
+            BitstreamBuilder.
                     createBitstream(context, publicItem1, is)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
                     .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder.
+            BitstreamBuilder.
                     createBitstream(context, publicItem1, is, "OtherContent")
                     .withName("file.xml")
                     .withMimeType("application/xml")
@@ -1007,9 +941,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.seeAlso.@type", is("sc:AnnotationList")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
-                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("1")))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
+                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Page 1")))
                 .andExpect(jsonPath("$.service").doesNotExist());
 
     }
@@ -1030,9 +963,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeDummyText";
-        Bitstream bitstream = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream = BitstreamBuilder.
+            BitstreamBuilder.
                     createBitstream(context, publicItem1, is)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
@@ -1062,9 +994,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases", Matchers.hasSize(1)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + publicItem1.getID() + "/canvas/"
-                                + bitstream.getID().toString())))
-                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("1")))
+                        Matchers.containsString("/iiif/" + publicItem1.getID() + "/canvas/c0")))
+                .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Page 1")))
                 .andExpect(jsonPath("$.rendering.@id",
                         Matchers.endsWith(pdf.getID().toString() + "/content")))
                 .andExpect(jsonPath("$.rendering.label", is("Bitstream3.pdf")))
@@ -1103,10 +1034,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
         EPerson staffEperson = EPersonBuilder.createEPerson(context).withEmail("staff@example.com")
                 .withPassword(password).withGroupMembership(staffGroup).build();
         String bitstreamContent = "ThisIsSomeText";
-        Bitstream bitstream1 = null;
-        Bitstream bitstream2 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, restrictedItem1, is)
                     .withName("Bitstream1.jpg")
                     .withMimeType("image/jpeg")
@@ -1117,7 +1046,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                     .build();
         }
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream2 = BitstreamBuilder
+            BitstreamBuilder
                     .createBitstream(context, restrictedItem1, is)
                     .withName("Bitstream2.jpg")
                     .withMimeType("image/jpeg")
@@ -1139,14 +1068,12 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.@context", is("http://iiif.io/api/presentation/2/context.json")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].@id",
-                        containsString("/iiif/" + restrictedItem1.getID() + "/canvas/"
-                                + bitstream1.getID().toString())))
+                        Matchers.containsString("/iiif/" + restrictedItem1.getID() + "/canvas/c0")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].label", is("Custom Label")))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].width", is(3163)))
                 .andExpect(jsonPath("$.sequences[0].canvases[0].height", is(4220)))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].@id",
-                        containsString("/iiif/" + restrictedItem1.getID() + "/canvas/"
-                                + bitstream2.getID().toString())))
+                        Matchers.containsString("/iiif/" + restrictedItem1.getID() + "/canvas/c1")))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].label", is("Global 2")))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].width", is(2000)))
                 .andExpect(jsonPath("$.sequences[0].canvases[1].height", is(3000)))
@@ -1170,9 +1097,8 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .build();
 
         String bitstreamContent = "ThisIsSomeDummyText";
-        Bitstream bitstream1 = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            bitstream1 = BitstreamBuilder.
+            BitstreamBuilder.
                     createBitstream(context, publicItem1, is)
                     .withName("IMG1.jpg")
                     .withMimeType("image/jpeg")
@@ -1181,7 +1107,7 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
         context.restoreAuthSystemState();
 
         // Single canvas.
-        getClient().perform(get("/iiif/" + publicItem1.getID() + "/canvas/" + bitstream1.getID().toString()))
+        getClient().perform(get("/iiif/" + publicItem1.getID() + "/canvas/c0"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.@type", is("sc:Canvas")))
                 .andExpect(jsonPath("$.metadata[0].label", is("File name")))
@@ -1211,12 +1137,6 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .withAuthor("Smith, Donald").withAuthor("Doe, John")
                 .enableIIIF()
                 .build();
-        Item publicItem2 = ItemBuilder.createItem(context, col1)
-                .withTitle("Public item 2")
-                .withIssueDate("2017-10-17")
-                .withAuthor("Smith, Donald").withAuthor("Doe, John")
-                .enableIIIF()
-                .build();
 
         String bitstreamContent = "ThisIsSomeDummyText";
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
@@ -1226,17 +1146,9 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                     .withMimeType("image/jpeg")
                     .build();
         }
-        Bitstream otherBitstream = null;
-        try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
-            otherBitstream = BitstreamBuilder.
-                    createBitstream(context, publicItem2, is)
-                    .withName("IMG1.jpg")
-                    .withMimeType("image/jpeg")
-                    .build();
-        }
         context.restoreAuthSystemState();
         // Status 404.  The item contains only one bitstream. The item manifest likewise contains one canvas.
-        getClient().perform(get("/iiif/" + publicItem1.getID() + "/canvas/" + otherBitstream.getID().toString()))
+        getClient().perform(get("/iiif/" + publicItem1.getID() + "/canvas/c2"))
                 .andExpect(status().is(404));
     }
 
@@ -1281,12 +1193,11 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
                 .andExpect(jsonPath("$.resources[0].@type", is("oa:Annotation")))
                 .andExpect(jsonPath("$.resources[0].motivation", is ("oa:linking")))
                 .andExpect(jsonPath("$.resources[0].resource.@id",
-                        containsString(bitstream2.getID() + "/content")));
+                        Matchers.containsString(bitstream2.getID() + "/content")));
 
     }
 
     @Test
-    @Ignore // To be fixed, see DSC-837
     public void findOneWithCacheEvictionAfterBitstreamUpdate() throws Exception {
         String patchRequestBody =
             "[{\"op\": \"replace\",\"path\": \"/metadata/iiif.label/0/value\",\"value\": \"Test label\"}]";
@@ -1409,7 +1320,6 @@ public class IIIFControllerIT extends AbstractControllerIntegrationTest {
     }
 
     @Test
-    @Ignore // To be fixed, see DSC-837
     public void findOneWithCacheEvictionAfterItemUpdate() throws Exception {
         String patchRequestBody =
                 "[{\"op\": \"replace\",\"path\": \"/metadata/dc.title/0/value\",\"value\": \"Public item (revised)\"}]";

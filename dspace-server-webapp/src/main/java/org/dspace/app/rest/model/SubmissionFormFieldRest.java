@@ -11,11 +11,8 @@ package org.dspace.app.rest.model;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonUnwrapped;
-import org.apache.commons.collections4.MapUtils;
 import org.dspace.app.rest.model.submit.SelectableMetadata;
 import org.dspace.app.rest.model.submit.SelectableRelationship;
 import org.dspace.submit.model.LanguageFormField;
@@ -34,17 +31,14 @@ public class SubmissionFormFieldRest {
     private SubmissionFormInputTypeRest input;
 
     /**
+     * The main scope of the field
+     */
+    private ScopeEnum scope;
+
+    /**
      * The visibility restriction for the field
      */
     private SubmissionVisibilityRest visibility;
-
-    @JsonInclude(Include.NON_NULL)
-    @JsonIgnoreProperties( { "name", "type", "id" })
-    @JsonUnwrapped
-    /**
-     * The list of rows for "group"/"inline-group" field
-     */
-    private SubmissionFormRest rows;
 
     /**
      * The label of the field
@@ -250,31 +244,31 @@ public class SubmissionFormFieldRest {
         this.input = input;
     }
 
+    /**
+     * Getter for {@link #scope}
+     * 
+     * @return {@link #selectableMetadata}
+     */
+    public ScopeEnum getScope() {
+        return scope;
+    }
+
+    /**
+     * Setter for {@link #scope}
+     * 
+     */
+    public void setScope(ScopeEnum scope) {
+        this.scope = scope;
+    }
+
     public SubmissionVisibilityRest getVisibility() {
         return visibility;
     }
 
     public void setVisibility(SubmissionVisibilityRest visibility) {
-        if (visibility != null && (MapUtils.isNotEmpty(visibility.getVisibilities()))) {
+        if (visibility != null && (visibility.getMain() != null || visibility.getOther() != null)) {
             this.visibility = visibility;
         }
-    }
-
-    /**
-     * Getter for {@link #rows}
-     *
-     * @return {@link #rows}
-     */
-    public SubmissionFormRest getRows() {
-        return rows;
-    }
-
-    /**
-     * Setter for {@link #rows}
-     *
-     */
-    public void setRows(SubmissionFormRest rows) {
-        this.rows = rows;
     }
 
     public List<String> getTypeBind() {

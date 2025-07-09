@@ -12,7 +12,6 @@ import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.dspace.authorize.AuthorizeException;
@@ -134,27 +133,6 @@ public interface ProcessService {
         throws IOException, SQLException, AuthorizeException;
 
     /**
-     * The method will create a bitstream from the given inputstream with the given type as metadata and given name
-     * as name and attach it to the given process
-     *
-     * @param context       The relevant DSpace context
-     * @param process       The process for which the bitstream will be made
-     * @param is            The inputstream for the bitstream
-     * @param type          The type of the bitstream
-     * @param fileName      The name of the bitstream
-     * @param groupPolicy   The map of groupPolicies
-     * @param userPolicy    The map of userPolicies
-     * @throws IOException  If something goes wrong
-     * @throws SQLException If something goes wrong
-     * @throws AuthorizeException   If something goes wrong
-     */
-    public default void appendFile(Context context, Process process, InputStream is, String type, String fileName,
-            Map<Integer, Group> groupPolicy, Map<Integer, EPerson> userPolicy)
-            throws IOException, SQLException, AuthorizeException {
-        this.appendFile(context, process, is, type, fileName);
-    }
-
-    /**
      * This method will delete the given Process object from the database
      * @param context   The relevant DSpace context
      * @param process   The Process object to be deleted
@@ -244,29 +222,6 @@ public interface ProcessService {
      * @throws SQLException If something goes wrong
      */
     int countSearch(Context context, ProcessQueryParameterContainer processQueryParameterContainer) throws SQLException;
-
-    /**
-     * Returns a list of all Process objects in the database by the given user.
-     *
-     * @param context The relevant DSpace context
-     * @param user    The user to search for
-     * @param limit   The limit for the amount of Processes returned
-     * @param offset  The offset for the Processes to be returned
-     * @return The list of all Process objects in the Database
-     * @throws SQLException If something goes wrong
-     */
-    List<Process> findByUser(Context context, EPerson user, int limit, int offset) throws SQLException;
-
-    /**
-     * Count all the processes which is related to the given user.
-     *
-     * @param context The relevant DSpace context
-     * @param user    The user to search for
-     * @return The number of results matching the query
-     * @throws SQLException If something goes wrong
-     */
-    int countByUser(Context context, EPerson user) throws SQLException;
-
     /**
      * This method will append the given output to the {@link Process} its logs
      * @param processId     The ID of the {@link Process} to append the log for
@@ -300,4 +255,36 @@ public interface ProcessService {
      */
     List<Process> findByStatusAndCreationTimeOlderThan(Context context, List<ProcessStatus> statuses, Date date)
         throws SQLException;
+
+    /**
+     * Returns a list of all Process objects in the database by the given user.
+     *
+     * @param context The relevant DSpace context
+     * @param user    The user to search for
+     * @param limit   The limit for the amount of Processes returned
+     * @param offset  The offset for the Processes to be returned
+     * @return The list of all Process objects in the Database
+     * @throws SQLException If something goes wrong
+     */
+    List<Process> findByUser(Context context, EPerson user, int limit, int offset) throws SQLException;
+
+    /**
+     * Count all the processes which is related to the given user.
+     *
+     * @param context The relevant DSpace context
+     * @param user    The user to search for
+     * @return The number of results matching the query
+     * @throws SQLException If something goes wrong
+     */
+    int countByUser(Context context, EPerson user) throws SQLException;
+
+    /**
+     * Cleans up running processes by failing them an attaching their logs to the process objects.
+     *
+     * @param context   The DSpace context
+     * @throws SQLException
+     * @throws IOException
+     * @throws AuthorizeException
+     */
+    void failRunningProcesses(Context context) throws SQLException, IOException, AuthorizeException;
 }

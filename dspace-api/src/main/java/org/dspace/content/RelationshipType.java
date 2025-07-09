@@ -50,7 +50,7 @@ public class RelationshipType implements ReloadableEntity<Integer> {
      * This is stored as an ID and cannot be null
      */
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST})
-    @JoinColumn(name = "left_type", nullable = true)
+    @JoinColumn(name = "left_type", nullable = false)
     private EntityType leftType;
 
     /**
@@ -58,7 +58,7 @@ public class RelationshipType implements ReloadableEntity<Integer> {
      * This is stored as an ID and cannot be null
      */
     @ManyToOne(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST})
-    @JoinColumn(name = "right_type", nullable = true)
+    @JoinColumn(name = "right_type", nullable = false)
     private EntityType rightType;
 
     /**

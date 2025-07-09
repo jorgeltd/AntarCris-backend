@@ -10,7 +10,6 @@ package org.dspace.external.model;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -42,7 +41,6 @@ public class ExternalDataObject {
      */
     private String displayValue;
 
-    private List<UUID> matchUUIDs;
     private Logger log = LogManager.getLogger(ExternalDataObject.class);
 
     /**
@@ -151,17 +149,6 @@ public class ExternalDataObject {
         this.value = value;
     }
 
-    public List<UUID> getMatchUUIDs() {
-        return matchUUIDs;
-    }
-
-    public void setMatchUUIDs(List<UUID> matchUUIDs) {
-        this.matchUUIDs = matchUUIDs;
-    }
-
-    public boolean isDuplicated() {
-        return !matchUUIDs.isEmpty();
-    }
     /**
      * Sort metadata before printing, to help with comparison by eye
      * @return

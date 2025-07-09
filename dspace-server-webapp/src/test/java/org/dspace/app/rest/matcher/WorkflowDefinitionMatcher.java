@@ -57,7 +57,6 @@ public class WorkflowDefinitionMatcher {
                 hasJsonPath("$.name", is(name)),
                 hasJsonPath("$.handle", is(handle)),
                 hasJsonPath("$.type", is("collection")),
-                hasJsonPath("$.uniqueType", is("core.collection")),
                 hasJsonPath("$.metadata", Matchers.allOf(
                         MetadataMatcher.matchMetadata("dc.title", name)
                 ))
@@ -68,7 +67,7 @@ public class WorkflowDefinitionMatcher {
      * Verifies that the content of the `json` matches
      * the detail of the steps
      * Actually we can checks only the identifier to assure they are the same.
-     *
+     * 
      * @param step target step of the workflow
      * @return Matcher
      */

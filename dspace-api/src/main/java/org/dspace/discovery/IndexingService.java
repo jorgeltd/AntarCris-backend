@@ -9,12 +9,9 @@ package org.dspace.discovery;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.Map;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.response.QueryResponse;
-import org.dspace.app.metrics.CrisMetrics;
 import org.dspace.core.Context;
 
 /**
@@ -78,12 +75,6 @@ public interface IndexingService {
     void optimize() throws SearchServiceException;
 
     void buildSpellCheck() throws SearchServiceException, IOException;
-
-    void updateMetrics(Context context, CrisMetrics metric);
-
-    public QueryResponse retriveSolrDocByUniqueID(String uniqueID);
-
-    void updateRelationForItem(String itemId, String relationLabel, List<String> relatedItems);
 
     /**
      * Atomically update the index of a single field for an object

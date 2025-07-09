@@ -9,7 +9,6 @@ package org.dspace.app.util;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +28,7 @@ import org.apache.logging.log4j.Logger;
  * @see org.dspace.app.util.SubmissionStepConfig
  */
 
-public class SubmissionConfig implements Serializable, Iterable<SubmissionStepConfig> {
+public class SubmissionConfig implements Serializable {
     /**
      * name of the item submission process
      */
@@ -136,32 +135,5 @@ public class SubmissionConfig implements Serializable, Iterable<SubmissionStepCo
 
     public boolean hasMoreSteps(int stepNum) {
         return (getStep(stepNum + 1) != null);
-    }
-
-    @Override
-    public Iterator<SubmissionStepConfig> iterator() {
-        return new SubmissionStepConfigIterator(this);
-    }
-
-    private class SubmissionStepConfigIterator implements Iterator<SubmissionStepConfig> {
-
-        private SubmissionConfig submissionConfig;
-
-        private int currentStep = 0;
-
-        public SubmissionStepConfigIterator(SubmissionConfig submissionConfig) {
-            this.submissionConfig = submissionConfig;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return submissionConfig.getStep(currentStep) != null;
-        }
-
-        @Override
-        public SubmissionStepConfig next() {
-            return submissionConfig.getStep(currentStep++);
-        }
-
     }
 }

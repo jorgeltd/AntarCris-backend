@@ -17,14 +17,6 @@ package org.dspace.profile;
 public enum OrcidProfileSyncPreference {
 
     /**
-     * Data relating profile affiliations.
-     */
-    AFFILIATION,
-    /**
-     * Data relating profile educations.
-     */
-    EDUCATION,
-    /**
      * Data relating to the name, country and keywords of the ORCID profile.
      */
     BIOGRAPHICAL,

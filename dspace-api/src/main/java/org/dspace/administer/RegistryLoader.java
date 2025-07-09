@@ -33,8 +33,6 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-
-
 /**
  * Loads the bitstream format and Dublin Core type registries into the database.
  * Intended for use as a command-line tool.
@@ -70,7 +68,7 @@ public class RegistryLoader {
      */
     public static void main(String[] argv) throws Exception {
         String usage = "Usage: " + RegistryLoader.class.getName()
-            + " (-bitstream | -metadata | -all) registry-file.xml";
+            + " (-bitstream | -metadata) registry-file.xml";
 
         Context context = null;
 
@@ -83,21 +81,10 @@ public class RegistryLoader {
 
             // Work out what we're loading
             if (argv[0].equalsIgnoreCase("-bitstream")) {
-                if (argv.length == 1) {
-                    loadAllBitstreamFormats(context);
-                } else {
-                    RegistryLoader.loadBitstreamFormats(context, argv[1]);
-                }
+                RegistryLoader.loadBitstreamFormats(context, argv[1]);
             } else if (argv[0].equalsIgnoreCase("-metadata")) {
                 // Call MetadataImporter, as it handles Metadata schema updates
-                if (argv.length == 1) {
-                    loadAllRegistry();
-                } else {
-                    MetadataImporter.loadRegistry(argv[1], true);
-                }
-            } else if (argv[0].equalsIgnoreCase("-all")) {
-                loadAllBitstreamFormats(context);
-                loadAllRegistry();
+                MetadataImporter.loadRegistry(argv[1], true);
             } else {
                 System.err.println(usage);
             }
@@ -121,30 +108,6 @@ public class RegistryLoader {
             if (context != null && context.isValid()) {
                 context.abort();
             }
-        }
-    }
-
-
-    /**
-     * Load all bitstream formats from configuration properties
-     *
-     * @param context DSpace context object
-     * @throws Exception
-     */
-    private static void loadAllBitstreamFormats(Context context) throws Exception {
-        for (String file : MetadataImporter.getAllRegistryFiles(MetadataImporter.REGISTRY_BITSTREAM_FORMAT_PROPERTY)) {
-            RegistryLoader.loadBitstreamFormats(context, file);
-        }
-    }
-
-    /**
-     * Load all metadata registry from configuration properties
-     *
-     * @throws Exception
-     */
-    private static void loadAllRegistry() throws Exception {
-        for (String file : MetadataImporter.getAllRegistryFiles(MetadataImporter.REGISTRY_METADATA_PROPERTY)) {
-            MetadataImporter.loadRegistry(file, true);
         }
     }
 

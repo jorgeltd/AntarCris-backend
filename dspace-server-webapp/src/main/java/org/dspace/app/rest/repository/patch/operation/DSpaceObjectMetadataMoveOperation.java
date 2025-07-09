@@ -9,13 +9,10 @@ package org.dspace.app.rest.repository.patch.operation;
 
 import java.sql.SQLException;
 
-import org.dspace.app.rest.converter.ItemConverter;
 import org.dspace.app.rest.exception.DSpaceBadRequestException;
-import org.dspace.app.rest.exception.UnprocessableEntityException;
 import org.dspace.app.rest.model.patch.MoveOperation;
 import org.dspace.app.rest.model.patch.Operation;
 import org.dspace.content.DSpaceObject;
-import org.dspace.content.Item;
 import org.dspace.content.MetadataField;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.DSpaceObjectService;
@@ -43,9 +40,6 @@ public class DSpaceObjectMetadataMoveOperation<R extends DSpaceObject> extends P
     @Autowired
     DSpaceObjectMetadataPatchUtils metadataPatchUtils;
 
-    @Autowired
-    private ItemConverter itemConverter;
-
     @Override
     public R perform(Context context, R resource, Operation operation) throws SQLException {
         DSpaceObjectService dsoService = ContentServiceFactory.getInstance().getDSpaceObjectService(resource);
@@ -71,12 +65,6 @@ public class DSpaceObjectMetadataMoveOperation<R extends DSpaceObject> extends P
                       DSpaceObjectService dsoService, MetadataField metadataField, String indexFrom, String indexTo) {
         metadataPatchUtils.checkMetadataFieldNotNull(metadataField);
         try {
-            if (dso instanceof Item) {
-                if (!itemConverter.checkMetadataFieldVisibility(context, (Item) dso, metadataField)) {
-                    throw new UnprocessableEntityException(
-                            "Current user has not permession to esecute patch peration on " + metadataField);
-                }
-            }
             dsoService.moveMetadata(context, dso, metadataField.getMetadataSchema().getName(),
                     metadataField.getElement(), metadataField.getQualifier(), Integer.parseInt(indexFrom),
                     Integer.parseInt(indexTo));

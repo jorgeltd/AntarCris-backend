@@ -14,13 +14,11 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dspace.alerts.service.SystemWideAlertService;
-import org.dspace.app.audit.AuditService;
 import org.dspace.app.ldn.factory.NotifyServiceFactory;
 import org.dspace.app.ldn.service.LDNMessageService;
 import org.dspace.app.ldn.service.NotifyPatternToTriggerService;
 import org.dspace.app.ldn.service.NotifyService;
 import org.dspace.app.ldn.service.NotifyServiceInboundPatternService;
-import org.dspace.app.metrics.service.CrisMetricsService;
 import org.dspace.app.requestitem.factory.RequestItemServiceFactory;
 import org.dspace.app.requestitem.service.RequestItemService;
 import org.dspace.app.suggestion.SolrSuggestionStorageService;
@@ -53,17 +51,8 @@ import org.dspace.eperson.service.EPersonService;
 import org.dspace.eperson.service.GroupService;
 import org.dspace.eperson.service.RegistrationDataService;
 import org.dspace.eperson.service.SubscribeService;
-import org.dspace.externalservices.scopus.factory.CrisMetricsServiceFactory;
-import org.dspace.harvest.factory.HarvestServiceFactory;
-import org.dspace.harvest.service.HarvestedCollectionService;
 import org.dspace.identifier.factory.IdentifierServiceFactory;
 import org.dspace.identifier.service.DOIService;
-import org.dspace.layout.factory.CrisLayoutServiceFactory;
-import org.dspace.layout.service.CrisLayoutBoxService;
-import org.dspace.layout.service.CrisLayoutFieldService;
-import org.dspace.layout.service.CrisLayoutMetadataGroupService;
-import org.dspace.layout.service.CrisLayoutMetric2BoxService;
-import org.dspace.layout.service.CrisLayoutTabService;
 import org.dspace.orcid.factory.OrcidServiceFactory;
 import org.dspace.orcid.service.OrcidHistoryService;
 import org.dspace.orcid.service.OrcidQueueService;
@@ -125,16 +114,6 @@ public abstract class AbstractBuilder<T, S> {
     static RelationshipTypeService relationshipTypeService;
     static EntityTypeService entityTypeService;
     static ProcessService processService;
-    static CrisLayoutTabService crisLayoutTabService;
-    static CrisLayoutBoxService crisLayoutBoxService;
-    static CrisLayoutFieldService crisLayoutFieldService;
-    static CrisLayoutMetadataGroupService crisLayoutMetadataGroupService;
-    static AuditService auditService;
-    static CrisMetricsService crisMetricsService;
-    static CrisLayoutMetric2BoxService crisLayoutMetric2BoxService;
-    static HarvestedCollectionService harvestedCollectionService;
-    static SolrSuggestionStorageService solrSuggestionService;
-    static SubscribeService subscribeService;
     static RequestItemService requestItemService;
     static VersioningService versioningService;
     static DOIService doiService;
@@ -143,12 +122,14 @@ public abstract class AbstractBuilder<T, S> {
     static OrcidTokenService orcidTokenService;
     static SystemWideAlertService systemWideAlertService;
     static SubmissionConfigService submissionConfigService;
+    static SubscribeService subscribeService;
     static SupervisionOrderService supervisionOrderService;
     static NotifyService notifyService;
     static NotifyServiceInboundPatternService inboundPatternService;
     static NotifyPatternToTriggerService notifyPatternToTriggerService;
 
     static QAEventService qaEventService;
+    static SolrSuggestionStorageService solrSuggestionService;
     static LDNMessageService ldnMessageService;
 
     protected Context context;
@@ -207,16 +188,6 @@ public abstract class AbstractBuilder<T, S> {
         inProgressUserService = XmlWorkflowServiceFactory.getInstance().getInProgressUserService();
         poolTaskService = XmlWorkflowServiceFactory.getInstance().getPoolTaskService();
         workflowItemRoleService = XmlWorkflowServiceFactory.getInstance().getWorkflowItemRoleService();
-        crisLayoutTabService = CrisLayoutServiceFactory.getInstance().getTabService();
-        crisLayoutBoxService = CrisLayoutServiceFactory.getInstance().getBoxService();
-        crisLayoutFieldService = CrisLayoutServiceFactory.getInstance().getFieldService();
-        crisLayoutMetadataGroupService = CrisLayoutServiceFactory.getInstance().getMetadataGroupService();
-        auditService = new DSpace().getSingletonService(AuditService.class);
-        crisMetricsService = CrisMetricsServiceFactory.getInstance().getCrisMetricsService();
-        harvestedCollectionService = HarvestServiceFactory.getInstance().getHarvestedCollectionService();
-        crisLayoutMetric2BoxService = CrisLayoutServiceFactory.getInstance().getMetric2BoxService();
-        solrSuggestionService = new DSpace().getSingletonService(SolrSuggestionStorageService.class);
-        subscribeService = ContentServiceFactory.getInstance().getSubscribeService();
         orcidHistoryService = OrcidServiceFactory.getInstance().getOrcidHistoryService();
         orcidQueueService = OrcidServiceFactory.getInstance().getOrcidQueueService();
         orcidTokenService = OrcidServiceFactory.getInstance().getOrcidTokenService();
@@ -233,6 +204,7 @@ public abstract class AbstractBuilder<T, S> {
         inboundPatternService = NotifyServiceFactory.getInstance().getNotifyServiceInboundPatternService();
         notifyPatternToTriggerService = NotifyServiceFactory.getInstance().getNotifyPatternToTriggerService();
         qaEventService = new DSpace().getSingletonService(QAEventService.class);
+        solrSuggestionService = new DSpace().getSingletonService(SolrSuggestionStorageService.class);
         ldnMessageService = NotifyServiceFactory.getInstance().getLDNMessageService();
     }
 
@@ -264,28 +236,20 @@ public abstract class AbstractBuilder<T, S> {
         relationshipTypeService = null;
         entityTypeService = null;
         processService = null;
-        crisLayoutTabService = null;
-        crisLayoutBoxService = null;
-        crisLayoutFieldService = null;
-        crisLayoutMetadataGroupService = null;
-        orcidQueueService = null;
-        orcidHistoryService = null;
-        crisMetricsService = null;
-        crisLayoutMetric2BoxService = null;
-        harvestedCollectionService = null;
         requestItemService = null;
         versioningService = null;
         doiService = null;
         orcidTokenService = null;
-        notifyService = null;
-        inboundPatternService = null;
-        notifyPatternToTriggerService = null;
-        qaEventService = null;
         systemWideAlertService = null;
         submissionConfigService = null;
         subscribeService = null;
         supervisionOrderService = null;
+        notifyService = null;
+        inboundPatternService = null;
+        notifyPatternToTriggerService = null;
+        qaEventService = null;
         ldnMessageService = null;
+
     }
 
     public static void cleanupObjects() throws Exception {

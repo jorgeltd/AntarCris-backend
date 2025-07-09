@@ -14,8 +14,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-import java.util.Map;
-
 import org.hamcrest.Matcher;
 
 /**
@@ -27,25 +25,6 @@ import org.hamcrest.Matcher;
 public class SubmissionFormFieldMatcher {
 
     private SubmissionFormFieldMatcher() {
-    }
-
-    public static Matcher<? super Object> matchFormFieldDefinition(String type, String label, String mandatoryMessage,
-        boolean repeatable, String hints, String metadata) {
-        return matchFormFieldDefinition(type, label, null, mandatoryMessage, repeatable, hints, null, metadata,
-            null);
-    }
-
-    public static Matcher<? super Object> matchFormFieldDefinition(String type, String label, String mandatoryMessage,
-                                                                   boolean repeatable, String hints, String style,
-                                                                   String metadata) {
-        return matchFormFieldDefinition(type, label, null, mandatoryMessage, repeatable, hints, style, metadata);
-    }
-
-    public static Matcher<? super Object> matchFormFieldDefinition(String type, String label, String mandatoryMessage,
-                                                                   boolean repeatable, String hints, String style,
-                                                                   String metadata, String controlledVocabulary) {
-        return matchFormFieldDefinition(type, label, null, mandatoryMessage, repeatable, hints, style, metadata,
-            controlledVocabulary);
     }
 
     /**
@@ -243,32 +222,5 @@ public class SubmissionFormFieldMatcher {
             hasJsonPath("$.hints", containsString(hints)),
             hasNoJsonPath("$.input.type"),
             hasNoJsonPath("$.selectableMetadata"));
-    }
-
-    /**
-     * Check the json representation of a submission form to verify that it has the
-     * expected label and the expected visibilities.
-     *
-     * @param  label      the label to check
-     * @param  visibility the visibilities to check
-     * @return            a Matcher for all the condition above
-     */
-    public static Matcher<? super Object> matchFormWithVisibility(String label, Map<String, String> visibility) {
-        return allOf(
-            hasJsonPath("$.label", containsString(label)),
-            hasJsonPath("$.visibility", is(visibility)));
-    }
-
-    /**
-     * Check the json representation of a submission form to verify that it has the
-     * expected label and it has not the visibility attribute.
-     *
-     * @param  label the label to check
-     * @return       a Matcher for all the condition above
-     */
-    public static Matcher<? super Object> matchFormWithoutVisibility(String label) {
-        return allOf(
-            hasJsonPath("$.label", containsString(label)),
-            hasNoJsonPath("$.visibility"));
     }
 }
