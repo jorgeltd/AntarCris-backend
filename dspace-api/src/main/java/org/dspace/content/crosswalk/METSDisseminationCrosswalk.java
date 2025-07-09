@@ -72,16 +72,6 @@ public class METSDisseminationCrosswalk
     private static final String schemaLocation =
         METS_NS.getURI() + " " + METS_XSD;
 
-    private String metsPackagerPlugin;
-
-    public METSDisseminationCrosswalk() {
-        this.metsPackagerPlugin = METS_PACKAGER_PLUGIN;
-    }
-
-    public METSDisseminationCrosswalk(String metsPackagerPlugin) {
-        this.metsPackagerPlugin = metsPackagerPlugin;
-    }
-
     @Override
     public Namespace[] getNamespaces() {
         return (Namespace[]) ArrayUtils.clone(namespaces);
@@ -113,10 +103,10 @@ public class METSDisseminationCrosswalk
 
         PackageDisseminator dip = (PackageDisseminator)
             CoreServiceFactory.getInstance().getPluginService()
-            .getNamedPlugin(PackageDisseminator.class, metsPackagerPlugin);
+                              .getNamedPlugin(PackageDisseminator.class, METS_PACKAGER_PLUGIN);
         if (dip == null) {
             throw new CrosswalkInternalException(
-                "Cannot find a disseminate plugin for package=" + metsPackagerPlugin);
+                "Cannot find a disseminate plugin for package=" + METS_PACKAGER_PLUGIN);
         }
 
         try {
@@ -127,16 +117,11 @@ public class METSDisseminationCrosswalk
             // Create a temporary file to disseminate into
             ConfigurationService configurationService
                     = DSpaceServicesFactory.getInstance().getConfigurationService();
-            String tempDirectoryPath = (configurationService.hasProperty("upload.temp.dir"))
+            String tempDirectory = (configurationService.hasProperty("upload.temp.dir"))
                 ? configurationService.getProperty("upload.temp.dir")
                     : System.getProperty("java.io.tmpdir");
 
-            File tempDirectory = new File(tempDirectoryPath);
-            if (!tempDirectory.exists()) {
-                tempDirectory.mkdirs();
-            }
-
-            File tempFile = File.createTempFile("METSDissemination" + dso.hashCode(), null, tempDirectory);
+            File tempFile = File.createTempFile("METSDissemination" + dso.hashCode(), null, new File(tempDirectory));
             tempFile.deleteOnExit();
 
             // Disseminate METS to temp file

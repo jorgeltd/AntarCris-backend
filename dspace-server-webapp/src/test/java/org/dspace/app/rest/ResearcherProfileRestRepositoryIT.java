@@ -18,11 +18,10 @@ import static org.dspace.app.rest.matcher.MetadataMatcher.matchMetadata;
 import static org.dspace.app.rest.matcher.MetadataMatcher.matchMetadataDoesNotExist;
 import static org.dspace.app.rest.matcher.MetadataMatcher.matchMetadataNotEmpty;
 import static org.dspace.app.rest.matcher.ResourcePolicyMatcher.matchResourcePolicyProperties;
+import static org.dspace.builder.RelationshipTypeBuilder.createRelationshipTypeBuilder;
 import static org.dspace.profile.OrcidEntitySyncPreference.ALL;
 import static org.dspace.profile.OrcidEntitySyncPreference.DISABLED;
-import static org.dspace.profile.OrcidEntitySyncPreference.MINE;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
@@ -32,9 +31,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -48,6 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
@@ -62,33 +63,34 @@ import org.dspace.app.rest.model.patch.ReplaceOperation;
 import org.dspace.app.rest.repository.ResearcherProfileRestRepository;
 import org.dspace.app.rest.repository.patch.operation.ResearcherProfileAddOrcidOperation;
 import org.dspace.app.rest.test.AbstractControllerIntegrationTest;
-import org.dspace.authorize.AuthorizeException;
 import org.dspace.builder.CollectionBuilder;
 import org.dspace.builder.CommunityBuilder;
 import org.dspace.builder.EPersonBuilder;
+import org.dspace.builder.EntityTypeBuilder;
 import org.dspace.builder.ItemBuilder;
-import org.dspace.builder.OrcidQueueBuilder;
 import org.dspace.builder.OrcidTokenBuilder;
+import org.dspace.builder.RelationshipBuilder;
 import org.dspace.content.Collection;
+import org.dspace.content.EntityType;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataValue;
+import org.dspace.content.RelationshipType;
 import org.dspace.content.service.ItemService;
 import org.dspace.core.Constants;
 import org.dspace.eperson.EPerson;
-import org.dspace.eperson.Group;
-import org.dspace.eperson.service.GroupService;
 import org.dspace.orcid.OrcidQueue;
 import org.dspace.orcid.OrcidToken;
 import org.dspace.orcid.client.OrcidClient;
 import org.dspace.orcid.exception.OrcidClientException;
 import org.dspace.orcid.model.OrcidTokenResponseDTO;
 import org.dspace.orcid.service.OrcidQueueService;
+import org.dspace.orcid.service.OrcidSynchronizationService;
 import org.dspace.orcid.service.OrcidTokenService;
-import org.dspace.orcid.webhook.OrcidWebhookServiceImpl;
 import org.dspace.services.ConfigurationService;
 import org.dspace.util.UUIDUtils;
 import org.junit.After;
 import org.junit.Test;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
@@ -108,12 +110,6 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
     private ItemService itemService;
 
     @Autowired
-    private GroupService groupService;
-
-    @Autowired
-    private OrcidWebhookServiceImpl orcidWebhookService;
-
-    @Autowired
     private OrcidTokenService orcidTokenService;
 
     @Autowired
@@ -125,15 +121,17 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
     @Autowired
     private OrcidClient orcidClient;
 
-    private OrcidClient orcidClientMock = mock(OrcidClient.class);
+    @Mock
+    private OrcidClient orcidClientMock;
+
+    @Autowired
+    private OrcidSynchronizationService orcidSynchronizationService;
 
     private EPerson user;
 
     private EPerson anotherUser;
 
     private Collection personCollection;
-
-    private Group administrators;
 
     /**
      * Tests setup.
@@ -165,31 +163,41 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .withTemplateItem()
             .build();
 
-        administrators = groupService.findByName(context, Group.ADMIN);
-
-        itemService.addMetadata(context, personCollection.getTemplateItem(), "cris", "policy",
-                                "group", null, administrators.getName());
-
         configurationService.setProperty("researcher-profile.collection.uuid", personCollection.getID().toString());
-        configurationService.setProperty("claimable.entityType", "Person");
 
         context.setCurrentUser(user);
 
         context.restoreAuthSystemState();
 
-        researcherProfileAddOrcidOperation.setOrcidClient(orcidClientMock);
-
+        useInstanceForBean(orcidSynchronizationService, orcidClientMock);
+        useInstanceForBean(researcherProfileAddOrcidOperation, orcidClientMock);
     }
 
     @After
-    public void after() throws SQLException, AuthorizeException {
-        List<OrcidQueue> records = orcidQueueService.findAll(context);
-        for (OrcidQueue record : records) {
-            orcidQueueService.delete(context, record);
-        }
+    public void after() {
         orcidTokenService.deleteAll(context);
-        researcherProfileAddOrcidOperation.setOrcidClient(orcidClient);
+        useInstanceForBean(orcidSynchronizationService, orcidClient);
+        useInstanceForBean(researcherProfileAddOrcidOperation, orcidClient);
     }
+
+    private <B, I> void useInstanceForBean(B bean, I instance) {
+        Field[] fields = bean.getClass().getDeclaredFields();
+
+        for (Field field : fields) {
+            if (field.getType().isAssignableFrom(instance.getClass())) {
+                boolean accessible = field.isAccessible();
+                try {
+                    field.setAccessible(true);
+                    field.set(bean, instance);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    field.setAccessible(accessible);
+                }
+            }
+        }
+    }
+
 
     /**
      * Verify that the findById endpoint returns the own profile.
@@ -217,8 +225,6 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .andExpect(jsonPath("$.id", is(id.toString())))
             .andExpect(jsonPath("$.visible", is(true)))
             .andExpect(jsonPath("$.type", is("profile")))
-            .andExpect(jsonPath("$.orcid").doesNotExist())
-            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist())
             .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
 
         getClient(authToken).perform(get("/api/eperson/profiles/{id}/item", id))
@@ -324,7 +330,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         getClient(authToken).perform(post("/api/eperson/profiles/")
             .contentType(MediaType.APPLICATION_JSON_VALUE))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id", is(id.toString())))
+            .andExpect(jsonPath("$.id", is(id)))
             .andExpect(jsonPath("$.visible", is(false)))
             .andExpect(jsonPath("$.type", is("profile")))
             .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
@@ -335,9 +341,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         getClient(authToken).perform(get("/api/eperson/profiles/{id}/item", id))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.type", is("item")))
-            .andExpect(jsonPath("$.metadata", matchMetadata("dspace.object.owner", name, id.toString(), 0)))
-            .andExpect(jsonPath("$.metadata", matchMetadata("cris.policy.group", administrators.getName(),
-                                                            UUIDUtils.toString(administrators.getID()), 0)))
+            .andExpect(jsonPath("$.metadata", matchMetadata("dspace.object.owner", name, id, 0)))
             .andExpect(jsonPath("$.metadata", matchMetadata("dspace.entity.type", "Person", 0)));
 
         getClient(authToken).perform(get("/api/eperson/profiles/{id}/eperson", id))
@@ -352,9 +356,29 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .perform(get("/api/authz/resourcepolicies/search/resource")
                 .param("uuid", itemId))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$._embedded.resourcepolicies", contains(
-                matchResourcePolicyProperties(null, user, profileItem, null, Constants.READ, null))))
-            .andExpect(jsonPath("$.page.totalElements", is(1)));
+            .andExpect(content().contentType(contentType))
+            .andExpect(jsonPath("$._embedded.resourcepolicies", containsInAnyOrder(
+                matchResourcePolicyProperties(null, user, profileItem, null, Constants.READ, null),
+                matchResourcePolicyProperties(null, user, profileItem, null, Constants.WRITE, null))))
+            .andExpect(jsonPath("$.page.totalElements", is(2)));
+
+    }
+
+    @Test
+    public void testCreateAndReturnWithPublicProfile() throws Exception {
+
+        configurationService.setProperty("researcher-profile.set-new-profile-visible", true);
+        String id = user.getID().toString();
+
+        String authToken = getAuthToken(user.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", is(id)))
+            .andExpect(jsonPath("$.visible", is(true)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
     }
 
     /**
@@ -377,7 +401,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .param("eperson", id)
             .contentType(MediaType.APPLICATION_JSON_VALUE))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id", is(id.toString())))
+            .andExpect(jsonPath("$.id", is(id)))
             .andExpect(jsonPath("$.visible", is(false)))
             .andExpect(jsonPath("$.type", is("profile")))
             .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
@@ -388,9 +412,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         getClient(authToken).perform(get("/api/eperson/profiles/{id}/item", id))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.type", is("item")))
-            .andExpect(jsonPath("$.metadata", matchMetadata("dspace.object.owner", name, id.toString(), 0)))
-            .andExpect(jsonPath("$.metadata", matchMetadata("cris.policy.group", administrators.getName(),
-                                                            UUIDUtils.toString(administrators.getID()), 0)))
+            .andExpect(jsonPath("$.metadata", matchMetadata("dspace.object.owner", name, id, 0)))
             .andExpect(jsonPath("$.metadata", matchMetadata("dspace.entity.type", "Person", 0)));
 
         getClient(authToken).perform(get("/api/eperson/profiles/{id}/eperson", id))
@@ -402,10 +424,69 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
 
         getClient(authToken).perform(get("/api/eperson/profiles/{id}", id))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id", is(id.toString())))
+            .andExpect(jsonPath("$.id", is(id)))
             .andExpect(jsonPath("$.visible", is(false)))
             .andExpect(jsonPath("$.type", is("profile")))
             .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
+    }
+
+    @Test
+    public void testCreateAndReturnWithoutCollectionIdSet() throws Exception {
+
+        String id = user.getID().toString();
+
+        configurationService.setProperty("researcher-profile.collection.uuid", null);
+
+        String authToken = getAuthToken(user.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", is(id)))
+            .andExpect(jsonPath("$.visible", is(false)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
+
+        String itemId = getItemIdByProfileId(authToken, id);
+        Item profileItem = itemService.find(context, UUIDUtils.fromString(itemId));
+        assertThat(profileItem, notNullValue());
+        assertThat(profileItem.getOwningCollection(), is(personCollection));
+
+    }
+
+    @Test
+    public void testCreateAndReturnWithCollectionHavingInvalidEntityTypeSet() throws Exception {
+
+        String id = user.getID().toString();
+
+        context.turnOffAuthorisationSystem();
+
+        Collection orgUnitCollection = CollectionBuilder.createCollection(context, parentCommunity)
+            .withName("OrgUnit Collection")
+            .withEntityType("OrgUnit")
+            .withSubmitterGroup(user)
+            .withTemplateItem()
+            .build();
+
+        context.restoreAuthSystemState();
+
+        configurationService.setProperty("researcher-profile.collection.uuid", orgUnitCollection.getID().toString());
+
+        String authToken = getAuthToken(user.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id", is(id)))
+            .andExpect(jsonPath("$.visible", is(false)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
+
+        String itemId = getItemIdByProfileId(authToken, id);
+        Item profileItem = itemService.find(context, UUIDUtils.fromString(itemId));
+        assertThat(profileItem, notNullValue());
+        assertThat(profileItem.getOwningCollection(), is(personCollection));
+
     }
 
     /**
@@ -441,7 +522,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         getClient(authToken).perform(post("/api/eperson/profiles/")
             .contentType(MediaType.APPLICATION_JSON_VALUE))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id", is(id.toString())))
+            .andExpect(jsonPath("$.id", is(id)))
             .andExpect(jsonPath("$.visible", is(false)))
             .andExpect(jsonPath("$.type", is("profile")));
 
@@ -469,37 +550,6 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .andExpect(status().isUnprocessableEntity());
     }
 
-    @Test
-    public void testCreateAndReturnWithWritePolicy() throws Exception {
-
-        configurationService.setProperty("researcher-profile.add-write-policy", true);
-
-        String id = user.getID().toString();
-
-        String authToken = getAuthToken(user.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id", is(id.toString())))
-            .andExpect(jsonPath("$.visible", is(false)))
-            .andExpect(jsonPath("$.type", is("profile")))
-            .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + id, "item", "eperson")));
-
-        String itemId = getItemIdByProfileId(authToken, id);
-        Item profileItem = itemService.find(context, UUIDUtils.fromString(itemId));
-
-        getClient(getAuthToken(admin.getEmail(), password))
-            .perform(get("/api/authz/resourcepolicies/search/resource")
-                .param("uuid", itemId))
-            .andExpect(status().isOk())
-            .andExpect(content().contentType(contentType))
-            .andExpect(jsonPath("$._embedded.resourcepolicies", containsInAnyOrder(
-                matchResourcePolicyProperties(null, user, profileItem, null, Constants.READ, null),
-                matchResourcePolicyProperties(null, user, profileItem, null, Constants.WRITE, null))))
-            .andExpect(jsonPath("$.page.totalElements", is(2)));
-    }
-
     /**
      * Verify that a user can delete their profile using the delete endpoint.
      *
@@ -512,7 +562,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
 
         String id = user.getID().toString();
         String authToken = getAuthToken(user.getEmail(), password);
-        AtomicReference<UUID> itemIdRef = new AtomicReference<UUID>();
+        AtomicReference<UUID> itemIdRef = new AtomicReference<>();
 
         getClient(authToken).perform(post("/api/eperson/profiles/")
             .contentType(MediaType.APPLICATION_JSON_VALUE))
@@ -589,30 +639,38 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .withOrcidAuthenticated("authenticated")
             .build();
 
-        String id = user.getID().toString();
-        String authToken = getAuthToken(user.getEmail(), password);
-
         context.restoreAuthSystemState();
 
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", id))
+        String id = user.getID().toString();
+        String authToken = getAuthToken(user.getEmail(), password);
+        OrcidToken orcidToken = orcidTokenService.findByProfileItem(context, profileItem);
+
+        getClient(authToken)
+            .perform(get("/api/eperson/profiles/{id}", id))
             .andExpect(status().isOk());
 
         assertThat(profileItem.getMetadata(), hasItem(with("person.identifier.orcid", "0000-1111-2222-3333")));
         assertThat(profileItem.getMetadata(), hasItem(with("dspace.orcid.authenticated", "authenticated")));
-        assertThat(getOrcidAccessToken(profileItem), notNullValue());
+        assertThat(orcidToken.getAccessToken(), notNullValue());
 
         getClient(authToken).perform(get("/api/eperson/profiles/{id}/item", id))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasJsonPath("$.metadata", matchMetadataNotEmpty("dspace.object.owner"))));
 
+
         getClient(authToken).perform(delete("/api/eperson/profiles/{id}", id))
             .andExpect(status().isNoContent());
 
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
+
         profileItem = context.reloadEntity(profileItem);
+
+        orcidToken = orcidTokenService.findByProfileItem(context, profileItem);
 
         assertThat(profileItem.getMetadata(), not(hasItem(with("person.identifier.orcid", "0000-1111-2222-3333"))));
         assertThat(profileItem.getMetadata(), not(hasItem(with("dspace.orcid.authenticated", "authenticated"))));
-        assertThat(getOrcidAccessToken(profileItem), nullValue());
+        assertThat(orcidToken, nullValue());
 
     }
 
@@ -967,44 +1025,6 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
 
     }
 
-    /**
-     * Verify that after an user login an automatic claim between the logged eperson
-     * and possible profiles without eperson is done.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void testAutomaticProfileClaimByOrcid() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withNameInMetadata("Test", "User")
-            .withPassword(password)
-            .withEmail("test@email.it")
-            .withOrcid("0000-1111-2222-3333")
-            .build();
-
-        Item item = ItemBuilder.createItem(context, personCollection)
-            .withTitle("Test User")
-            .withOrcidIdentifier("0000-1111-2222-3333")
-            .build();
-
-        context.restoreAuthSystemState();
-
-        String epersonId = ePerson.getID().toString();
-
-        String token = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(token).perform(get("/api/eperson/profiles/{id}", epersonId))
-            .andExpect(status().isOk());
-
-        String profileItemId = getItemIdByProfileId(token, epersonId);
-        assertEquals("The item should be the same", item.getID().toString(), profileItemId);
-
-    }
-
     @Test
     public void testNoAutomaticProfileClaimOccursIfManyClaimableItemsAreFound() throws Exception {
 
@@ -1015,17 +1035,14 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .withNameInMetadata("Test", "User")
             .withPassword(password)
             .withEmail("test@email.it")
-            .withOrcid("0000-1111-2222-3333")
             .build();
 
         ItemBuilder.createItem(context, personCollection)
-            .withTitle("Test User")
-            .withOrcidIdentifier("0000-1111-2222-3333")
+            .withPersonEmail("test@email.it")
             .build();
 
         ItemBuilder.createItem(context, personCollection)
-            .withTitle("Test User 2")
-            .withOrcidIdentifier("0000-1111-2222-3333")
+            .withPersonEmail("test@email.it")
             .build();
 
         context.restoreAuthSystemState();
@@ -1075,7 +1092,6 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .withNameInMetadata("Test", "User")
             .withPassword(password)
             .withEmail("test@email.it")
-            .withOrcid("0000-1111-2222-3333")
             .build();
 
         context.restoreAuthSystemState();
@@ -1096,8 +1112,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         context.turnOffAuthorisationSystem();
 
         ItemBuilder.createItem(context, personCollection)
-            .withTitle("Test User")
-            .withOrcidIdentifier("0000-1111-2222-3333")
+            .withPersonEmail("test@email.it")
             .build();
 
         context.restoreAuthSystemState();
@@ -1139,1278 +1154,6 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
     }
 
     @Test
-    public void testOrcidMetadataOfEpersonAreCopiedOnProfile() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.id", is(ePersonId.toString())))
-            .andExpect(jsonPath("$.visible", is(false)))
-            .andExpect(jsonPath("$.type", is("profile")));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcid", is("0000-1111-2222-3333")))
-            .andExpect(jsonPath("$.orcidSynchronization.mode", is("MANUAL")))
-            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is("DISABLED")))
-            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is("DISABLED")))
-            .andExpect(jsonPath("$.orcidSynchronization.productsPreference", is("DISABLED")))
-            .andExpect(jsonPath("$.orcidSynchronization.patentsPreference", is("DISABLED")))
-            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences", empty()));
-
-        String itemId = getItemIdByProfileId(authToken, ePersonId);
-
-        Item profileItem = itemService.find(context, UUIDUtils.fromString(itemId));
-        assertThat(profileItem, notNullValue());
-
-        List<MetadataValue> metadata = profileItem.getMetadata();
-        assertThat(metadata, hasItem(with("person.identifier.orcid", "0000-1111-2222-3333")));
-        assertThat(metadata, hasItem(with("dspace.orcid.scope", "/first-scope", 0)));
-        assertThat(metadata, hasItem(with("dspace.orcid.scope", "/second-scope", 1)));
-
-        OrcidToken orcidToken = orcidTokenService.findByProfileItem(context, profileItem);
-        assertThat(orcidToken, notNullValue());
-        assertThat(orcidToken.getAccessToken(), is("af097328-ac1c-4a3e-9eb4-069897874910"));
-
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationPreferenceForPublications() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/publications", ALL.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is(ALL.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is(ALL.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/publications", MINE.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is(MINE.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is(MINE.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/publications", "INVALID_VALUE"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isUnprocessableEntity());
-
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationPreferenceForFundings() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/fundings", ALL.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is(ALL.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is(ALL.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/fundings", MINE.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is(MINE.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is(MINE.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/fundings", "INVALID_VALUE"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isUnprocessableEntity());
-
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationPreferenceForProduct() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/products", ALL.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-                .content(getPatchContent(operations))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.productsPreference", is(ALL.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.productsPreference", is(ALL.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/products", MINE.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-                .content(getPatchContent(operations))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.productsPreference", is(MINE.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.productsPreference", is(MINE.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/products", "INVALID_VALUE"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-                .content(getPatchContent(operations))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isUnprocessableEntity());
-
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationPreferenceForPatent() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/patents", ALL.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-                .content(getPatchContent(operations))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.patentsPreference", is(ALL.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.patentsPreference", is(ALL.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/patents", MINE.name()));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-                .content(getPatchContent(operations))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.patentsPreference", is(MINE.name())));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.patentsPreference", is(MINE.name())));
-
-        operations = asList(new ReplaceOperation("/orcid/patents", "INVALID_VALUE"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-                .content(getPatchContent(operations))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isUnprocessableEntity());
-
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationPreferenceForProfile() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/profile", "AFFILIATION, EDUCATION"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences",
-                containsInAnyOrder("AFFILIATION", "EDUCATION")));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences",
-                containsInAnyOrder("AFFILIATION", "EDUCATION")));
-
-        operations = asList(new ReplaceOperation("/orcid/profile", "IDENTIFIERS"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences",
-                containsInAnyOrder("IDENTIFIERS")));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences",
-                containsInAnyOrder("IDENTIFIERS")));
-
-        operations = asList(new ReplaceOperation("/orcid/profiles", "INVALID_VALUE"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isUnprocessableEntity());
-
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationMode() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/mode", "BATCH"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.mode", is("BATCH")));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.mode", is("BATCH")));
-
-        operations = asList(new ReplaceOperation("/orcid/mode", "MANUAL"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.mode", is("MANUAL")));
-
-        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.orcidSynchronization.mode", is("MANUAL")));
-
-        operations = asList(new ReplaceOperation("/orcid/mode", "INVALID_VALUE"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isUnprocessableEntity());
-
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationPreferenceWithWrongPath() throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .withOrcidScope("/first-scope")
-            .withOrcidScope("/second-scope")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/wrong-path", "BATCH"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isUnprocessableEntity());
-    }
-
-    @Test
-    public void testPatchToSetOrcidSynchronizationPreferenceWithProfileNotLinkedToOrcid() throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        context.restoreAuthSystemState();
-
-        String ePersonId = ePerson.getID().toString();
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated());
-
-        List<Operation> operations = asList(new ReplaceOperation("/orcid/mode", "BATCH"));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
-            .content(getPatchContent(operations))
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    public void testOwnerPatchToDisconnectProfileFromOrcidWithDisabledConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "disabled");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(ePerson.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testAdminPatchToDisconnectProfileFromOrcidWithDisabledConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", null);
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(admin.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithDisabledConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        EPerson anotherUser = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withEmail("user@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Another", "User")
-            .build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(anotherUser.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testOwnerPatchToDisconnectProfileFromOrcidWithOnlyOwnerConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "only_owner");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(ePerson.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
-            .andExpect(jsonPath("$.visible", is(false)))
-            .andExpect(jsonPath("$.type", is("profile")))
-            .andExpect(jsonPath("$.orcid").doesNotExist())
-            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
-
-        assertThat(context.reloadEntity(firstQueueRecord), nullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), nullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), nullValue());
-        assertThat(orcidTokenService.findByEPerson(context, ePerson), nullValue());
-    }
-
-    @Test
-    public void testAdminPatchToDisconnectProfileFromOrcidWithOnlyOwnerConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "only_owner");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(admin.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithOnlyOwnerConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(anotherUser.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testOwnerPatchToDisconnectProfileFromOrcidWithOnlyAdminConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "only_admin");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(ePerson.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testAdminPatchToDisconnectProfileFromOrcidWithOnlyAdminConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "only_admin");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(admin.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
-            .andExpect(jsonPath("$.visible", is(false)))
-            .andExpect(jsonPath("$.type", is("profile")))
-            .andExpect(jsonPath("$.orcid").doesNotExist())
-            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
-
-        assertThat(context.reloadEntity(firstQueueRecord), nullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), nullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), nullValue());
-    }
-
-    @Test
-    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithOnlyAdminConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "only_admin");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(anotherUser.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testOwnerPatchToDisconnectProfileFromOrcidWithAdminAndOwnerConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(ePerson.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
-            .andExpect(jsonPath("$.visible", is(false)))
-            .andExpect(jsonPath("$.type", is("profile")))
-            .andExpect(jsonPath("$.orcid").doesNotExist())
-            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
-
-        assertThat(context.reloadEntity(firstQueueRecord), nullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), nullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), nullValue());
-    }
-
-    @Test
-    public void testAdminPatchToDisconnectProfileFromOrcidWithAdminAndOwnerConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(admin.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
-            .andExpect(jsonPath("$.visible", is(false)))
-            .andExpect(jsonPath("$.type", is("profile")))
-            .andExpect(jsonPath("$.orcid").doesNotExist())
-            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
-
-        assertThat(context.reloadEntity(firstQueueRecord), nullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), nullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), nullValue());
-    }
-
-    @Test
-    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithAdminAndOwnerConfiguration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid("0000-1111-2222-3333")
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        getClient(getAuthToken(anotherUser.getEmail(), password))
-            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isForbidden());
-
-        assertThat(context.reloadEntity(firstQueueRecord), notNullValue());
-        assertThat(context.reloadEntity(secondQueueRecord), notNullValue());
-
-        profile = context.reloadEntity(profile);
-
-        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
-        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
-
-        assertThat(orcidTokenService.findByProfileItem(context, profile), notNullValue());
-    }
-
-    @Test
-    public void testProfileDisconnectionFromOrcidCauseOrcidWebhookUnregistration() throws Exception {
-
-        configurationService.setProperty("orcid.disconnection.allowed-users", "only_owner");
-
-        context.turnOffAuthorisationSystem();
-
-        String orcid = "0000-1111-2222-3333";
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withOrcid(orcid)
-            .withOrcidScope("/read")
-            .withOrcidScope("/write")
-            .withEmail("test@email.it")
-            .withPassword(password)
-            .withNameInMetadata("Test", "User")
-            .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        Item profile = createProfile(ePerson);
-
-        addMetadata(profile, "dspace", "orcid", "webhook", "2020-02-02");
-
-        OrcidQueue firstQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-        OrcidQueue secondQueueRecord = OrcidQueueBuilder.createOrcidQueue(context, profile, profile).build();
-
-        context.restoreAuthSystemState();
-
-        OrcidClient orcidClient = orcidWebhookService.getOrcidClient();
-        OrcidClient orcidClientMock = mock(OrcidClient.class);
-
-        String webhookAccessToken = "603315a5-cf2e-40ad-934a-24357a890bf9";
-        when(orcidClientMock.getWebhookAccessToken()).thenReturn(buildTokenResponse(webhookAccessToken));
-
-        try {
-
-            orcidWebhookService.setOrcidClient(orcidClientMock);
-
-            getClient(getAuthToken(ePerson.getEmail(), password))
-                .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
-                    .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
-                    .contentType(MediaType.APPLICATION_JSON_VALUE))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
-                .andExpect(jsonPath("$.visible", is(false)))
-                .andExpect(jsonPath("$.type", is("profile")))
-                .andExpect(jsonPath("$.orcid").doesNotExist())
-                .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
-
-            assertThat(context.reloadEntity(firstQueueRecord), nullValue());
-            assertThat(context.reloadEntity(secondQueueRecord), nullValue());
-
-            profile = context.reloadEntity(profile);
-
-            assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
-            assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
-            assertThat(getMetadataValues(profile, "dspace.orcid.webhook"), empty());
-
-            assertThat(orcidTokenService.findByProfileItem(context, profile), nullValue());
-
-            verify(orcidClientMock).getWebhookAccessToken();
-            verify(orcidClientMock).unregisterWebhook(eq(webhookAccessToken), eq(orcid), any());
-            verifyNoMoreInteractions(orcidClientMock);
-
-        } finally {
-            orcidWebhookService.setOrcidClient(orcidClient);
-        }
-
-    }
-
-    @Test
-    public void testOrcidSynchronizationPreferenceUpdateForceOrcidQueueRecalculation() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson ePerson = EPersonBuilder.createEPerson(context)
-                                        .withCanLogin(true)
-                                        .withOrcid("0000-1111-2222-3333")
-                                        .withOrcidScope("/read")
-                                        .withOrcidScope("/write")
-                                        .withEmail("test@email.it")
-                                        .withPassword(password)
-                                        .withNameInMetadata("Test", "User")
-                                        .build();
-
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
-
-        UUID ePersonId = ePerson.getID();
-
-        Item profile = createProfile(ePerson);
-
-        UUID profileItemId = profile.getID();
-
-        Collection publications = createCollection("Publications", "Publication");
-
-        Collection products = createCollection("Products", "Product");
-
-        Item publication = createPublication(publications, "Test publication", profile);
-
-        Item product = createProduct(products, "Test product", profile);
-
-        Collection fundings = createCollection("Fundings", "Funding");
-
-        Item firstFunding = createFundingWithInvestigator(fundings, "First funding", profile);
-        Item secondFunding = createFundingWithCoInvestigator(fundings, "Second funding", profile);
-
-        Collection patents = createCollection("Patents", "Patent");
-
-        Item firstPatent = createPatent(patents, "First patent", profile);
-        Item secondPatent = createPatent(patents, "Second patent", profile);
-
-        context.restoreAuthSystemState();
-
-        // no preferences configured, so no orcid queue records created
-        assertThat(orcidQueueService.findByProfileItemId(context, profileItemId), empty());
-
-        String authToken = getAuthToken(ePerson.getEmail(), password);
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(getPatchContent(
-                                             asList(new ReplaceOperation("/orcid/publications", "ALL"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        List<OrcidQueue> queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(1));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(publication)));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(
-                                             getPatchContent(asList(new ReplaceOperation("/orcid/fundings", "ALL"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(3));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(publication)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstFunding)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondFunding)));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(
-                                             getPatchContent(asList(new ReplaceOperation("/orcid/products", "ALL"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(4));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(publication)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstFunding)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondFunding)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(product)));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(
-                                             getPatchContent(asList(new ReplaceOperation("/orcid/patents", "ALL"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(6));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(publication)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstFunding)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondFunding)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(product)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstPatent)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondPatent)));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(getPatchContent(
-                                             asList(new ReplaceOperation("/orcid/publications", "DISABLED"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(5));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstFunding)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondFunding)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(product)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstPatent)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondPatent)));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(getPatchContent(
-                                             asList(new ReplaceOperation("/orcid/fundings", "DISABLED"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(3));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(product)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstPatent)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondPatent)));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(getPatchContent(
-                                             asList(new ReplaceOperation("/orcid/products", "DISABLED"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(2));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstPatent)));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondPatent)));
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(getPatchContent(
-                                             asList(new ReplaceOperation("/orcid/patents", "DISABLED"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        assertThat(orcidQueueService.findByProfileItemId(context, profileItemId), empty());
-
-        configurationService.setProperty("orcid.linkable-metadata-fields.ignore", "crisfund.coinvestigators");
-
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(
-                                             getPatchContent(asList(new ReplaceOperation("/orcid/fundings", "ALL"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(queueRecords, hasSize(1));
-        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstFunding)));
-
-        // verify that no ORCID queue recalculation is done if the preference does not change
-        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
-                                         .content(
-                                             getPatchContent(asList(new ReplaceOperation("/orcid/fundings", "ALL"))))
-                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isOk());
-
-        List<OrcidQueue> newRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
-        assertThat(newRecords, hasSize(1));
-        assertThat(queueRecords.get(0).getID(), is(newRecords.get(0).getID()));
-
-    }
-
-
-    @Test
     public void researcherProfileClaim() throws Exception {
         String id = user.getID().toString();
         String name = user.getName();
@@ -2418,11 +1161,13 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         context.turnOffAuthorisationSystem();
 
         final Item person = ItemBuilder.createItem(context, personCollection)
-                                      .withFullName("Doe, John")
+                                      .withTitle("Test User 1")
+                                      .withPersonEmail(user.getEmail())
                                       .build();
 
         final Item otherPerson = ItemBuilder.createItem(context, personCollection)
-                                       .withFullName("Smith, Jane")
+                                       .withTitle("Test User 2")
+                                       .withPersonEmail(user.getEmail())
                                        .build();
 
         context.restoreAuthSystemState();
@@ -2435,8 +1180,8 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
                             .andExpect(status().isCreated())
                             .andExpect(jsonPath("$.id", is(id)))
                             .andExpect(jsonPath("$.type", is("profile")))
-                            .andExpect(jsonPath("$",
-                matchLinks("http://localhost/api/eperson/profiles/" + user.getID(), "item", "eperson")));
+                            .andExpect(jsonPath("$", matchLinks("http://localhost/api/eperson/profiles/" + user.getID(),
+                                                                "item", "eperson")));
 
         getClient(authToken).perform(get("/api/eperson/profiles/{id}", id))
                             .andExpect(status().isOk());
@@ -2481,10 +1226,110 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
     }
 
     @Test
-    public void claimForNotAllowedEntityType() throws Exception {
-        String id = user.getID().toString();
-        String name = user.getName();
+    public void researcherProfileClaimWithoutEmail() throws Exception {
 
+        context.turnOffAuthorisationSystem();
+
+        final Item person = ItemBuilder.createItem(context, personCollection)
+            .withTitle("Test User 1")
+            .build();
+
+        context.restoreAuthSystemState();
+
+        String authToken = getAuthToken(user.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+            .contentType(TEXT_URI_LIST)
+            .content("http://localhost:8080/server/api/core/items/" + person.getID().toString()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void researcherProfileClaimWithDifferentEmail() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        final Item person = ItemBuilder.createItem(context, personCollection)
+            .withTitle("Test User 1")
+            .withPersonEmail(eperson.getEmail())
+            .build();
+
+        context.restoreAuthSystemState();
+
+        String authToken = getAuthToken(user.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+            .contentType(TEXT_URI_LIST)
+            .content("http://localhost:8080/server/api/core/items/" + person.getID().toString()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void testNotAdminUserClaimProfileOfAnotherUser() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        final Item person = ItemBuilder.createItem(context, personCollection)
+                                       .withTitle("Test User 1")
+                                       .build();
+
+        context.restoreAuthSystemState();
+
+        String authToken = getAuthToken(user.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .param("eperson" , anotherUser.getID().toString())
+                                         .contentType(TEXT_URI_LIST)
+                                         .content("http://localhost:8080/server/api/core/items/" + person.getID().toString()))
+                            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    public void testAdminUserClaimProfileOfNotExistingPersonId() throws Exception {
+
+        String id = "bef23ba3-9aeb-4f7b-b153-77b0f1fc3612";
+
+        context.turnOffAuthorisationSystem();
+
+        final Item person = ItemBuilder.createItem(context, personCollection)
+                                       .withTitle("Test User 1")
+                                       .build();
+
+        context.restoreAuthSystemState();
+
+        String authToken = getAuthToken(admin.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .param("eperson" , id)
+                                         .contentType(TEXT_URI_LIST)
+                                         .content("http://localhost:8080/server/api/core/items/" + person.getID().toString()))
+                            .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    public void testAdminUserClaimProfileOfWrongPersonId() throws Exception {
+
+        String id = "invalid_id";
+
+        context.turnOffAuthorisationSystem();
+
+        final Item person = ItemBuilder.createItem(context, personCollection)
+                                       .withTitle("Test User 1")
+                                       .build();
+
+        context.restoreAuthSystemState();
+
+        String authToken = getAuthToken(admin.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .param("eperson" , id)
+                                         .contentType(TEXT_URI_LIST)
+                                         .content("http://localhost:8080/server/api/core/items/" + person.getID().toString()))
+                            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void claimForNotAllowedEntityType() throws Exception {
         context.turnOffAuthorisationSystem();
 
         final Collection publications = CollectionBuilder.createCollection(context, parentCommunity)
@@ -2506,27 +1351,1042 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
     }
 
     @Test
-    public void testCloneFromExternalSourceRecordNotFound() throws Exception {
+    public void testOrcidMetadataOfEpersonAreCopiedOnProfile() throws Exception {
 
-        String authToken = getAuthToken(user.getEmail(), password);
+        context.turnOffAuthorisationSystem();
 
-        getClient(authToken)
-            .perform(post("/api/eperson/profiles/").contentType(TEXT_URI_LIST)
-                                                .content("http://localhost:8080/server/api/integration/externalsources/orcid/entryValues/FAKE"))
-            .andExpect(status().isBadRequest());
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .withOrcidScope("/first-scope")
+                                        .withOrcidScope("/second-scope")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated())
+                            .andExpect(jsonPath("$.id", is(ePersonId.toString())))
+                            .andExpect(jsonPath("$.visible", is(false)))
+                            .andExpect(jsonPath("$.type", is("profile")));
+
+        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcid", is("0000-1111-2222-3333")))
+                            .andExpect(jsonPath("$.orcidSynchronization.mode", is("MANUAL")))
+                            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is("DISABLED")))
+                            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is("DISABLED")))
+                            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences", empty()));
+
+        String itemId = getItemIdByProfileId(authToken, ePersonId);
+
+        Item profileItem = itemService.find(context, UUIDUtils.fromString(itemId));
+        assertThat(profileItem, notNullValue());
+
+        List<MetadataValue> metadata = profileItem.getMetadata();
+        assertThat(metadata, hasItem(with("person.identifier.orcid", "0000-1111-2222-3333")));
+        assertThat(metadata, hasItem(with("dspace.orcid.scope", "/first-scope", 0)));
+        assertThat(metadata, hasItem(with("dspace.orcid.scope", "/second-scope", 1)));
+
+        assertThat(getOrcidAccessToken(profileItem), is("af097328-ac1c-4a3e-9eb4-069897874910"));
+
     }
 
     @Test
-    public void testCloneFromExternalSourceMultipleUri() throws Exception {
+    public void testPatchToSetOrcidSynchronizationPreferenceForPublications() throws Exception {
 
-        String authToken = getAuthToken(user.getEmail(), password);
+        context.turnOffAuthorisationSystem();
 
-        getClient(authToken)
-            .perform(post("/api/eperson/profiles/").contentType(TEXT_URI_LIST)
-                                                .content("http://localhost:8080/server/api/integration/externalsources/orcid/entryValues/id \n "
-                                                             + "http://localhost:8080/server/api/integration/externalsources/dspace/entryValues/id"))
-            .andExpect(status().isBadRequest());
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .withOrcidScope("/first-scope")
+                                        .withOrcidScope("/second-scope")
+                                        .build();
 
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/publications", ALL.name()));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is(ALL.name())));
+
+        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is(ALL.name())));
+
+        operations = asList(new ReplaceOperation("/orcid/publications", "INVALID_VALUE"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isUnprocessableEntity());
+
+    }
+
+    @Test
+    public void testPatchToSetOrcidSynchronizationPreferenceForFundings() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .withOrcidScope("/first-scope")
+                                        .withOrcidScope("/second-scope")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/fundings", ALL.name()));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is(ALL.name())));
+
+        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.fundingsPreference", is(ALL.name())));
+
+        operations = asList(new ReplaceOperation("/orcid/fundings", "INVALID_VALUE"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isUnprocessableEntity());
+
+    }
+
+    @Test
+    public void testPatchToSetOrcidSynchronizationPreferenceForProfile() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .withOrcidScope("/first-scope")
+                                        .withOrcidScope("/second-scope")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/profile", "IDENTIFIERS"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences",
+                                                containsInAnyOrder("IDENTIFIERS")));
+
+        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.profilePreferences",
+                                                containsInAnyOrder("IDENTIFIERS")));
+
+        operations = asList(new ReplaceOperation("/orcid/profiles", "INVALID_VALUE"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isUnprocessableEntity());
+
+    }
+
+    @Test
+    public void testPatchToSetOrcidSynchronizationMode() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .withOrcidScope("/first-scope")
+                                        .withOrcidScope("/second-scope")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/mode", "BATCH"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.mode", is("BATCH")));
+
+        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.mode", is("BATCH")));
+
+        operations = asList(new ReplaceOperation("/orcid/mode", "MANUAL"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.mode", is("MANUAL")));
+
+        getClient(authToken).perform(get("/api/eperson/profiles/{id}", ePersonId))
+                            .andExpect(status().isOk())
+                            .andExpect(jsonPath("$.orcidSynchronization.mode", is("MANUAL")));
+
+        operations = asList(new ReplaceOperation("/orcid/mode", "INVALID_VALUE"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isUnprocessableEntity());
+
+    }
+
+    @Test
+    public void testPatchToSetOrcidSynchronizationPreferenceWithWrongPath() throws Exception {
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .withOrcidScope("/first-scope")
+                                        .withOrcidScope("/second-scope")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/wrong-path", "BATCH"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    public void testPatchToSetOrcidSynchronizationPreferenceWithProfileNotLinkedToOrcid() throws Exception {
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(post("/api/eperson/profiles/")
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/mode", "BATCH"));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                                         .content(getPatchContent(operations))
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isBadRequest());
+
+    }
+
+    @Test
+    public void testPatchToSetOrcidSynchronizationPreferenceWithNotOwnerUser() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+            .withCanLogin(true)
+            .withOrcid("0000-1111-2222-3333")
+            .withEmail("test@email.it")
+            .withPassword(password)
+            .withNameInMetadata("Test", "User")
+            .withOrcidScope("/first-scope")
+            .withOrcidScope("/second-scope")
+            .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(post("/api/eperson/profiles/")
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/publications", ALL.name()));
+
+        getClient(getAuthToken(user.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePersonId)
+            .content(getPatchContent(operations))
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+    }
+
+    @Test
+    public void testPatchToSetOrcidSynchronizationPreferenceWithAdmin() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+            .withCanLogin(true)
+            .withOrcid("0000-1111-2222-3333")
+            .withEmail("test@email.it")
+            .withPassword(password)
+            .withNameInMetadata("Test", "User")
+            .withOrcidScope("/first-scope")
+            .withOrcidScope("/second-scope")
+            .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "af097328-ac1c-4a3e-9eb4-069897874910").build();
+
+        context.restoreAuthSystemState();
+
+        String ePersonId = ePerson.getID().toString();
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(post("/api/eperson/profiles/")
+                .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isCreated());
+
+        List<Operation> operations = asList(new ReplaceOperation("/orcid/publications", ALL.name()));
+
+        getClient(getAuthToken(admin.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePersonId)
+                .content(getPatchContent(operations))
+                .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.orcidSynchronization.publicationsPreference", is(ALL.name())));
+
+    }
+
+    @Test
+    public void testOwnerPatchToDisconnectProfileFromOrcidWithDisabledConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "disabled");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testAdminPatchToDisconnectProfileFromOrcidWithDisabledConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", null);
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(admin.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithDisabledConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        EPerson anotherUser = EPersonBuilder.createEPerson(context)
+                                            .withCanLogin(true)
+                                            .withEmail("user@email.it")
+                                            .withPassword(password)
+                                            .withNameInMetadata("Another", "User")
+                                            .build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(anotherUser.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testOwnerPatchToDisconnectProfileFromOrcidWithOnlyOwnerConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "only_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        context.restoreAuthSystemState();
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
+            .andExpect(jsonPath("$.visible", is(false)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$.orcid").doesNotExist())
+            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
+
+        verify(orcidClientMock, times(1))
+            .revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
+        assertThat(getOrcidAccessToken(profile), nullValue());
+    }
+
+    @Test
+    public void testPatchToDisconnectProfileFromOrcidRevokesOrcidToken() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
+            .andExpect(jsonPath("$.visible", is(false)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$.orcid").doesNotExist())
+            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
+
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
+        assertThat(getOrcidAccessToken(profile), nullValue());
+    }
+
+    @Test
+    public void testPatchToDisconnectProfileFromOrcidDoesntRevokeOrcidToken() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        doThrow(new OrcidClientException(403, "")).when(orcidClientMock).revokeToken(any(OrcidToken.class));
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isInternalServerError());
+
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testAdminPatchToDisconnectProfileFromOrcidWithOnlyOwnerConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "only_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(admin.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithOnlyOwnerConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(anotherUser.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testOwnerPatchToDisconnectProfileFromOrcidWithOnlyAdminConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "only_admin");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testAdminPatchToDisconnectProfileFromOrcidWithOnlyAdminConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "only_admin");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+
+        getClient(getAuthToken(admin.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
+            .andExpect(jsonPath("$.visible", is(false)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$.orcid").doesNotExist())
+            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
+
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
+        assertThat(getOrcidAccessToken(profile), nullValue());
+    }
+
+    @Test
+    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithOnlyAdminConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "only_admin");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(anotherUser.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+    }
+
+    @Test
+    public void testOwnerPatchToDisconnectProfileFromOrcidWithAdminAndOwnerConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        context.restoreAuthSystemState();
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+
+        getClient(getAuthToken(ePerson.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
+            .andExpect(jsonPath("$.visible", is(false)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$.orcid").doesNotExist())
+            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
+
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
+        assertThat(getOrcidAccessToken(profile), nullValue());
+    }
+
+    @Test
+    public void testAdminPatchToDisconnectProfileFromOrcidWithAdminAndOwnerConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+
+        getClient(getAuthToken(admin.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id", is(ePerson.getID().toString())))
+            .andExpect(jsonPath("$.visible", is(false)))
+            .andExpect(jsonPath("$.type", is("profile")))
+            .andExpect(jsonPath("$.orcid").doesNotExist())
+            .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
+
+
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), empty());
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), empty());
+        assertThat(getOrcidAccessToken(profile), nullValue());
+    }
+
+    @Test
+    public void testAnotherUserPatchToDisconnectProfileFromOrcidWithAdminAndOwnerConfiguration() throws Exception {
+
+        configurationService.setProperty("orcid.disconnection.allowed-users", "admin_and_owner");
+
+        context.turnOffAuthorisationSystem();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+                                        .withCanLogin(true)
+                                        .withOrcid("0000-1111-2222-3333")
+                                        .withOrcidScope("/read")
+                                        .withOrcidScope("/write")
+                                        .withEmail("test@email.it")
+                                        .withPassword(password)
+                                        .withNameInMetadata("Test", "User")
+                                        .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        Item profile = createProfile(ePerson);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
+
+        context.restoreAuthSystemState();
+
+        getClient(getAuthToken(anotherUser.getEmail(), password))
+            .perform(patch("/api/eperson/profiles/{id}", ePerson.getID().toString())
+                         .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
+                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isForbidden());
+
+        profile = context.reloadEntity(profile);
+
+        assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
+        assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
+        assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
     }
 
     @Test
@@ -2547,7 +2407,8 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .withNameInMetadata("Test", "User")
             .build();
 
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
 
         Item profile = createProfile(ePerson);
 
@@ -2582,6 +2443,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         assertThat(metadata, hasItem(with("dspace.orcid.sync-fundings",ALL.name())));
         assertThat(getMetadataValues(profile, "dspace.orcid.sync-profile"), hasSize(2));
 
+
         getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
                 .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
                 .contentType(MediaType.APPLICATION_JSON_VALUE))
@@ -2591,6 +2453,9 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .andExpect(jsonPath("$.type", is("profile")))
             .andExpect(jsonPath("$.orcid").doesNotExist())
             .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
+
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
 
         profile = context.reloadEntity(profile);
 
@@ -2621,16 +2486,17 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .withNameInMetadata("Test", "User")
             .build();
 
-        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+        OrcidToken orcidToken =
+            OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
 
         Item profile = createProfile(ePerson);
+
+        context.restoreAuthSystemState();
 
         assertThat(getMetadataValues(profile, "person.identifier.orcid"), not(empty()));
         assertThat(getMetadataValues(profile, "dspace.orcid.scope"), not(empty()));
         assertThat(getMetadataValues(profile, "dspace.orcid.authenticated"), not(empty()));
         assertThat(getOrcidAccessToken(profile), is("3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4"));
-
-        context.restoreAuthSystemState();
 
         String authToken = getAuthToken(ePerson.getEmail(), password);
         String ePersonId = ePerson.getID().toString();
@@ -2656,6 +2522,7 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         assertThat(metadata, hasItem(with("dspace.orcid.sync-fundings",ALL.name())));
         assertThat(getMetadataValues(profile, "dspace.orcid.sync-profile"), hasSize(2));
 
+
         getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId)
                 .content(getPatchContent(asList(new RemoveOperation("/orcid"))))
                 .contentType(MediaType.APPLICATION_JSON_VALUE))
@@ -2665,6 +2532,9 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .andExpect(jsonPath("$.type", is("profile")))
             .andExpect(jsonPath("$.orcid").doesNotExist())
             .andExpect(jsonPath("$.orcidSynchronization").doesNotExist());
+
+        verify(orcidClientMock, times(1)).revokeToken(matchesToken(orcidToken));
+        verifyNoMoreInteractions(orcidClientMock);
 
         profile = context.reloadEntity(profile);
 
@@ -2686,31 +2556,109 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         String authToken = getAuthToken(user.getEmail(), password);
 
         getClient(authToken).perform(post("/api/eperson/profiles/").contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isCreated()).andExpect(jsonPath("$.id", is(id.toString())))
+                            .andExpect(status().isCreated()).andExpect(jsonPath("$.id", is(id)))
                             .andExpect(jsonPath("$.visible", is(false))).andExpect(jsonPath("$.type", is("profile")));
 
         getClient(authToken)
             .perform(post("/api/eperson/profiles/").contentType(TEXT_URI_LIST)
-                                                .content("http://localhost:8080/server/api/integration/externalsources/orcid/entryValues/id"))
+                                                   .content("http://localhost:8080/server/api/core/items/" + id))
             .andExpect(status().isUnprocessableEntity());
     }
 
     @Test
-    public void testCloneFromExternalCollectionNotSet() throws Exception {
+    public void testOrcidSynchronizationPreferenceUpdateForceOrcidQueueRecalculation() throws Exception {
 
-        configurationService.setProperty("researcher-profile.collection.uuid", "not-existing");
-        String id = user.getID().toString();
-        String authToken = getAuthToken(user.getEmail(), password);
+        context.turnOffAuthorisationSystem();
 
-        getClient(authToken).perform(post("/api/eperson/profiles/").contentType(MediaType.APPLICATION_JSON_VALUE))
-                            .andExpect(status().isCreated()).andExpect(jsonPath("$.id", is(id.toString())))
-                            .andExpect(jsonPath("$.visible", is(false))).andExpect(jsonPath("$.type", is("profile")));
+        EntityType publicationType = EntityTypeBuilder.createEntityTypeBuilder(context, "Publication").build();
+        EntityType projectType = EntityTypeBuilder.createEntityTypeBuilder(context, "Project").build();
+        EntityType personType = EntityTypeBuilder.createEntityTypeBuilder(context, "Person").build();
+        EntityType orgUnitType = EntityTypeBuilder.createEntityTypeBuilder(context, "OrgUnit").build();
 
-        getClient(authToken)
-            .perform(post("/api/eperson/profiles/").contentType(TEXT_URI_LIST)
-                                                .content("http://localhost:8080/server/api/integration/externalsources/orcid/entryValues/id \n "
-                                                             + "http://localhost:8080/server/api/integration/externalsources/dspace/entryValues/id"))
-            .andExpect(status().isBadRequest());
+        RelationshipType isAuthorOfPublication = createRelationshipTypeBuilder(context, personType, publicationType,
+            "isAuthorOfPublication", "isPublicationOfAuthor", 0, null, 0, null).build();
+
+        RelationshipType isOrgUnitOfPerson = createRelationshipTypeBuilder(context, personType, orgUnitType,
+            "isOrgUnitOfPerson", "isPersonOfOrgUnit", 0, null, 0, null).build();
+
+        RelationshipType isProjectOfPerson = createRelationshipTypeBuilder(context, projectType, personType,
+            "isProjectOfPerson", "isPersonOfProject", 0, null, 0, null).build();
+
+        EPerson ePerson = EPersonBuilder.createEPerson(context)
+            .withCanLogin(true)
+            .withOrcid("0000-1111-2222-3333")
+            .withOrcidScope("/read")
+            .withOrcidScope("/write")
+            .withEmail("test@email.it")
+            .withPassword(password)
+            .withNameInMetadata("Test", "User")
+            .build();
+
+        OrcidTokenBuilder.create(context, ePerson, "3de2e370-8aa9-4bbe-8d7e-f5b1577bdad4").build();
+
+        UUID ePersonId = ePerson.getID();
+
+        Item profile = createProfile(ePerson);
+
+        UUID profileItemId = profile.getID();
+
+        Collection publications = createCollection("Publications", "Publication");
+
+        Collection orgUnits = createCollection("OrgUnits", "OrgUnit");
+
+        Item publication = createPublication(publications, "Test publication", profile, isAuthorOfPublication);
+
+        Collection projects = createCollection("Projects", "Project");
+
+        Item firstProject = createProject(projects, "First project", profile, isProjectOfPerson);
+        Item secondProject = createProject(projects, "Second project", profile, isProjectOfPerson);
+
+        createOrgUnit(orgUnits, "OrgUnit", profile, isOrgUnitOfPerson);
+
+        context.restoreAuthSystemState();
+
+        // no preferences configured, so no orcid queue records created
+        assertThat(orcidQueueService.findByProfileItemId(context, profileItemId), empty());
+
+        String authToken = getAuthToken(ePerson.getEmail(), password);
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
+            .content(getPatchContent(asList(new ReplaceOperation("/orcid/publications", "ALL"))))
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk());
+
+        List<OrcidQueue> queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
+        assertThat(queueRecords, hasSize(1));
+        assertThat(queueRecords, has(orcidQueueRecordWithEntity(publication)));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
+            .content(getPatchContent(asList(new ReplaceOperation("/orcid/fundings", "ALL"))))
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk());
+
+        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
+        assertThat(queueRecords, hasSize(3));
+        assertThat(queueRecords, has(orcidQueueRecordWithEntity(publication)));
+        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstProject)));
+        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondProject)));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
+            .content(getPatchContent(asList(new ReplaceOperation("/orcid/publications", "DISABLED"))))
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk());
+
+        queueRecords = orcidQueueService.findByProfileItemId(context, profileItemId);
+        assertThat(queueRecords, hasSize(2));
+        assertThat(queueRecords, has(orcidQueueRecordWithEntity(firstProject)));
+        assertThat(queueRecords, has(orcidQueueRecordWithEntity(secondProject)));
+
+        getClient(authToken).perform(patch("/api/eperson/profiles/{id}", ePersonId.toString())
+            .content(getPatchContent(asList(new ReplaceOperation("/orcid/fundings", "DISABLED"))))
+            .contentType(MediaType.APPLICATION_JSON_VALUE))
+            .andExpect(status().isOk());
+
+        assertThat(orcidQueueService.findByProfileItemId(context, profileItemId), empty());
+
     }
 
     @Test
@@ -2901,22 +2849,24 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         AtomicReference<UUID> itemIdRef = new AtomicReference<UUID>();
 
         getClient(authToken).perform(post("/api/eperson/profiles/")
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isCreated())
-            .andDo(result -> ePersonIdRef.set(fromString(read(result.getResponse().getContentAsString(), "$.id"))));
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isCreated())
+                            .andDo(result -> ePersonIdRef.set(fromString(read(result.getResponse().getContentAsString(),
+                                                                              "$.id"))));
 
         getClient(authToken).perform(get("/api/eperson/profiles/{id}/item", ePersonIdRef.get())
-            .contentType(MediaType.APPLICATION_JSON_VALUE))
-            .andExpect(status().isOk())
-            .andDo(result -> itemIdRef.set(fromString(read(result.getResponse().getContentAsString(), "$.id"))));
+                                         .contentType(MediaType.APPLICATION_JSON_VALUE))
+                            .andExpect(status().isOk())
+                            .andDo(result -> itemIdRef.set(fromString(read(result.getResponse().getContentAsString(),
+                                                                           "$.id"))));
 
         return itemService.find(context, itemIdRef.get());
     }
 
     private String getItemIdByProfileId(String token, String id) throws SQLException, Exception {
         MvcResult result = getClient(token).perform(get("/api/eperson/profiles/{id}/item", id))
-            .andExpect(status().isOk())
-            .andReturn();
+                                           .andExpect(status().isOk())
+                                           .andReturn();
 
         return readAttributeFromResponse(result, "$.id");
     }
@@ -2930,19 +2880,6 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         return itemService.getMetadataByMetadataString(item, metadataField);
     }
 
-    private <T> T readAttributeFromResponse(MvcResult result, String attribute) throws UnsupportedEncodingException {
-        return JsonPath.read(result.getResponse().getContentAsString(), attribute);
-    }
-
-    private void addMetadata(Item item, String schema, String element, String qualifier,
-        String value) throws Exception {
-        context.turnOffAuthorisationSystem();
-        item = context.reloadEntity(item);
-        itemService.addMetadata(context, item, schema, element, qualifier, null, value, null, -1);
-        itemService.update(context, item);
-        context.restoreAuthSystemState();
-    }
-
     private Collection createCollection(String name, String entityType) throws SQLException {
         return CollectionBuilder.createCollection(context, context.reloadEntity(parentCommunity))
             .withName(name)
@@ -2950,49 +2887,52 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
             .build();
     }
 
-    private Item createPublication(Collection collection, String title, Item author) {
-        return ItemBuilder.createItem(context, collection)
+    private Item createPublication(Collection collection, String title, Item author,
+        RelationshipType isAuthorOfPublication) {
+
+        Item publication = ItemBuilder.createItem(context, collection)
             .withTitle(title)
-            .withAuthor(author.getName(), author.getID().toString())
+            .withAuthor(author.getName())
             .build();
+
+        RelationshipBuilder.createRelationshipBuilder(context, author, publication, isAuthorOfPublication).build();
+
+        return publication;
+
     }
 
-    private Item createProduct(Collection collection, String title, Item author) {
-        return ItemBuilder.createItem(context, collection)
+    private Item createOrgUnit(Collection collection, String title, Item person,
+        RelationshipType isOrgUnitOfPerson) {
+
+        Item orgUnit = ItemBuilder.createItem(context, collection)
             .withTitle(title)
-            .withAuthor(author.getName(), author.getID().toString())
             .build();
+
+        RelationshipBuilder.createRelationshipBuilder(context, person, orgUnit, isOrgUnitOfPerson).build();
+
+        return orgUnit;
+
     }
 
-    private Item createPatent(Collection collection, String title, Item author) {
-        return ItemBuilder.createItem(context, collection)
-            .withTitle(title)
-            .withAuthor(author.getName(), author.getID().toString())
-            .build();
-    }
+    private Item createProject(Collection collection, String title, Item person,
+        RelationshipType isProjectOfPerson) {
 
-    private Item createFundingWithInvestigator(Collection collection, String title, Item investigator) {
-        return ItemBuilder.createItem(context, collection)
+        Item project = ItemBuilder.createItem(context, collection)
             .withTitle(title)
-            .withFundingInvestigator(investigator.getName(), investigator.getID().toString())
             .build();
-    }
 
-    private Item createFundingWithCoInvestigator(Collection collection, String title, Item investigator) {
-        return ItemBuilder.createItem(context, collection)
-            .withTitle(title)
-            .withFundingCoInvestigator(investigator.getName(), investigator.getID().toString())
-            .build();
+        RelationshipBuilder.createRelationshipBuilder(context, project, person, isProjectOfPerson).build();
+
+        return project;
+
     }
 
     private Predicate<OrcidQueue> orcidQueueRecordWithEntity(Item entity) {
         return orcidQueue -> entity.equals(orcidQueue.getEntity());
     }
 
-    private OrcidTokenResponseDTO buildTokenResponse(String accessToken) {
-        OrcidTokenResponseDTO response = new OrcidTokenResponseDTO();
-        response.setAccessToken(accessToken);
-        return response;
+    private <T> T readAttributeFromResponse(MvcResult result, String attribute) throws UnsupportedEncodingException {
+        return JsonPath.read(result.getResponse().getContentAsString(), attribute);
     }
 
     private OrcidTokenResponseDTO buildOrcidTokenResponse(String orcid, String accessToken, String[] scopes) {
@@ -3003,6 +2943,15 @@ public class ResearcherProfileRestRepositoryIT extends AbstractControllerIntegra
         token.setName("Test User");
         token.setScope(String.join(" ", scopes));
         return token;
+    }
+
+    private static OrcidToken matchesToken(OrcidToken orcidToken) {
+        return argThat(
+            token ->
+                token != null &&
+                    orcidToken.getAccessToken().equals(token.getAccessToken()) &&
+                    orcidToken.getID().equals(token.getID())
+        );
     }
 
 }

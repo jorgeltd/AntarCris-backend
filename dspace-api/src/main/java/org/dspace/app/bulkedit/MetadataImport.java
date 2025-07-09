@@ -41,8 +41,6 @@ import org.dspace.content.Relationship;
 import org.dspace.content.RelationshipType;
 import org.dspace.content.WorkspaceItem;
 import org.dspace.content.authority.Choices;
-import org.dspace.content.authority.factory.ContentAuthorityServiceFactory;
-import org.dspace.content.authority.service.MetadataAuthorityService;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.CollectionService;
 import org.dspace.content.service.EntityService;
@@ -164,9 +162,6 @@ public class MetadataImport extends DSpaceRunnable<MetadataImportScriptConfigura
                                                                                    .getAuthorityValueService();
     protected ConfigurationService configurationService
             = DSpaceServicesFactory.getInstance().getConfigurationService();
-    protected MetadataAuthorityService metadataAuthorityService = ContentAuthorityServiceFactory
-        .getInstance()
-        .getMetadataAuthorityService();
 
     /**
      * Create an instance of the metadata importer. Requires a context and an array of CSV lines
@@ -188,10 +183,10 @@ public class MetadataImport extends DSpaceRunnable<MetadataImportScriptConfigura
         // Create a context
         Context c = null;
         c = new Context();
+        c.turnOffAuthorisationSystem();
 
         // Find the EPerson, assign to context
         assignCurrentUserInContext(c);
-        assignSpecialGroupsInContext(c);
 
         if (authorityControlled == null) {
             setAuthorizedMetadataFields();
@@ -216,7 +211,6 @@ public class MetadataImport extends DSpaceRunnable<MetadataImportScriptConfigura
         initMetadataImport(csv);
         List<BulkEditChange> changes;
 
-        handleAuthorizationSystem(c);
         if (!commandLine.hasOption('s') || validateOnly) {
             // See what has changed
             try {
@@ -260,7 +254,7 @@ public class MetadataImport extends DSpaceRunnable<MetadataImportScriptConfigura
             }
 
             // Finsh off and tidy up
-            handleAuthorizationSystem(c);
+            c.restoreAuthSystemState();
             c.complete();
         } catch (Exception e) {
             c.abort();
@@ -279,12 +273,6 @@ public class MetadataImport extends DSpaceRunnable<MetadataImportScriptConfigura
             } catch (SQLException e) {
                 log.error("Something went wrong trying to fetch the eperson for uuid: " + uuid, e);
             }
-        }
-    }
-
-    private void assignSpecialGroupsInContext(Context context) throws SQLException {
-        for (UUID uuid : handler.getSpecialGroups()) {
-            context.setSpecialGroup(uuid);
         }
     }
 
@@ -1151,18 +1139,7 @@ public class MetadataImport extends DSpaceRunnable<MetadataImportScriptConfigura
         dcv.setElement(element);
         dcv.setQualifier(qualifier);
         dcv.setLanguage(language);
-
-        final StringBuilder builder = new StringBuilder();
-        builder.append(schema).append("_").append(element);
-
-        if (StringUtils.isNotEmpty(qualifier)) {
-            builder.append("_").append(qualifier);
-        }
-
-        boolean isAuthorityControlled = metadataAuthorityService.isAuthorityAllowed(builder.toString(),
-                Constants.ITEM, null);
-
-        if (fromAuthority != null && isAuthorityControlled) {
+        if (fromAuthority != null) {
             if (value.indexOf(':') > 0) {
                 value = value.substring(0, value.indexOf(':'));
             }

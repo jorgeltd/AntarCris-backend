@@ -7,12 +7,12 @@
     <parent>
         <artifactId>modules</artifactId>
         <groupId>org.dspace</groupId>
-        <version>cris-2024.02.00</version>
+        <version>8.1</version>
         <relativePath>..</relativePath>
     </parent>
 
     <properties>
-        <dspace.version>cris-2024.02.00-SNAPSHOT</dspace.version>
+        <dspace.version>8.0-SNAPSHOT</dspace.version>
         <!-- This is the path to the root [dspace-src] directory. -->
         <root.basedir>${basedir}/../../..</root.basedir>
     </properties>
@@ -24,9 +24,46 @@
                  into this WAR's WEB-INF/classes (see maven-war-plugin below). -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>unpack-additions</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>unpack-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <includeGroupIds>org.dspace.modules</includeGroupIds>
+                            <includeArtifactIds>additions</includeArtifactIds>
+                            <!--NOTE: by default this will also unpack transitive dependencies. To disable, uncomment this next line:
+                            <excludeTransitive>true</excludeTransitive>
+                            -->
+                            <outputDirectory>${project.build.directory}/additions</outputDirectory>
+                            <excludes>META-INF/**</excludes>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>unpack-server</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>unpack-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <includeScope>runtime</includeScope>
+                            <includeGroupIds>org.dspace</includeGroupIds>
+                            <includeArtifactIds>dspace-server-webapp</includeArtifactIds>
+                            <includes>**/static/**,**/*.properties</includes>
+                            <outputDirectory>${project.build.directory}/additions</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
                 <configuration>
                     <archiveClasses>false</archiveClasses>
+                    <attachClasses>true</attachClasses>
                     <!-- Filter the web.xml (needed for IDE compatibility/debugging) -->
                     <filteringDeploymentDescriptors>true</filteringDeploymentDescriptors>
                     <!-- Copy any 'additions' (see m-dependency-p above) into WEB-INF/classes.
@@ -43,27 +80,6 @@
                 <executions>
                     <execution>
                         <phase>prepare-package</phase>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>unpack</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>unpack-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <includeScope>runtime</includeScope>
-                            <includeGroupIds>org.dspace</includeGroupIds>
-                            <includeArtifactIds>dspace-server-webapp,additions</includeArtifactIds>
-                            <includes>**/static/**,**/*.properties</includes>
-                            <outputDirectory>${project.build.directory}/additions</outputDirectory>
-                            <excludes>META-INF/**</excludes>
-                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -238,38 +254,6 @@
                 </dependency>
             </dependencies>
         </profile>
-        <profile>
-            <id>addon-networklab</id>
-            <activation>
-                <property>
-                    <name>nl.on</name>
-                </property>
-            </activation>
-            <dependencies>
-                <dependency>
-                    <groupId>it.4science.dspace</groupId>
-                    <artifactId>addon-networklab</artifactId>
-                    <version>${addon-networklab.version}</version>
-                    <type>jar</type>
-                </dependency>
-            </dependencies>
-        </profile>
-        <profile>
-            <id>addon-dataquality</id>
-            <activation>
-                <property>
-                    <name>dq.on</name>
-                </property>
-            </activation>
-            <dependencies>
-                <dependency>
-                    <groupId>it.4science.dspace</groupId>
-                    <artifactId>addon-dataquality</artifactId>
-                    <version>${addon-dataquality.version}</version>
-                    <type>jar</type>
-                </dependency>
-            </dependencies>
-        </profile>
     </profiles>
 
     <dependencies>
@@ -287,11 +271,6 @@
             <artifactId>spring-boot-starter-tomcat</artifactId>
             <scope>provided</scope>
             <version>${spring-boot.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.solr</groupId>
-            <artifactId>solr-solrj</artifactId>
-            <version>${solr.client.version}</version>
         </dependency>
 
         <!-- Test Dependencies -->

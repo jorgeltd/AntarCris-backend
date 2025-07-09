@@ -7,7 +7,6 @@
  */
 package org.dspace.importer.external.service.components.dto;
 
-import java.util.ArrayList;
 import java.util.List;
 
 
@@ -20,7 +19,7 @@ import java.util.List;
 
 public class PlainMetadataSourceDto {
 
-    private List<PlainMetadataKeyValueItem> metadata = new ArrayList<>();
+    private List<PlainMetadataKeyValueItem> metadata;
 
     /*
      * Method used to get the Metadata list
@@ -34,10 +33,6 @@ public class PlainMetadataSourceDto {
      */
     public void setMetadata(List<PlainMetadataKeyValueItem> metadata) {
         this.metadata = metadata;
-    }
-
-    public void addMetadata(String key, String value) {
-        this.metadata.add(new PlainMetadataKeyValueItem(key, value));
     }
 
 }

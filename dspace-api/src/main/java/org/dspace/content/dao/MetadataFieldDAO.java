@@ -11,7 +11,6 @@ import java.sql.SQLException;
 import java.util.List;
 
 import org.dspace.content.MetadataField;
-import org.dspace.content.MetadataFieldName;
 import org.dspace.content.MetadataSchema;
 import org.dspace.core.Context;
 import org.dspace.core.GenericDAO;
@@ -42,8 +41,5 @@ public interface MetadataFieldDAO extends GenericDAO<MetadataField> {
 
     public List<MetadataField> findAllInSchema(Context context, MetadataSchema metadataSchema)
         throws SQLException;
-
-    public List<MetadataFieldName> findMetadataFieldNamesBySchemaAndElement(Context context, String schema,
-        String element) throws SQLException;
 
 }

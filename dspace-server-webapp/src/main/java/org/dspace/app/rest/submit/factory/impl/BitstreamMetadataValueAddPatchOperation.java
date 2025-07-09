@@ -47,7 +47,6 @@ public class BitstreamMetadataValueAddPatchOperation extends MetadataValueAddPat
     void add(Context context, HttpServletRequest currentRequest, InProgressSubmission source, String path, Object value)
             throws Exception {
         //"path": "/sections/upload/files/0/metadata/dc.title/2"
-        //"stepId": "upload"
         //"abspath": "/files/0/metadata/dc.title/2"
         String stepId = getStepId(path);
         String absolutePath = getAbsolutePath(path);

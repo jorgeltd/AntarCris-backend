@@ -33,6 +33,13 @@ public class SequenceService extends AbstractResourceService {
 
     private static final Logger log = org.apache.logging.log4j.LogManager.getLogger(SequenceService.class);
 
+    /*
+     * The counter tracks the position of the bitstream in the list and is used to create the canvas identifier.
+     * The order of bitstreams (and thus page order in documents) is determined by position in the DSpace
+     * bundle.
+     */
+    int counter = 0;
+
     @Autowired
     CanvasItemsGenerator sequenceGenerator;
 
@@ -63,15 +70,14 @@ public class SequenceService extends AbstractResourceService {
      * @param item the DSpace Item
      * @param bnd a DSpace bundle
      * @param bitstream a DSpace bitstream
-     * @param index the index
      */
-    public CanvasGenerator addCanvas(Context context, Item item, Bundle bnd, Bitstream bitstream, Integer index) {
+    public CanvasGenerator addCanvas(Context context, Item item, Bundle bnd, Bitstream bitstream) {
         String mimeType = utils.getBitstreamMimeType(bitstream, context);
-        String canvasId = utils.getCanvasId(bitstream);
         String manifestId = item.getID().toString();
         CanvasGenerator canvasGenerator =
-                canvasService.getCanvas(context, manifestId, bitstream, bnd, item, canvasId, mimeType, index);
+                canvasService.getCanvas(context, manifestId, bitstream, bnd, item, counter, mimeType);
         sequenceGenerator.addCanvas(canvasGenerator);
+        counter++;
         return canvasGenerator;
     }
 

@@ -260,13 +260,6 @@ public class Relationship implements ReloadableEntity<Integer> {
         // NOTE: one side of any given relationship should ALWAYS be the "latest"
     }
 
-    @Override
-    public String toString() {
-        return "Relationship [id=" + id + ", leftItem=" + leftItem + ", relationshipType=" + relationshipType
-            + ", rightItem=" + rightItem + ", leftPlace=" + leftPlace + ", rightPlace=" + rightPlace
-            + ", leftwardValue=" + leftwardValue + ", rightwardValue=" + rightwardValue + ", latestVersionStatus="
-            + latestVersionStatus + "]";
-    }
     /**
      * Standard getter for the ID for this Relationship
      * @return  The ID of this relationship

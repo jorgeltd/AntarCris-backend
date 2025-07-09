@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.FailableRunnable;
 import org.apache.commons.lang3.function.FailableSupplier;
 import org.apache.solr.client.solrj.SolrQuery;
@@ -50,6 +49,7 @@ import org.dspace.builder.EntityTypeBuilder;
 import org.dspace.builder.ItemBuilder;
 import org.dspace.builder.RelationshipBuilder;
 import org.dspace.builder.RelationshipTypeBuilder;
+import org.dspace.builder.VersionBuilder;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.InstallItemService;
 import org.dspace.content.service.ItemService;
@@ -59,18 +59,13 @@ import org.dspace.content.virtual.Collected;
 import org.dspace.content.virtual.VirtualMetadataConfiguration;
 import org.dspace.content.virtual.VirtualMetadataPopulator;
 import org.dspace.core.Constants;
-import org.dspace.discovery.SolrSearchCore;
+import org.dspace.discovery.MockSolrSearchCore;
 import org.dspace.kernel.ServiceManager;
-import org.dspace.services.ConfigurationService;
 import org.dspace.services.factory.DSpaceServicesFactory;
 import org.dspace.versioning.Version;
-import org.dspace.versioning.factory.VersionServiceFactory;
-import org.dspace.versioning.service.VersioningService;
 import org.hamcrest.Matcher;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 
@@ -78,27 +73,17 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
 
     private final RelationshipService relationshipService =
         ContentServiceFactory.getInstance().getRelationshipService();
-    private final VersioningService versioningService =
-        VersionServiceFactory.getInstance().getVersionService();
     private final WorkspaceItemService workspaceItemService =
         ContentServiceFactory.getInstance().getWorkspaceItemService();
     private final InstallItemService installItemService =
         ContentServiceFactory.getInstance().getInstallItemService();
     private final ItemService itemService =
         ContentServiceFactory.getInstance().getItemService();
-    private final SolrSearchCore solrSearchCore =
-        DSpaceServicesFactory.getInstance().getServiceManager().getServicesByType(SolrSearchCore.class).get(0);
-
-    protected ConfigurationService configurationService =
-            DSpaceServicesFactory.getInstance().getConfigurationService();
+    private final MockSolrSearchCore solrSearchCore =
+        DSpaceServicesFactory.getInstance().getServiceManager().getServiceByName(null, MockSolrSearchCore.class);
 
     protected Community community;
-    protected Collection personCollection;
-    protected Collection projectCollection;
-    protected Collection orgUnitCollection;
-    protected Collection publicationCollection;
-    protected Collection journalIssueCollection;
-    protected Collection journalVolumeCollection;
+    protected Collection collection;
     protected EntityType publicationEntityType;
     protected EntityType personEntityType;
     protected EntityType projectEntityType;
@@ -113,16 +98,10 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
     protected RelationshipType isIssueOfJournalVolume;
     protected RelationshipType isProjectOfPerson;
 
-    private String[] versioningEntities;
-
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-
-        versioningEntities = configurationService.getArrayProperty("versioning.enabled.entities");
-        configurationService.setProperty("versioning.enabled.entities",
-                "Publication,Person,OrgUnit,Project,JournalIssue,JournalVolume");
 
         context.turnOffAuthorisationSystem();
 
@@ -130,34 +109,8 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
             .withName("community")
             .build();
 
-        personCollection = CollectionBuilder.createCollection(context, community)
-            .withName("collection 1")
-            .withEntityType("Person")
-            .build();
-
-        projectCollection = CollectionBuilder.createCollection(context, community)
-            .withName("collection 2")
-            .withEntityType("Project")
-            .build();
-
-        orgUnitCollection = CollectionBuilder.createCollection(context, community)
-            .withName("collection 3")
-            .withEntityType("OrgUnit")
-            .build();
-
-        publicationCollection = CollectionBuilder.createCollection(context, community)
-            .withName("collection 4")
-            .withEntityType("Publication")
-            .build();
-
-        journalIssueCollection = CollectionBuilder.createCollection(context, community)
-            .withName("collection 5")
-            .withEntityType("JournalIssue")
-            .build();
-
-        journalVolumeCollection = CollectionBuilder.createCollection(context, community)
-            .withName("collection 6")
-            .withEntityType("JournalVolume")
+        collection = CollectionBuilder.createCollection(context, community)
+            .withName("collection")
             .build();
 
         publicationEntityType = EntityTypeBuilder.createEntityTypeBuilder(context, "Publication")
@@ -268,20 +221,24 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a publication with 3 relationships //
         ///////////////////////////////////////////////
 
-        Item person1 = ItemBuilder.createItem(context, personCollection)
+        Item person1 = ItemBuilder.createItem(context, collection)
             .withTitle("person 1")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .build();
 
-        Item project1 = ItemBuilder.createItem(context, projectCollection)
+        Item project1 = ItemBuilder.createItem(context, collection)
             .withTitle("project 1")
+            .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
             .build();
 
-        Item orgUnit1 = ItemBuilder.createItem(context, orgUnitCollection)
+        Item orgUnit1 = ItemBuilder.createItem(context, collection)
             .withTitle("org unit 1")
+            .withMetadata("dspace", "entity", "type", orgUnitEntityType.getLabel())
             .build();
 
-        Item originalPublication = ItemBuilder.createItem(context, publicationCollection)
+        Item originalPublication = ItemBuilder.createItem(context, collection)
             .withTitle("original publication")
+            .withMetadata("dspace", "entity", "type", publicationEntityType.getLabel())
             .build();
 
         RelationshipBuilder.createRelationshipBuilder(context, originalPublication, person1, isAuthorOfPublication)
@@ -331,7 +288,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a new version of the publication //
         /////////////////////////////////////////////
 
-        Version newVersion = versioningService.createNewVersion(context, originalPublication);
+        Version newVersion = VersionBuilder.createVersion(context, originalPublication, "test").build();
         Item newPublication = newVersion.getItem();
         assertNotSame(originalPublication, newPublication);
 
@@ -538,20 +495,24 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a publication with 3 relationships //
         ///////////////////////////////////////////////
 
-        Item person1 = ItemBuilder.createItem(context, personCollection)
+        Item person1 = ItemBuilder.createItem(context, collection)
             .withTitle("person 1")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .build();
 
-        Item project1 = ItemBuilder.createItem(context, projectCollection)
+        Item project1 = ItemBuilder.createItem(context, collection)
             .withTitle("project 1")
+            .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
             .build();
 
-        Item orgUnit1 = ItemBuilder.createItem(context, orgUnitCollection)
+        Item orgUnit1 = ItemBuilder.createItem(context, collection)
             .withTitle("org unit 1")
+            .withMetadata("dspace", "entity", "type", orgUnitEntityType.getLabel())
             .build();
 
-        Item originalPublication = ItemBuilder.createItem(context, publicationCollection)
+        Item originalPublication = ItemBuilder.createItem(context, collection)
             .withTitle("original publication")
+            .withMetadata("dspace", "entity", "type", publicationEntityType.getLabel())
             .build();
 
         RelationshipBuilder.createRelationshipBuilder(context, originalPublication, person1, isAuthorOfPublication)
@@ -603,7 +564,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a new version of the publication //
         /////////////////////////////////////////////
 
-        Version newVersion = versioningService.createNewVersion(context, originalPublication);
+        Version newVersion = VersionBuilder.createVersion(context, originalPublication, "test").build();
         Item newPublication = newVersion.getItem();
         assertNotSame(originalPublication, newPublication);
 
@@ -611,12 +572,14 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // modify relationships on new publication //
         /////////////////////////////////////////////
 
-        Item person2 = ItemBuilder.createItem(context, personCollection)
+        Item person2 = ItemBuilder.createItem(context, collection)
             .withTitle("person 2")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .build();
 
-        Item orgUnit2 = ItemBuilder.createItem(context, orgUnitCollection)
+        Item orgUnit2 = ItemBuilder.createItem(context, collection)
             .withTitle("org unit 2")
+            .withMetadata("dspace", "entity", "type", orgUnitEntityType.getLabel())
             .build();
 
         // on new item, remove relationship with project 1
@@ -894,20 +857,24 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a person with 3 relationships //
         //////////////////////////////////////////
 
-        Item publication1 = ItemBuilder.createItem(context, publicationCollection)
+        Item publication1 = ItemBuilder.createItem(context, collection)
             .withTitle("publication 1")
+            .withMetadata("dspace", "entity", "type", publicationEntityType.getLabel())
             .build();
 
-        Item project1 = ItemBuilder.createItem(context, projectCollection)
+        Item project1 = ItemBuilder.createItem(context, collection)
             .withTitle("project 1")
+            .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
             .build();
 
-        Item orgUnit1 = ItemBuilder.createItem(context, orgUnitCollection)
+        Item orgUnit1 = ItemBuilder.createItem(context, collection)
             .withTitle("org unit 1")
+            .withMetadata("dspace", "entity", "type", orgUnitEntityType.getLabel())
             .build();
 
-        Item originalPerson = ItemBuilder.createItem(context, personCollection)
+        Item originalPerson = ItemBuilder.createItem(context, collection)
             .withTitle("original person")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .build();
 
         RelationshipBuilder.createRelationshipBuilder(context, publication1, originalPerson, isAuthorOfPublication)
@@ -957,7 +924,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a new version of the person //
         ////////////////////////////////////////
 
-        Version newVersion = versioningService.createNewVersion(context, originalPerson);
+        Version newVersion = VersionBuilder.createVersion(context, originalPerson, "test").build();
         Item newPerson = newVersion.getItem();
         assertNotSame(originalPerson, newPerson);
 
@@ -1164,16 +1131,18 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a publication with 6 authors //
         /////////////////////////////////////////
 
-        Item originalPublication = ItemBuilder.createItem(context, publicationCollection)
+        Item originalPublication = ItemBuilder.createItem(context, collection)
             .withTitle("original publication")
+            .withMetadata("dspace", "entity", "type", publicationEntityType.getLabel())
             .build();
 
         // author 1 (plain metadata)
         itemService.addMetadata(context, originalPublication, "dc", "contributor", "author", null, "author 1 (plain)");
 
         // author 2 (virtual)
-        Item author2 = ItemBuilder.createItem(context, personCollection)
+        Item author2 = ItemBuilder.createItem(context, collection)
             .withTitle("author 2 (item)")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("2 (item)")
             .withPersonIdentifierLastName("author")
             .build();
@@ -1181,8 +1150,9 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
             .build();
 
         // author 3 (virtual)
-        Item author3 = ItemBuilder.createItem(context, personCollection)
+        Item author3 = ItemBuilder.createItem(context, collection)
             .withTitle("author 3 (item)")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("3 (item)")
             .withPersonIdentifierLastName("author")
             .build();
@@ -1190,8 +1160,9 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
             .build();
 
         // author 4 (virtual)
-        Item author4 = ItemBuilder.createItem(context, personCollection)
+        Item author4 = ItemBuilder.createItem(context, collection)
             .withTitle("author 4 (item)")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("4 (item)")
             .withPersonIdentifierLastName("author")
             .build();
@@ -1199,8 +1170,9 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
             .build();
 
         // author 5 (virtual)
-        Item author5 = ItemBuilder.createItem(context, personCollection)
+        Item author5 = ItemBuilder.createItem(context, collection)
             .withTitle("author 5 (item)")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("5 (item)")
             .withPersonIdentifierLastName("author")
             .build();
@@ -1211,8 +1183,9 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         itemService.addMetadata(context, originalPublication, "dc", "contributor", "author", null, "author 6 (plain)");
 
         // author 7 (virtual)
-        Item author7 = ItemBuilder.createItem(context, personCollection)
+        Item author7 = ItemBuilder.createItem(context, collection)
             .withTitle("author 7 (item)")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("7 (item)")
             .withPersonIdentifierLastName("author")
             .build();
@@ -1223,8 +1196,9 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         itemService.addMetadata(context, originalPublication, "dc", "contributor", "author", null, "author 8 (plain)");
 
         // author 9 (virtual)
-        Item author9 = ItemBuilder.createItem(context, personCollection)
+        Item author9 = ItemBuilder.createItem(context, collection)
             .withTitle("author 9 (item)")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("9 (item)")
             .withPersonIdentifierLastName("author")
             .build();
@@ -1323,7 +1297,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create new version of publication //
         ///////////////////////////////////////
 
-        Version newVersion = versioningService.createNewVersion(context, originalPublication);
+        Version newVersion = VersionBuilder.createVersion(context, originalPublication, "test").build();
         Item newPublication = newVersion.getItem();
         assertNotSame(originalPublication, newPublication);
 
@@ -1434,21 +1408,22 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
      * @throws Exception
      */
     @Test
-    @SuppressWarnings("unchecked")
     public void test_createNewVersionOfItemWithAddRemoveMove() throws Exception {
         ///////////////////////////////////////////
         // create a publication with 10 projects //
         ///////////////////////////////////////////
 
-        Item originalPublication = ItemBuilder.createItem(context, publicationCollection)
+        Item originalPublication = ItemBuilder.createItem(context, collection)
             .withTitle("original publication")
+            .withMetadata("dspace", "entity", "type", publicationEntityType.getLabel())
             .build();
 
         List<Item> projects = new ArrayList<>();
 
         for (int i = 0; i < 10; i++) {
-            Item project = ItemBuilder.createItem(context, projectCollection)
+            Item project = ItemBuilder.createItem(context, collection)
                     .withTitle("project " + i)
+                    .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
                     .build();
             projects.add(project);
 
@@ -1458,10 +1433,10 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         }
 
         AtomicInteger counterOriginalPublication = new AtomicInteger();
-        Matcher<Object>[] listOriginalPublication = projects.stream().map(
+        List<Matcher<Object>> listOriginalPublication = projects.stream().map(
                 project -> isRel(originalPublication, isProjectOfPublication, project, BOTH,
                         counterOriginalPublication.getAndIncrement(), 0)
-        ).toArray(Matcher[]::new);
+        ).collect(Collectors.toCollection(ArrayList::new));
 
         /////////////////////////////////////////////////////////////////////
         // verify the relationships of all items (excludeNonLatest = true) //
@@ -1485,7 +1460,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a new version of the publication //
         /////////////////////////////////////////////
 
-        Version newVersion = versioningService.createNewVersion(context, originalPublication);
+        Version newVersion = VersionBuilder.createVersion(context, originalPublication, "test").build();
         Item newPublication = newVersion.getItem();
         assertNotSame(originalPublication, newPublication);
 
@@ -1518,8 +1493,9 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         assertNotEquals(projects.get(5), project1);
         verifyProjectsMatch(originalPublication, projects, newPublication, newProjects, false);
 
-        Item project = ItemBuilder.createItem(context, projectCollection)
+        Item project = ItemBuilder.createItem(context, collection)
                 .withTitle("project 10")
+                .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
                 .build();
         newProjects.add(4, project);
 
@@ -1580,7 +1556,6 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         newProjects.add(newPlace, project);
     }
 
-    @SuppressWarnings("unchecked")
     protected void verifyProjectsMatch(Item originalPublication, List<Item> originalProjects,
                                      Item newPublication, List<Item> newProjects, boolean newPublicationArchived)
             throws SQLException {
@@ -1590,19 +1565,19 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         /////////////////////////////////////////////////////////
 
         AtomicInteger counterOriginalPublication = new AtomicInteger();
-        Matcher<Object>[] listOriginalPublication = originalProjects.stream().map(
+        List<Matcher<Object>> listOriginalPublication = originalProjects.stream().map(
                 project -> isRel(originalPublication, isProjectOfPublication, project,
                         newPublicationArchived ? RIGHT_ONLY : BOTH,
                         counterOriginalPublication.getAndIncrement(), 0)
-        ).toArray(Matcher[]::new);
+        ).collect(Collectors.toCollection(ArrayList::new));
 
         AtomicInteger counterNewPublication = new AtomicInteger();
-        Matcher<Object>[] listNewPublication = newProjects.stream().map(
+        List<Matcher<Object>> listNewPublication = newProjects.stream().map(
                 project -> isRel(newPublication, isProjectOfPublication, project,
                         newPublicationArchived || !originalProjects.contains(project) ?
                                 BOTH : RIGHT_ONLY,
                         counterNewPublication.getAndIncrement(), 0)
-        ).toArray(Matcher[]::new);
+        ).collect(Collectors.toCollection(ArrayList::new));
 
         /////////////////////////////////////////////////////////////////////
         // verify the relationships of all items (excludeNonLatest = true) //
@@ -1708,26 +1683,30 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         //////////////////
 
         // journal volume 1.1
-        Item v1_1 = ItemBuilder.createItem(context, journalVolumeCollection)
+        Item v1_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal volume 1")
+            .withMetadata("dspace", "entity", "type", journalVolumeEntityType.getLabel())
             .withMetadata("publicationvolume", "volumeNumber", null, "volume nr 3 (rel)")
             .build();
 
         // journal issue 1.1
-        Item i1_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i1_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 1")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 1 (rel)")
             .build();
 
         // journal issue 3.1
-        Item i3_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i3_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 3")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 3 (rel)")
             .build();
 
         // journal issue 5.1
-        Item i5_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i5_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 5")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 5 (rel)")
             .build();
 
@@ -1800,7 +1779,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create new version - volume 1.2 //
         /////////////////////////////////////
 
-        Item v1_2 = versioningService.createNewVersion(context, v1_1).getItem();
+        Item v1_2 = VersionBuilder.createVersion(context, v1_1, "test").build().getItem();
         installItemService.installItem(context, workspaceItemService.findByItem(context, v1_2));
         context.commit();
 
@@ -1808,7 +1787,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create new version - issue 3.2 //
         ////////////////////////////////////
 
-        Item i3_2 = versioningService.createNewVersion(context, i3_1).getItem();
+        Item i3_2 = VersionBuilder.createVersion(context, i3_1, "test").build().getItem();
         installItemService.installItem(context, workspaceItemService.findByItem(context, i3_2));
         context.commit();
 
@@ -2136,33 +2115,39 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
                 //////////////////
 
                 // person 1.1
-                Item pe1_1 = ItemBuilder.createItem(context, personCollection)
+                Item pe1_1 = ItemBuilder.createItem(context, collection)
                     .withTitle("person 1 (item)")
+                    .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
                     .build();
 
                 // person 3.1
-                Item pe3_1 = ItemBuilder.createItem(context, personCollection)
+                Item pe3_1 = ItemBuilder.createItem(context, collection)
                     .withTitle("person 3 (item)")
+                    .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
                     .build();
 
                 // person 5.1
-                Item pe5_1 = ItemBuilder.createItem(context, personCollection)
+                Item pe5_1 = ItemBuilder.createItem(context, collection)
                     .withTitle("person 5 (item)")
+                    .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
                     .build();
 
                 // project 1.1
-                Item pr1_1 = ItemBuilder.createItem(context, projectCollection)
+                Item pr1_1 = ItemBuilder.createItem(context, collection)
                     .withTitle("project 1 (item)")
+                    .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
                     .build();
 
                 // project 3.1
-                Item pr3_1 = ItemBuilder.createItem(context, projectCollection)
+                Item pr3_1 = ItemBuilder.createItem(context, collection)
                     .withTitle("project 3 (item)")
+                    .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
                     .build();
 
                 // project 5.1
-                Item pr5_1 = ItemBuilder.createItem(context, projectCollection)
+                Item pr5_1 = ItemBuilder.createItem(context, collection)
                     .withTitle("project 5 (item)")
+                    .withMetadata("dspace", "entity", "type", projectEntityType.getLabel())
                     .build();
 
                 //////////////////////////////////////////////
@@ -2328,7 +2313,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
                 // create new version - person 3.2 //
                 /////////////////////////////////////
 
-                Item pe3_2 = versioningService.createNewVersion(context, pe3_1).getItem();
+                Item pe3_2 = VersionBuilder.createVersion(context, pe3_1, "test").build().getItem();
                 installItemService.installItem(context, workspaceItemService.findByItem(context, pe3_2));
                 context.commit();
 
@@ -2336,7 +2321,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
                 // create new version - project 3.2 //
                 //////////////////////////////////////
 
-                Item pr3_2 = versioningService.createNewVersion(context, pr3_1).getItem();
+                Item pr3_2 = VersionBuilder.createVersion(context, pr3_1, "test").build().getItem();
                 installItemService.installItem(context, workspaceItemService.findByItem(context, pr3_2));
                 context.commit();
 
@@ -2970,38 +2955,44 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         //////////////////
 
         // journal volume 1.1
-        Item v1_1 = ItemBuilder.createItem(context, journalVolumeCollection)
+        Item v1_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal volume 1")
+            .withMetadata("dspace", "entity", "type", journalVolumeEntityType.getLabel())
             .withMetadata("publicationvolume", "volumeNumber", null, "volume nr 1 (rel)")
             .build();
 
         // journal issue 1.1
-        Item i1_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i1_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 1")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 1 (rel)")
             .build();
 
         // journal issue 2.1
-        Item i2_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i2_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 2")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 2 (rel)")
             .build();
 
         // journal issue 3.1
-        Item i3_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i3_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 3")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 3 (rel)")
             .build();
 
         // journal issue 4.1
-        Item i4_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i4_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 4")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 4 (rel)")
             .build();
 
         // journal issue 5.1
-        Item i5_1 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i5_1 = ItemBuilder.createItem(context, collection)
             .withTitle("journal issue 5")
+            .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
             .withMetadata("publicationissue", "issueNumber", null, "issue nr 5 (rel)")
             .build();
 
@@ -3062,7 +3053,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create new version - volume 1.2 //
         /////////////////////////////////////
 
-        Item v1_2 = versioningService.createNewVersion(context, v1_1).getItem();
+        Item v1_2 = VersionBuilder.createVersion(context, v1_1, "test").build().getItem();
         installItemService.installItem(context, workspaceItemService.findByItem(context, v1_2));
         context.commit();
 
@@ -3070,7 +3061,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create new version - issue 3.2 //
         ////////////////////////////////////
 
-        Item i3_2 = versioningService.createNewVersion(context, i3_1).getItem();
+        Item i3_2 = VersionBuilder.createVersion(context, i3_1, "test").build().getItem();
         installItemService.installItem(context, workspaceItemService.findByItem(context, i3_2));
         context.commit();
 
@@ -3259,8 +3250,9 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         ////////////////////////////////////
 
         // journal issue 3.3
-        Item i3_3 = ItemBuilder.createItem(context, journalIssueCollection)
+        Item i3_3 = ItemBuilder.createItem(context, collection)
                 .withTitle("journal issue 3")
+                .withMetadata("dspace", "entity", "type", journalIssueEntityType.getLabel())
                 .withMetadata("publicationissue", "issueNumber", null, "issue nr 3 (rel)")
                 .build();
 
@@ -3409,24 +3401,26 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
      * - verify that the (versions of) items are properly indexed in the Solr search core
      */
     @Test
-    @Ignore
     public void test_virtualMetadataPreserved() throws Exception {
         //////////////////////////////////////////////
         // create a publication and link two people //
         //////////////////////////////////////////////
 
-        Item publication1V1 = ItemBuilder.createItem(context, publicationCollection)
+        Item publication1V1 = ItemBuilder.createItem(context, collection)
             .withTitle("publication 1V1")
+            .withMetadata("dspace", "entity", "type", publicationEntityType.getLabel())
             .build();
 
-        Item person1V1 = ItemBuilder.createItem(context, personCollection)
+        Item person1V1 = ItemBuilder.createItem(context, collection)
             .withTitle("person 1V1")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("Donald")
             .withPersonIdentifierLastName("Smith")
             .build();
 
-        Item person2V1 = ItemBuilder.createItem(context, personCollection)
+        Item person2V1 = ItemBuilder.createItem(context, collection)
             .withTitle("person 2V1")
+            .withMetadata("dspace", "entity", "type", personEntityType.getLabel())
             .withPersonIdentifierFirstName("Jane")
             .withPersonIdentifierLastName("Doe")
             .build();
@@ -3512,7 +3506,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create a new version of publication 1 and archive //
         ///////////////////////////////////////////////////////
 
-        Item publication1V2 = versioningService.createNewVersion(context, publication1V1).getItem();
+        Item publication1V2 = VersionBuilder.createVersion(context, publication1V1, "test").build().getItem();
         installItemService.installItem(context, workspaceItemService.findByItem(context, publication1V2));
         context.dispatchEvents();
 
@@ -3520,7 +3514,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create new version of person 1 //
         ////////////////////////////////////
 
-        Item person1V2 = versioningService.createNewVersion(context, person1V1).getItem();
+        Item person1V2 = VersionBuilder.createVersion(context, person1V1, "test").build().getItem();
         // update "Smith, Donald" to "Smith, D."
         itemService.replaceMetadata(
             context, person1V2, "person", "givenName", null, null, "D.",
@@ -3856,7 +3850,7 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
         // create new version of person 2 //
         ////////////////////////////////////
 
-        Item person2V2 = versioningService.createNewVersion(context, person2V1).getItem();
+        Item person2V2 = VersionBuilder.createVersion(context, person2V1, "test").build().getItem();
         Relationship rel1 = getRelationship(publication1V2, isAuthorOfPublication, person2V2);
         assertNotNull(rel1);
         rel1.setRightwardValue("Doe, Jane Jr");
@@ -4201,13 +4195,6 @@ public class VersioningWithRelationshipsIT extends AbstractIntegrationTestWithDa
             person1V1.getID().toString(), person1V2.getID().toString(),
             person2V1.getID().toString(), person2V2.getID().toString()
         ));
-    }
-
-    @After
-    @Override
-    public void destroy() throws Exception {
-        configurationService.setProperty("versioning.enabled.entities", StringUtils.joinWith(",", versioningEntities));
-        super.destroy();
     }
 
 }

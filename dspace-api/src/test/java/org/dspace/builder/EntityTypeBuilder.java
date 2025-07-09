@@ -9,6 +9,8 @@ package org.dspace.builder;
 
 import java.sql.SQLException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.content.EntityType;
 import org.dspace.content.service.EntityTypeService;
@@ -16,6 +18,9 @@ import org.dspace.core.Context;
 import org.dspace.discovery.SearchServiceException;
 
 public class EntityTypeBuilder extends AbstractBuilder<EntityType, EntityTypeService> {
+
+    /* Log4j logger*/
+    private static final Logger log = LogManager.getLogger();
 
     private EntityType entityType;
 
@@ -59,7 +64,7 @@ public class EntityTypeBuilder extends AbstractBuilder<EntityType, EntityTypeSer
 
             indexingService.commit();
         } catch (SearchServiceException | SQLException | AuthorizeException e) {
-            throw new RuntimeException(e);
+            log.error(e);
         }
         return entityType;
     }
@@ -89,7 +94,7 @@ public class EntityTypeBuilder extends AbstractBuilder<EntityType, EntityTypeSer
             this.entityType = entityTypeService.create(context, entityType);
 
         } catch (SQLException | AuthorizeException e) {
-            throw new RuntimeException(e);
+            log.warn("Failed to create the EntityType", e);
         }
 
         return this;

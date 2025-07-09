@@ -19,8 +19,6 @@ import org.dspace.core.Constants;
 import org.dspace.core.Context;
 import org.dspace.event.Consumer;
 import org.dspace.event.Event;
-import org.dspace.services.ConfigurationService;
-import org.dspace.utils.DSpace;
 
 
 /**
@@ -39,18 +37,12 @@ public class IIIFCacheEventConsumer implements Consumer {
     // Collects modified bitstreams for individual removal from canvas dimension cache.
     private final Set<DSpaceObject> toEvictFromCanvasCache = new HashSet<>();
 
-    private ConfigurationService configurationService;
-
     @Override
     public void initialize() throws Exception {
-        configurationService = new DSpace().getConfigurationService();
     }
 
     @Override
     public void consume(Context ctx, Event event) throws Exception {
-        if (!configurationService.getBooleanProperty("iiif.enabled", false)) {
-            return;
-        }
         int st = event.getSubjectType();
         if (!(st == Constants.BUNDLE || st == Constants.ITEM || st == Constants.BITSTREAM)) {
             return;
@@ -133,20 +125,13 @@ public class IIIFCacheEventConsumer implements Consumer {
 
     private void addToCacheEviction(DSpaceObject subject, DSpaceObject subject2, int type) {
         if (type == Constants.BITSTREAM) {
-            if (subject2 != null) {
-                toEvictFromCanvasCache.add(subject2);
-            }
+            toEvictFromCanvasCache.add(subject2);
         }
-        if (subject != null) {
-            toEvictFromManifestCache.add(subject);
-        }
+        toEvictFromManifestCache.add(subject);
     }
 
     @Override
     public void end(Context ctx) throws Exception {
-        if (!configurationService.getBooleanProperty("iiif.enabled", false)) {
-            return;
-        }
         // Get the eviction service beans.
         ManifestsCacheEvictService manifestsCacheEvictService = CacheEvictBeanLocator.getManifestsCacheEvictService();
         CanvasCacheEvictService canvasCacheEvictService = CacheEvictBeanLocator.getCanvasCacheEvictService();

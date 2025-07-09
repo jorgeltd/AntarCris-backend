@@ -100,19 +100,6 @@ public interface RelationshipService extends DSpaceCRUDService<Relationship> {
     public Relationship create(Context context, Relationship relationship) throws SQLException, AuthorizeException;
 
     /**
-     * This method creates a relationship object in the database equal to the given relationship param
-     * if this is a valid relationship
-     * @param context               The relevant DSpace context
-     * @param relationship          The relationship that will be created in the database if it is valid
-     * @param forceBypassValidation A boolean indicating whether we should force by-pass validation
-     * @return                      The created relationship with updated place variables
-     * @throws SQLException         If something goes wrong
-     * @throws AuthorizeException   If something goes wrong with authorizations
-     */
-    public Relationship create(Context context, Relationship relationship, boolean forceBypassValidation)
-            throws SQLException, AuthorizeException;
-
-    /**
      * Move the given relationship to a new leftPlace and/or rightPlace.
      *
      * This will
@@ -176,20 +163,6 @@ public interface RelationshipService extends DSpaceCRUDService<Relationship> {
      * This method returns a list of Relationships for which the leftItem or rightItem is equal to the given
      * Item object and for which the RelationshipType object is equal to the relationshipType property
      * NOTE: tilted relationships are NEVER excluded when fetching one relationship type
-     * @param context           The relevant DSpace context
-     * @param item              The Item object to be matched on the leftItem or rightItem for the relationship
-     * @param relationshipType  The RelationshipType object that will be used to check the Relationship on
-     * @param isLeft             Is the item left or right
-     * @return  The list of Relationship objects that have the given Item object as leftItem or rightItem and
-     *          for which the relationshipType property is equal to the given RelationshipType
-     * @throws SQLException If something goes wrong
-     */
-    public List<Relationship> findByItemAndRelationshipType(Context context, Item item,
-                                                            RelationshipType relationshipType, boolean isLeft)
-            throws SQLException;
-    /**
-     * This method returns a list of Relationships for which the leftItem or rightItem is equal to the given
-     * Item object and for which the RelationshipType object is equal to the relationshipType property
      * @param context           The relevant DSpace context
      * @param item              The Item object to be matched on the leftItem or rightItem for the relationship
      * @param relationshipType  The RelationshipType object that will be used to check the Relationship on
@@ -382,20 +355,6 @@ public interface RelationshipService extends DSpaceCRUDService<Relationship> {
         throws AuthorizeException, SQLException;
 
     /**
-     * This method is used to construct a Relationship object by-passing validation
-     * @param c                     The relevant DSpace context
-     * @param leftItem              The leftItem Item object for the relationship
-     * @param rightItem             The rightItem Item object for the relationship
-     * @param relationshipType      The RelationshipType object for the relationship
-     * @param forceBypassValidation A boolean indicating whether we should force by-pass validation
-     * @return                      The created Relationship object with the given properties
-     * @throws AuthorizeException   If something goes wrong
-     * @throws SQLException         If something goes wrong
-     */
-    Relationship create(Context c, Item leftItem, Item rightItem, RelationshipType relationshipType,
-            boolean forceBypassValidation) throws AuthorizeException, SQLException;
-
-    /**
      * This method returns a list of Relationship objects for the given typeName
      * @param context           The relevant DSpace context
      * @param typeName          The leftward or rightward typeName of the relationship type
@@ -509,15 +468,6 @@ public interface RelationshipService extends DSpaceCRUDService<Relationship> {
     /**
      * This method is used to delete a Relationship whilst given the possibility to copy the Virtual Metadata created
      * by this relationship to the left and/or right item
-     * @param context               The relevant DSpace context
-     * @param relationship          The relationship to be deleted
-     */
-    void delete(Context context, Relationship relationship, boolean bypassValidation)
-            throws SQLException, AuthorizeException;
-
-    /**
-     * This method is used to delete a Relationship whilst given the possibility to copy the Virtual Metadata created
-     * by this relationship to the left and/or right item
      * @param context           The relevant DSpace context
      * @param relationship      The relationship to be deleted
      * @param copyToLeftItem    A boolean indicating whether we should copy metadata to the left item or not
@@ -539,25 +489,6 @@ public interface RelationshipService extends DSpaceCRUDService<Relationship> {
      */
     void forceDelete(Context context, Relationship relationship, boolean copyToLeftItem, boolean copyToRightItem)
         throws SQLException, AuthorizeException;
-
-    /**
-     * This method establishes if for a given RelationshipType, among leftPlace and rightPlace value,
-     * only one of the two represents actually a position.
-     * In this case, value not used to represent a position is used to indicate the total number of relationship
-     * of the same type with one of the two related item in common.
-     *
-     * This decision is based on key configuration "relationship.place.onlyleft" or "relationship.place.onlyright"
-     * values.
-     *
-     * For example, if a relation between a Publication and a Person, with leftPlace set to 3 and rightPlace set to 1,
-     * means that the same Person has in total 3 relations of the same type with Publication and this relation is in
-     * the 2nd position out of 3 (valid place field value is 0-based).
-     *
-     * @param relationshipType type of relationship
-     * @param isLeft if true, it is checked if used places field is "leftPlace", "rightPlace" is used otherwise.
-     * @return
-     */
-    boolean placesOnly(final RelationshipType relationshipType, final boolean isLeft);
 
     /**
      * This method is used to retrieve relationships that match focusItem

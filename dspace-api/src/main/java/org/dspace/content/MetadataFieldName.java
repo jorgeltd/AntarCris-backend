@@ -8,7 +8,6 @@
 package org.dspace.content;
 
 import java.util.Arrays;
-import java.util.Objects;
 
 import jakarta.annotation.Nonnull;
 
@@ -154,27 +153,4 @@ public class MetadataFieldName {
         }
         return buffer.toString();
     }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(element, qualifier, schema);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        MetadataFieldName other = (MetadataFieldName) obj;
-        return Objects.equals(element, other.element) && Objects.equals(qualifier, other.qualifier)
-                && Objects.equals(schema, other.schema);
-    }
-
-
 }

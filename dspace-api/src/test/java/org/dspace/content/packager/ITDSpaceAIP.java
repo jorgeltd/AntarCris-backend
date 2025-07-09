@@ -65,7 +65,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -76,7 +75,6 @@ import org.junit.rules.TemporaryFolder;
  *
  * @author Tim Donohue
  */
-@Ignore
 public class ITDSpaceAIP extends AbstractIntegrationTest {
     /**
      * log4j category

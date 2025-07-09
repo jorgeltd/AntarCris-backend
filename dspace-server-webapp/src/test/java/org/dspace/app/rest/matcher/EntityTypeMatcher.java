@@ -53,7 +53,6 @@ public class EntityTypeMatcher {
             matchId(id),
             hasJsonPath("$.label", is(label)),
             hasJsonPath("$.type", is("entitytype")),
-            hasJsonPath("$.uniqueType", is("core.entitytype")),
             matchSelfLink(id)
         );
     }

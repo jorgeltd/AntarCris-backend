@@ -8,8 +8,6 @@
 
 package org.dspace.app.rest.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
-
 /**
  * The possible restriction options for the scope attributes in the
  * SubmissionPanel resource and SubmissionForm's fields
@@ -17,24 +15,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @author Andrea Bollini (andrea.bollini at 4science.it)
  */
 public enum ScopeEnum {
-
-    @JsonProperty("submission")
-    SUBMISSION("submission"),
-
-    @JsonProperty("workflow")
-    WORKFLOW("workflow"),
-
-    @JsonProperty("edit")
-    EDIT("workflow");
+    SUBMISSION("submission"), WORKFLOW("workflow");
 
     private String text;
 
     ScopeEnum(String text) {
         this.text = text;
-    }
-
-    public String getText() {
-        return text;
     }
 
     @Override

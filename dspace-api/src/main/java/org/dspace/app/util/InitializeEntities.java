@@ -119,8 +119,8 @@ public class InitializeEntities {
 
                     Element eElement = (Element) nNode;
 
-                    String leftType = readEntityType(eElement, "leftType");
-                    String rightType = readEntityType(eElement, "rightType");
+                    String leftType =  eElement.getElementsByTagName("leftType").item(0).getTextContent();
+                    String rightType = eElement.getElementsByTagName("rightType").item(0).getTextContent();
                     String leftwardType = eElement.getElementsByTagName("leftwardType").item(0).getTextContent();
                     String rightwardType = eElement.getElementsByTagName("rightwardType").item(0).getTextContent();
                     Node copyToLeftNode = eElement.getElementsByTagName("copyToLeft").item(0);
@@ -182,14 +182,6 @@ public class InitializeEntities {
         }
     }
 
-    private String readEntityType(final Element eElement, final String leftType) {
-        final Node node = eElement.getElementsByTagName(leftType).item(0);
-        if (node == null) {
-            return "";
-        }
-        return node.getTextContent();
-    }
-
     private String getString(String leftCardinalityMin,Element node, String minOrMax) {
         if (node.getElementsByTagName(minOrMax).getLength() > 0) {
             leftCardinalityMin = node.getElementsByTagName(minOrMax).item(0).getTextContent();
@@ -203,8 +195,14 @@ public class InitializeEntities {
                                           Boolean copyToLeft, Boolean copyToRight, RelationshipType.Tilted tilted)
         throws SQLException, AuthorizeException {
 
-        EntityType leftEntityType = loadEntityType(context, leftType);
-        EntityType rightEntityType = loadEntityType(context, rightType);
+        EntityType leftEntityType = entityTypeService.findByEntityType(context,leftType);
+        if (leftEntityType == null) {
+            leftEntityType = entityTypeService.create(context, leftType);
+        }
+        EntityType rightEntityType = entityTypeService.findByEntityType(context, rightType);
+        if (rightEntityType == null) {
+            rightEntityType = entityTypeService.create(context, rightType);
+        }
         Integer leftCardinalityMinInteger;
         Integer leftCardinalityMaxInteger;
         Integer rightCardinalityMinInteger;
@@ -246,17 +244,5 @@ public class InitializeEntities {
             relationshipType.setRightMaxCardinality(rightCardinalityMaxInteger);
             relationshipTypeService.update(context, relationshipType);
         }
-    }
-
-    private EntityType loadEntityType(final Context context, final String type)
-        throws SQLException, AuthorizeException {
-        if (StringUtils.isBlank(type)) {
-            return null;
-        }
-        EntityType entityType = entityTypeService.findByEntityType(context, type);
-        if (entityType == null) {
-            entityType = entityTypeService.create(context, type);
-        }
-        return entityType;
     }
 }

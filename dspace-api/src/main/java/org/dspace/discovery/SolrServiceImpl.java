@@ -8,9 +8,6 @@
 package org.dspace.discovery;
 
 import static java.util.stream.Collectors.joining;
-import static org.dspace.discovery.DiscoverResult.FacetPivotResult.fromPivotFields;
-import static org.dspace.discovery.configuration.DiscoveryConfigurationParameters.TYPE_STANDARD;
-import static org.dspace.discovery.configuration.GraphDiscoverSearchFilterFacet.TYPE_PREFIX;
 import static org.dspace.discovery.indexobject.ItemIndexFactoryImpl.STATUS_FIELD;
 import static org.dspace.discovery.indexobject.ItemIndexFactoryImpl.STATUS_FIELD_PREDB;
 
@@ -33,7 +30,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TimeZone;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import jakarta.mail.MessagingException;
 import org.apache.commons.collections4.CollectionUtils;
@@ -41,25 +37,19 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.collections4.Transformer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
-import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.request.UpdateRequest;
 import org.apache.solr.client.solrj.response.FacetField;
-import org.apache.solr.client.solrj.response.FieldStatsInfo;
-import org.apache.solr.client.solrj.response.PivotField;
 import org.apache.solr.client.solrj.response.QueryResponse;
 import org.apache.solr.client.solrj.util.ClientUtils;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
-import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
 import org.apache.solr.common.params.FacetParams;
 import org.apache.solr.common.params.HighlightParams;
 import org.apache.solr.common.params.MoreLikeThisParams;
 import org.apache.solr.common.params.SpellingParams;
 import org.apache.solr.common.util.NamedList;
-import org.dspace.app.metrics.CrisMetrics;
 import org.dspace.authorize.ResourcePolicy;
 import org.dspace.authorize.factory.AuthorizeServiceFactory;
 import org.dspace.content.Collection;
@@ -72,14 +62,11 @@ import org.dspace.core.Context;
 import org.dspace.core.Email;
 import org.dspace.core.I18nUtil;
 import org.dspace.core.LogHelper;
-import org.dspace.core.exception.SQLRuntimeException;
 import org.dspace.discovery.configuration.DiscoveryConfiguration;
 import org.dspace.discovery.configuration.DiscoveryConfigurationParameters;
 import org.dspace.discovery.configuration.DiscoveryMoreLikeThisConfiguration;
 import org.dspace.discovery.configuration.DiscoverySearchFilterFacet;
 import org.dspace.discovery.configuration.DiscoverySortConfiguration;
-import org.dspace.discovery.configuration.DiscoverySortFunctionConfiguration;
-import org.dspace.discovery.configuration.GraphDiscoverSearchFilterFacet;
 import org.dspace.discovery.indexobject.IndexableCollection;
 import org.dspace.discovery.indexobject.IndexableCommunity;
 import org.dspace.discovery.indexobject.IndexableItem;
@@ -90,7 +77,6 @@ import org.dspace.eperson.factory.EPersonServiceFactory;
 import org.dspace.eperson.service.GroupService;
 import org.dspace.services.ConfigurationService;
 import org.dspace.services.factory.DSpaceServicesFactory;
-import org.dspace.util.UUIDUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -133,8 +119,6 @@ public class SolrServiceImpl implements SearchService, IndexingService {
     protected SolrSearchCore solrSearchCore;
     @Autowired
     protected ConfigurationService configurationService;
-    @Autowired
-    protected IndexObjectFactoryFactory indexObjectFactoryFactory;
 
     protected SolrServiceImpl() {
 
@@ -176,7 +160,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                 log.info(LogHelper.getHeader(context, "indexed_object", indexableObject.getUniqueIndexID()));
             }
         } catch (IOException | SQLException | SolrServerException | SearchServiceException e) {
-            throw new RuntimeException(e.getMessage(), e);
+            log.error(e.getMessage(), e);
         }
     }
 
@@ -372,14 +356,13 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             }
 
         } catch (IOException | SQLException | SolrServerException e) {
-            throw new RuntimeException(e.getMessage(), e);
+            log.error(e.getMessage(), e);
         }
     }
 
     /**
      * Removes all documents from the Lucene index
      */
-    @Override
     public void deleteIndex() {
         try {
             final List<IndexFactory> indexableObjectServices = indexObjectServiceFactory.
@@ -409,13 +392,12 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             if (solrSearchCore.getSolr() == null) {
                 return;
             }
-
             // First, we'll just get a count of the total results
             SolrQuery countQuery = new SolrQuery("*:*");
-            countQuery.setRows(0); // don't actually request any data
+            countQuery.setRows(0);  // don't actually request any data
             // Get the total amount of results
             QueryResponse totalResponse = solrSearchCore.getSolr().query(countQuery,
-                solrSearchCore.REQUEST_METHOD);
+                                                                         solrSearchCore.REQUEST_METHOD);
             long total = totalResponse.getResults().getNumFound();
 
             int start = 0;
@@ -424,7 +406,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             // Now get actual Solr Documents in batches
             SolrQuery query = new SolrQuery();
             query.setFields(SearchUtils.RESOURCE_UNIQUE_ID, SearchUtils.RESOURCE_ID_FIELD,
-                SearchUtils.RESOURCE_TYPE_FIELD);
+                            SearchUtils.RESOURCE_TYPE_FIELD);
             query.addSort(SearchUtils.RESOURCE_UNIQUE_ID, SolrQuery.ORDER.asc);
             query.setQuery("*:*");
             query.setRows(batch);
@@ -438,21 +420,21 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                     String uniqueID = (String) doc.getFieldValue(SearchUtils.RESOURCE_UNIQUE_ID);
 
                     IndexableObject o = findIndexableObject(context, doc);
+
                     if (o == null) {
                         log.info("Deleting: " + uniqueID);
                         /*
-                         * Use IndexWriter to delete, its easier to manage write.lock
+                         * Use IndexWriter to delete, its easier to manage
+                         * write.lock
                          */
                         unIndexContent(context, uniqueID);
                     } else {
-                        context.uncacheEntity(o.getIndexedObject());
                         log.debug("Keeping: " + o.getUniqueIndexID());
                     }
                 }
+
+                start += batch;
             }
-
-            start += batch;
-
         } catch (IOException | SQLException | SolrServerException e) {
             log.error("Error cleaning discovery index: " + e.getMessage(), e);
         } finally {
@@ -628,7 +610,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
             for (ResourcePolicy rp : collectionsPolicies) {
                 Collection collection = ContentServiceFactory.getInstance().getCollectionService()
-                        .find(context, rp.getdSpaceObject().getID());
+                                                             .find(context, rp.getdSpaceObject().getID());
                 allCollections.add(collection);
             }
 
@@ -642,7 +624,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
                     locationQuery.append("m").append(community.getID());
 
-                    if (i != communitiesPolicies.size() - 1) {
+                    if (i != (communitiesPolicies.size() - 1)) {
                         locationQuery.append(" OR ");
                     }
                     allCollections.addAll(ContentServiceFactory.getInstance().getCommunityService()
@@ -740,7 +722,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
     public String locationToName(Context context, String field, String value) throws SQLException {
         if ("location.comm".equals(field) || "location.coll".equals(field)) {
-            int type = "location.comm".equals(field) ? Constants.COMMUNITY : Constants.COLLECTION;
+            int type = ("location.comm").equals(field) ? Constants.COMMUNITY : Constants.COLLECTION;
             DSpaceObject commColl = null;
             if (StringUtils.isNotBlank(value)) {
                 commColl = contentServiceFactory.getDSpaceObjectService(type).find(context, UUID.fromString(value));
@@ -860,7 +842,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
     }
 
     protected SolrQuery resolveToSolrQuery(Context context, DiscoverQuery discoveryQuery)
-            throws SearchServiceException {
+        throws SearchServiceException {
         SolrQuery solrQuery = new SolrQuery();
 
         String query = "*:*";
@@ -891,7 +873,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             String filterQuery = discoveryQuery.getFilterQueries().get(i);
             solrQuery.addFilterQuery(filterQuery);
         }
-        if (discoveryQuery.getDSpaceObjectFilters() != null && discoveryQuery.getDSpaceObjectFilters().size() > 0) {
+        if (discoveryQuery.getDSpaceObjectFilters() != null) {
             solrQuery.addFilterQuery(
                     discoveryQuery.getDSpaceObjectFilters()
                             .stream()
@@ -937,15 +919,9 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                 }
                 solrQuery.addFacetField(field);
 
-                if (!facetFieldConfig.fillGaps() && !facetFieldConfig.inverseDirection()) {
-                    // Setting the facet limit in this fashion ensures that each facet can have its own max
-                    solrQuery
-                        .add("f." + field + "." + FacetParams.FACET_LIMIT, String.valueOf(facetFieldConfig.getLimit()));
-                } else {
-                    // as we need to fill the gaps or reverse the order all the values must be returned
-                    solrQuery
-                        .add("f." + field + "." + FacetParams.FACET_LIMIT, String.valueOf(Integer.MAX_VALUE));
-                }
+                // Setting the facet limit in this fashion ensures that each facet can have its own max
+                solrQuery
+                    .add("f." + field + "." + FacetParams.FACET_LIMIT, String.valueOf(facetFieldConfig.getLimit()));
                 String facetSort;
                 if (DiscoveryConfigurationParameters.SORT.COUNT.equals(facetFieldConfig.getSortOrder())) {
                     facetSort = FacetParams.FACET_SORT_COUNT;
@@ -953,21 +929,13 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                     facetSort = FacetParams.FACET_SORT_INDEX;
                 }
                 solrQuery.add("f." + field + "." + FacetParams.FACET_SORT, facetSort);
-                if (facetFieldConfig.getOffset() != -1 && !facetFieldConfig.fillGaps()
-                        && !facetFieldConfig.inverseDirection()) {
+                if (facetFieldConfig.getOffset() != -1) {
                     solrQuery.setParam("f." + field + "."
                                            + FacetParams.FACET_OFFSET,
                                        String.valueOf(facetFieldConfig.getOffset()));
                 }
                 if (facetFieldConfig.getPrefix() != null) {
                     solrQuery.setFacetPrefix(field, facetFieldConfig.getPrefix());
-                }
-                if (facetFieldConfig.exposeMissing()) {
-                    solrQuery.setParam("f." + field + "." + FacetParams.FACET_MISSING, true);
-                }
-                if (facetFieldConfig.exposeMore() || facetFieldConfig.exposeTotalElements()) {
-                    solrQuery.addGetFieldStatistics("{!count=true countDistinct=true}"
-                            + transformFacetField(facetFieldConfig, facetFieldConfig.getField(), true) + "_statfilter");
                 }
             }
         }
@@ -979,6 +947,10 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
         if (discoveryQuery.getFacetMinCount() != -1) {
             solrQuery.setFacetMinCount(discoveryQuery.getFacetMinCount());
+        }
+
+        if (CollectionUtils.isNotEmpty(facetFields) || CollectionUtils.isNotEmpty(facetQueries)) {
+            solrQuery.setParam(FacetParams.FACET_OFFSET, String.valueOf(discoveryQuery.getFacetOffset()));
         }
 
         if (0 < discoveryQuery.getHitHighlightingFields().size()) {
@@ -994,10 +966,6 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
         }
 
-        if (CollectionUtils.isNotEmpty(discoveryQuery.getFacetPivots())) {
-            solrQuery.addFacetPivotField(discoveryQuery.getFacetPivots().toArray(String[]::new));
-        }
-
         //Add any configured search plugins !
         List<SolrServiceSearchPlugin> solrServiceSearchPlugins = DSpaceServicesFactory.getInstance()
                 .getServiceManager().getServicesByType(SolrServiceSearchPlugin.class);
@@ -1010,17 +978,18 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
     protected DiscoverResult retrieveResult(Context context, DiscoverQuery query)
         throws SQLException, SolrServerException, IOException, SearchServiceException {
-        // we use valid and executeLimit to manage reload of solr query if we found some stale objects
+        // we use valid and executeLimit to decide if the solr query need to be re-run if we found some stale objects
         boolean valid = false;
         int executionCount = 0;
         DiscoverResult result = null;
         SolrQuery solrQuery = resolveToSolrQuery(context, query);
+        // how many re-run of the query are allowed other than the first run
         int maxAttempts = configurationService.getIntProperty("discovery.removestale.attempts", 3);
         do {
             executionCount++;
             result = new DiscoverResult();
-            // if we found a stale object then skip execution of the remaining code
-            boolean zombieFound = false;
+            // if we found stale objects we can decide to skip execution of the remaining code to improve performance
+            boolean skipLoadingResponse = false;
             // use zombieDocs to collect stale found objects
             List<String> zombieDocs = new ArrayList<>();
             QueryResponse solrQueryResponse = solrSearchCore.getSolr().query(solrQuery,
@@ -1046,18 +1015,20 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                         // Enables solr to remove documents related to items not on database anymore (Stale)
                         // if maxAttemps is greater than 0 cleanup the index on each step
                         if (maxAttempts >= 0) {
-
                             Object statusObj = doc.getFirstValue(STATUS_FIELD);
                             if (!(statusObj instanceof String && statusObj.equals(STATUS_FIELD_PREDB))) {
                                 zombieDocs.add((String) doc.getFirstValue(SearchUtils.RESOURCE_UNIQUE_ID));
-                                zombieFound = true;
+                                // avoid to process the response except if we are in the last allowed execution.
+                                // When maxAttempts is 0 this will be just the first and last run as the
+                                // executionCount is increased at the start of the loop it will be equals to 1
+                                skipLoadingResponse = maxAttempts + 1 != executionCount;
                             }
                         }
                         continue;
                     }
-                    if (!zombieFound) {
+                    if (!skipLoadingResponse) {
                         DiscoverResult.SearchDocument resultDoc = new DiscoverResult.SearchDocument();
-                        //Add information about our search fields
+                        // Add information about our search fields
                         for (String field : searchFields) {
                             List<String> valuesAsString = new ArrayList<>();
                             Optional.ofNullable(doc.getFieldValues(field))
@@ -1065,204 +1036,35 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                             resultDoc.addSearchField(field, valuesAsString.toArray(new String[valuesAsString.size()]));
                         }
                         result.addSearchDocument(indexableObject, resultDoc);
-                    }
-                    if (solrQueryResponse.getHighlighting() != null && !zombieFound) {
-                        Map<String, List<String>> highlightedFields = solrQueryResponse.getHighlighting().get(
-                            indexableObject.getUniqueIndexID());
-                        if (MapUtils.isNotEmpty(highlightedFields)) {
-                            //We need to remove all the "_hl" appendix strings from our keys
-                            Map<String, List<String>> resultMap = new HashMap<>();
-                            for (String key : highlightedFields.keySet()) {
-                                List<String> highlightOriginalValue = highlightedFields.get(key);
-                                List<String[]> resultHighlightOriginalValue = new ArrayList<>();
-                                for (String highlightValue : highlightOriginalValue) {
-                                    String[] splitted = highlightValue.split("###");
-                                    resultHighlightOriginalValue.add(splitted);
 
+                        if (solrQueryResponse.getHighlighting() != null) {
+                            Map<String, List<String>> highlightedFields = solrQueryResponse.getHighlighting().get(
+                                indexableObject.getUniqueIndexID());
+                            if (MapUtils.isNotEmpty(highlightedFields)) {
+                                //We need to remove all the "_hl" appendix strings from our keys
+                                Map<String, List<String>> resultMap = new HashMap<>();
+                                for (String key : highlightedFields.keySet()) {
+                                    resultMap.put(key.substring(0, key.lastIndexOf("_hl")), highlightedFields.get(key));
                                 }
-                                resultMap.put(key.substring(0, key.lastIndexOf("_hl")), highlightedFields.get(key));
-                            }
 
-                            result.addHighlightedResult(indexableObject,
-                                new DiscoverResult.IndexableObjectHighlightResult(indexableObject, resultMap));
+                                result.addHighlightedResult(indexableObject,
+                                    new DiscoverResult.IndexableObjectHighlightResult(indexableObject, resultMap));
+                            }
                         }
                     }
                 }
-
                 //Resolve our facet field values
-                List<FacetField> facetFields = solrQueryResponse.getFacetFields();
-                if (facetFields != null && !zombieFound) {
-                    for (int i = 0; i < facetFields.size(); i++) {
-                        FacetField facetField = facetFields.get(i);
-                        DiscoverFacetField facetFieldConfig = query.getFacetFields().get(i);
-                        List<FacetField.Count> facetValues = facetField.getValues();
-                        if (facetValues != null) {
-                            if (facetFieldConfig.getType()
-                                                .equals(DiscoveryConfigurationParameters.TYPE_DATE) && facetFieldConfig
-                                .getSortOrder().equals(DiscoveryConfigurationParameters.SORT.VALUE)) {
-                                //If we have a date & are sorting by value, ensure that the results are flipped for a
-                                // proper result
-                                Collections.reverse(facetValues);
-                            }
-
-                            if (facetFieldConfig.fillGaps() && facetValues.size() > 0) {
-                                // only years sorted in ascending order can have such flag
-                                String separator = DSpaceServicesFactory.getInstance().getConfigurationService()
-                                        .getProperty("discovery.solr.facets.split.char");
-                                if (separator == null) {
-                                    separator = SearchUtils.FILTER_SEPARATOR;
-                                }
-                                String separatorSplit = java.util.regex.Pattern.quote(separator);
-                                List<FacetField.Count> resultValues = new ArrayList<FacetField.Count>();
-                                int prevYear = Integer.MIN_VALUE;
-                                for (FacetField.Count facetValue : facetValues) {
-                                    try {
-                                        if (StringUtils.isBlank(facetValue.getName())) {
-                                            resultValues.add(facetValue);
-                                            continue;
-                                        }
-                                        int currYear = Integer.parseInt(facetValue.getName().split(separatorSplit)[0]);
-                                        if (prevYear != Integer.MIN_VALUE && currYear != prevYear - 1) {
-                                            for (int idx = prevYear + 1; idx < currYear; idx++) {
-                                                resultValues.add(new FacetField.Count(facetValue.getFacetField(),
-                                                        String.valueOf(idx) + separator + String.valueOf(idx), 0));
-                                            }
-                                        }
-                                        prevYear = currYear;
-                                        resultValues.add(facetValue);
-                                    } catch (Exception e) {
-                                        log.error(e.getMessage());
-                                        continue;
-                                    }
-                                }
-                                facetValues = resultValues;
-                            }
-                            if (facetFieldConfig.inverseDirection()) {
-                                if (StringUtils.isBlank(facetValues.get(facetValues.size() - 1).getName())) {
-                                    // the missing facet if here must be keep as the last one
-                                    FacetField.Count missing = facetValues.remove(facetValues.size() - 1);
-                                    facetValues.add(0, missing);
-                                }
-                                Collections.reverse(facetValues);
-                            }
-
-                            if (facetFieldConfig.inverseDirection() || facetFieldConfig.fillGaps()) {
-                                FacetField.Count missing = null;
-                                if (StringUtils.isBlank(facetValues.get(facetValues.size() - 1).getName())) {
-                                    // the missing facet if here must be keep as the last one
-                                    missing = facetValues.remove(facetValues.size() - 1);
-                                }
-                                // we need to extract the requested page
-                                facetValues = facetValues.stream()
-                                        .skip(facetFieldConfig.getOffset() > 0 ? facetFieldConfig.getOffset() : 0)
-                                        .limit(facetFieldConfig.getLimit()).collect(Collectors.toList());
-                                if (missing != null) {
-                                    facetValues.add(missing);
-                                }
-                            }
-
-                            String field = transformFacetField(facetFieldConfig, facetField.getName(), true);
-                            String currentLocalePrefix = context.getCurrentLocale().getLanguage() + "_";
-                            field = StringUtils.removeStart(field, currentLocalePrefix);
-
-                            long countInPage = 0;
-                            int idxFC = 0;
-                            long missing = 0;
-                            for (FacetField.Count facetValue : facetValues) {
-                                String displayedValue = transformDisplayedValue(context, facetField.getName(),
-                                        facetValue.getName());
-                                String authorityValue = transformAuthorityValue(context, facetField.getName(),
-                                        facetValue.getName());
-                                String sortValue = transformSortValue(context, facetField.getName(),
-                                        facetValue.getName());
-                                String filterValue = displayedValue;
-                                if (StringUtils.isNotBlank(authorityValue)) {
-                                    filterValue = authorityValue;
-                                }
-                                if (StringUtils.isNotBlank(facetValue.getName())) {
-                                    // as we are 0-based and the limit is set to 1 more than needed
-                                    if (idxFC < facetFieldConfig.getLimit() - 1) {
-                                        countInPage += facetValue.getCount();
-                                    }
-                                    result.addFacetResult(
-                                        field,
-                                        new DiscoverResult.FacetResult(filterValue,
-                                                                       displayedValue, authorityValue,
-                                                                       sortValue, facetValue.getCount(),
-                                                                       facetFieldConfig.getType()));
-                                    idxFC++;
-                                } else {
-                                    missing = facetValue.getCount();
-                                    result.setFacetResultMissing(field, missing);
-                                }
-                            }
-                            Map<String, FieldStatsInfo> fieldStatsInfo = solrQueryResponse.getFieldStatsInfo();
-                            if (fieldStatsInfo != null) {
-                                FieldStatsInfo statsInfo = fieldStatsInfo.get(field + "_statfilter");
-                                if (statsInfo != null) {
-                                    if (statsInfo.getCount() != null) {
-                                        result.setFacetResultMore(field, missing + statsInfo.getCount() - countInPage);
-                                    }
-                                    result.setFacetResultTotalElements(field, statsInfo.getCountDistinct());
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (solrQueryResponse.getFacetQuery() != null && !zombieFound) {
-                    // just retrieve the facets in the order they where requested!
-                    // also for the date we ask it in proper (reverse) order
-                    // At the moment facet queries are only used for dates
-                    LinkedHashMap<String, Integer> sortedFacetQueries = new LinkedHashMap<>(
-                        solrQueryResponse.getFacetQuery());
-                    for (String facetQuery : sortedFacetQueries.keySet()) {
-                        //TODO: do not assume this, people may want to use it for other ends, use a regex to make sure
-                        // We have a facet query, the values looks something like: dateissued.year:[1990
-                        // TO 2000] AND -2000
-                        // Prepare the string from {facet.field.name}:[startyear TO endyear] to startyear - endyear
-                        String facetField = facetQuery.substring(0, facetQuery.indexOf(":"));
-                        String name = "";
-                        String filter = "";
-                        if (facetQuery.indexOf('[') > -1 && facetQuery.lastIndexOf(']') > -1) {
-                            name = facetQuery.substring(facetQuery.indexOf('[') + 1);
-                            name = name.substring(0, name.lastIndexOf(']')).replaceAll("TO", "-");
-                            filter = facetQuery.substring(facetQuery.indexOf('['));
-                            filter = filter.substring(0, filter.lastIndexOf(']') + 1);
-                        }
-
-                        Integer count = sortedFacetQueries.get(facetQuery);
-
-                        //No need to show empty years
-                        if (0 < count) {
-                            result.addFacetResult(facetField,
-                                                  new DiscoverResult.FacetResult(filter, name, null, name, count,
-                                                                                 DiscoveryConfigurationParameters
-                                                                                     .TYPE_DATE));
-                        }
-                    }
-                }
-
-                if (solrQueryResponse.getSpellCheckResponse() != null && !zombieFound) {
-                    String recommendedQuery = solrQueryResponse.getSpellCheckResponse().getCollatedResult();
-                    if (StringUtils.isNotBlank(recommendedQuery)) {
-                        result.setSpellCheckQuery(recommendedQuery);
-                    }
-                }
+                resolveFacetFields(context, query, result, skipLoadingResponse, solrQueryResponse);
+                //Add total entries count for metadata browsing
+                resolveEntriesCount(result, solrQueryResponse);
             }
-
-            if (solrQueryResponse.getFacetPivot() != null && !zombieFound) {
-                NamedList<List<PivotField>> facetPivotList = solrQueryResponse.getFacetPivot();
-                for (String facetPivot : query.getFacetPivots()) {
-                    result.addFacetPivotResult(facetPivot, fromPivotFields(facetPivotList.get(facetPivot)));
-                }
-            }
-
             // If any stale entries are found in the current page of results,
             // we remove those stale entries and rerun the same query again.
             // Otherwise, the query is valid and the results are returned.
             if (!zombieDocs.isEmpty()) {
                 log.info("Cleaning " + zombieDocs.size() + " stale objects from Discovery Index");
+                log.info("ZombieDocs ");
+                zombieDocs.forEach(log::info);
                 solrSearchCore.getSolr().deleteById(zombieDocs);
                 solrSearchCore.getSolr().commit();
             } else {
@@ -1278,6 +1080,121 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             throw new RuntimeException(message);
         }
         return result;
+    }
+
+    /**
+     * Stores the total count of entries for metadata index browsing. The count is calculated by the
+     * <code>json.facet</code> parameter with the following value:
+     *
+     * <pre><code>
+     * {
+     *     "entries_count": {
+     *         "type": "terms",
+     *         "field": "facetNameField_filter",
+     *         "limit": 0,
+     *         "prefix": "prefix_value",
+     *         "numBuckets": true
+     *     }
+     * }
+     * </code></pre>
+     *
+     * This value is returned in the <code>facets</code> field of the Solr response.
+     *
+     * @param result DiscoverResult object where the total entries count will be stored
+     * @param solrQueryResponse QueryResponse object containing the solr response
+     */
+    private void resolveEntriesCount(DiscoverResult result, QueryResponse solrQueryResponse) {
+
+        Object facetsObj = solrQueryResponse.getResponse().get("facets");
+        if (facetsObj instanceof NamedList) {
+            NamedList<Object> facets = (NamedList<Object>) facetsObj;
+            Object bucketsInfoObj = facets.get("entries_count");
+            if (bucketsInfoObj instanceof NamedList) {
+                NamedList<Object> bucketsInfo = (NamedList<Object>) bucketsInfoObj;
+                result.setTotalEntries((int) bucketsInfo.get("numBuckets"));
+            }
+        }
+    }
+
+    private void resolveFacetFields(Context context, DiscoverQuery query, DiscoverResult result,
+            boolean skipLoadingResponse, QueryResponse solrQueryResponse) throws SQLException {
+        List<FacetField> facetFields = solrQueryResponse.getFacetFields();
+        if (!skipLoadingResponse) {
+            if (facetFields != null) {
+                for (int i = 0; i < facetFields.size(); i++) {
+                    FacetField facetField = facetFields.get(i);
+                    DiscoverFacetField facetFieldConfig = query.getFacetFields().get(i);
+                    List<FacetField.Count> facetValues = facetField.getValues();
+                    if (facetValues != null) {
+                        if (facetFieldConfig.getType()
+                                            .equals(DiscoveryConfigurationParameters.TYPE_DATE) && facetFieldConfig
+                            .getSortOrder().equals(DiscoveryConfigurationParameters.SORT.VALUE)) {
+                            //If we have a date & are sorting by value, ensure that the results are flipped for a
+                            // proper result
+                            Collections.reverse(facetValues);
+                        }
+
+                        for (FacetField.Count facetValue : facetValues) {
+                            String displayedValue = transformDisplayedValue(context, facetField.getName(),
+                                                                            facetValue.getName());
+                            String field = transformFacetField(facetFieldConfig, facetField.getName(), true);
+                            String authorityValue = transformAuthorityValue(context, facetField.getName(),
+                                                                            facetValue.getName());
+                            String sortValue = transformSortValue(context,
+                                                                  facetField.getName(), facetValue.getName());
+                            String filterValue = displayedValue;
+                            if (StringUtils.isNotBlank(authorityValue)) {
+                                filterValue = authorityValue;
+                            }
+                            result.addFacetResult(
+                                field,
+                                new DiscoverResult.FacetResult(filterValue,
+                                                               displayedValue, authorityValue,
+                                                               sortValue, facetValue.getCount(),
+                                                               facetFieldConfig.getType()));
+                        }
+                    }
+                }
+            }
+
+            if (solrQueryResponse.getFacetQuery() != null && !skipLoadingResponse) {
+                // just retrieve the facets in the order they where requested!
+                // also for the date we ask it in proper (reverse) order
+                // At the moment facet queries are only used for dates
+                LinkedHashMap<String, Integer> sortedFacetQueries = new LinkedHashMap<>(
+                    solrQueryResponse.getFacetQuery());
+                for (String facetQuery : sortedFacetQueries.keySet()) {
+                    //TODO: do not assume this, people may want to use it for other ends, use a regex to make sure
+                    //We have a facet query, the values looks something like:
+                    //dateissued.year:[1990 TO 2000] AND -2000
+                    //Prepare the string from {facet.field.name}:[startyear TO endyear] to startyear - endyear
+                    String facetField = facetQuery.substring(0, facetQuery.indexOf(":"));
+                    String name = "";
+                    String filter = "";
+                    if (facetQuery.indexOf('[') > -1 && facetQuery.lastIndexOf(']') > -1) {
+                        name = facetQuery.substring(facetQuery.indexOf('[') + 1);
+                        name = name.substring(0, name.lastIndexOf(']')).replaceAll("TO", "-");
+                        filter = facetQuery.substring(facetQuery.indexOf('['));
+                        filter = filter.substring(0, filter.lastIndexOf(']') + 1);
+                    }
+                    Integer count = sortedFacetQueries.get(facetQuery);
+
+                    //No need to show empty years
+                    if (0 < count) {
+                        result.addFacetResult(facetField,
+                                              new DiscoverResult.FacetResult(filter, name, null, name, count,
+                                                                             DiscoveryConfigurationParameters
+                                                                                 .TYPE_DATE));
+                    }
+                }
+            }
+            if (solrQueryResponse.getSpellCheckResponse() != null && !skipLoadingResponse) {
+                String recommendedQuery = solrQueryResponse.getSpellCheckResponse().getCollatedResult();
+                if (StringUtils.isNotBlank(recommendedQuery)) {
+                    result.setSpellCheckQuery(recommendedQuery);
+                }
+            }
+        }
     }
 
     /**
@@ -1351,7 +1268,6 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             return new ArrayList<>(0);
         }
     }
-
     @Override
     public DiscoverFilterQuery toFilterQuery(Context context, String field, String operator, String value,
         DiscoveryConfiguration config)
@@ -1364,11 +1280,11 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
 
             if (operator.endsWith("equals")) {
-                final boolean isStandardField =
-                    Optional.ofNullable(config)
-                        .flatMap(c -> Optional.ofNullable(c.getSidebarFacet(field)))
-                        .map(facet -> facet.getType().startsWith(TYPE_PREFIX) || facet.getType().equals(TYPE_STANDARD))
-                        .orElse(false);
+                final boolean isStandardField
+                    = Optional.ofNullable(config)
+                              .flatMap(c -> Optional.ofNullable(c.getSidebarFacet(field)))
+                              .map(facet -> facet.getType().equals(DiscoveryConfigurationParameters.TYPE_STANDARD))
+                              .orElse(false);
                 if (!isStandardField) {
                     filterQuery.append("_keyword");
                 }
@@ -1427,7 +1343,13 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             //Add a comma separated list of the similar fields
             @SuppressWarnings("unchecked")
             java.util.Collection<String> similarityMetadataFields = CollectionUtils
-                .collect(mltConfig.getSimilarityMetadataFields(), (Transformer) input -> input + "_mlt");
+                .collect(mltConfig.getSimilarityMetadataFields(), new Transformer() {
+                    @Override
+                    public Object transform(Object input) {
+                        //Add the mlt appendix !
+                        return input + "_mlt";
+                    }
+                });
 
             solrQuery.setParam(MoreLikeThisParams.SIMILARITY_FIELDS, StringUtils.join(similarityMetadataFields, ','));
             solrQuery.setParam(MoreLikeThisParams.MIN_TERM_FREQ, String.valueOf(mltConfig.getMinTermFrequency()));
@@ -1458,9 +1380,6 @@ public class SolrServiceImpl implements SearchService, IndexingService {
 
     @Override
     public String toSortFieldIndex(String metadataField, String type) {
-        if (DiscoverySortFunctionConfiguration.SORT_FUNCTION.equals(type)) {
-            return metadataField;
-        }
         if (StringUtils.equalsIgnoreCase(DiscoverySortConfiguration.SCORE, metadataField)) {
             return DiscoverySortConfiguration.SCORE;
         } else if (StringUtils.equals(type, DiscoveryConfigurationParameters.TYPE_DATE)) {
@@ -1503,7 +1422,7 @@ public class SolrServiceImpl implements SearchService, IndexingService {
             }
         } else if (facetFieldConfig.getType().equals(DiscoveryConfigurationParameters.TYPE_DATE)) {
             if (removePostfix) {
-                return field.lastIndexOf(".year") != -1 ? field.substring(0, field.lastIndexOf(".year")) : field;
+                return field.substring(0, field.lastIndexOf(".year"));
             } else {
                 return field + ".year";
             }
@@ -1525,14 +1444,6 @@ public class SolrServiceImpl implements SearchService, IndexingService {
                 return field.substring(0, field.lastIndexOf("_acid"));
             } else {
                 return field + "_acid";
-            }
-        } else if (facetFieldConfig.getType().equals(DiscoveryConfigurationParameters.TYPE_STANDARD)) {
-            return field;
-        } else if (StringUtils.startsWith(facetFieldConfig.getType(), GraphDiscoverSearchFilterFacet.TYPE_PREFIX)) {
-            if (removePostfix) {
-                return field.lastIndexOf("_filter") != -1 ? field.substring(0, field.lastIndexOf("_filter")) : field;
-            } else {
-                return field + "_filter";
             }
         } else {
             return field;
@@ -1718,97 +1629,4 @@ public class SolrServiceImpl implements SearchService, IndexingService {
         return null;
     }
 
-    @Override
-    public SolrSearchCore getSolrSearchCore() {
-        return solrSearchCore;
-    }
-
-    @Override
-    public void updateMetrics(Context context, CrisMetrics metric) {
-        UpdateRequest req = new UpdateRequest();
-        SolrClient solrClient = solrSearchCore.getSolr();
-        Optional<String> id = findUniqueId(context, metric);
-        if (id.isEmpty()) {
-            log.warn("Unable to define unique id for item {}", metric.getResource().getID());
-            return;
-        }
-        try {
-            SolrInputDocument solrInDoc = new SolrInputDocument();
-            solrInDoc.addField(SearchUtils.RESOURCE_UNIQUE_ID, id.get());
-            solrInDoc.addField(SearchUtils.RESOURCE_TYPE_FIELD, itemType(context, metric.getResource()));
-            solrInDoc.addField(SearchUtils.RESOURCE_ID_FIELD, UUIDUtils.toString(metric.getResource().getID()));
-            req.add(SearchUtils.addMetricFieldsInSolrDoc(metric, solrInDoc));
-            solrClient.request(req);
-            solrClient.commit();
-        } catch (SolrServerException | IOException e) {
-            log.error(e.getMessage(), e);
-        }
-    }
-
-    @Override
-    public QueryResponse retriveSolrDocByUniqueID(String uniqueID) {
-        SolrClient solrClient =  solrSearchCore.getSolr();
-        SolrQuery q = new SolrQuery(SearchUtils.RESOURCE_UNIQUE_ID + ":Item-" + uniqueID);
-        QueryResponse queryResponse = null;
-        try {
-            queryResponse = solrClient.query(q);
-        } catch (SolrServerException | IOException e) {
-            log.error(e.getMessage(), e);
-        }
-        return queryResponse;
-    }
-
-    @Override
-    public void updateRelationForItem(final String itemId, final String relationLabel,
-                                      final List<String> relatedItems) {
-
-        UpdateRequest req = new UpdateRequest();
-        SolrClient solrClient =  solrSearchCore.getSolr();
-
-        try {
-            SolrInputDocument solrInDoc = new SolrInputDocument();
-            String itemType = IndexableItem.TYPE;
-            solrInDoc.addField(SearchUtils.RESOURCE_UNIQUE_ID, itemType + "-" + itemId);
-            solrInDoc.addField(SearchUtils.RESOURCE_TYPE_FIELD, itemType);
-            solrInDoc.addField(SearchUtils.RESOURCE_ID_FIELD, itemId);
-            final String field = "relation." + relationLabel;
-            solrInDoc.addField(field,
-                               Collections.<String, Object>singletonMap("set", relatedItems));
-            req.add(solrInDoc);
-            solrClient.request(req);
-            solrClient.commit();
-        } catch (SolrServerException | SolrException | IOException e) {
-            log.error(e.getMessage(), e);
-        }
-    }
-
-    private String itemType(Context context, DSpaceObject resource) {
-        return findIndexableObject(context, resource)
-            .map(indexableObject -> indexableObject.getType())
-            .orElseThrow(() -> new RuntimeException(
-                String.format("resource with id %s is of unsupported type: %s",
-                    resource.getID(), resource.getClass().getSimpleName())));
-    }
-
-    private Optional<String> findUniqueId(Context context, CrisMetrics metric) {
-        DSpaceObject resource = metric.getResource();
-        return findIndexableObject(context, resource)
-            .map(indexableObject -> indexableObject.getUniqueIndexID());
-    }
-
-    @SuppressWarnings("rawtypes")
-    private Optional<IndexableObject> findIndexableObject(Context context, DSpaceObject resource) {
-        String indexableType = Constants.typeText[resource.getType()];
-        return Optional.ofNullable(indexObjectFactoryFactory.getIndexFactoryByType(indexableType))
-            .flatMap(indexableFactory -> findIndexableObject(context, indexableFactory, resource.getID().toString()));
-    }
-
-    @SuppressWarnings({ "rawtypes", "unchecked" })
-    private Optional<IndexableObject> findIndexableObject(Context context, IndexFactory factory, String id) {
-        try {
-            return factory.findIndexableObject(context, id);
-        } catch (SQLException e) {
-            throw new SQLRuntimeException(e);
-        }
-    }
 }

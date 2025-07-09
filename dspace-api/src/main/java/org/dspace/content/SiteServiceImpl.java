@@ -105,8 +105,4 @@ public class SiteServiceImpl extends DSpaceObjectServiceImpl<Site> implements Si
     public int getSupportsTypeConstant() {
         return Constants.SITE;
     }
-
-    public boolean exists(Context context, UUID id) throws SQLException {
-        return this.siteDAO.exists(context, Site.class, id);
-    }
 }

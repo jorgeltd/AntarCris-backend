@@ -30,7 +30,6 @@ public class BitstreamFormatMatcher {
                 hasJsonPath("$.mimetype", is(mimetype)),
                 hasJsonPath("$.description", is(description)),
                 hasJsonPath("$.type", is("bitstreamformat")),
-                hasJsonPath("$.uniqueType", is("core.bitstreamformat")),
                 hasJsonPath("$._links.self.href", startsWith(REST_SERVER_URL)),
                 hasJsonPath("$._links.self.href", endsWith("/api/core/bitstreamformats/" + id))
         );
@@ -44,7 +43,6 @@ public class BitstreamFormatMatcher {
                 hasJsonPath("$.shortDescription", is(shortDescription)),
                 hasJsonPath("$.mimetype", is(mimetype)),
                 hasJsonPath("$.type", is("bitstreamformat")),
-                hasJsonPath("$.uniqueType", is("core.bitstreamformat")),
                 hasJsonPath("$._links.self.href", startsWith(REST_SERVER_URL)),
                 hasJsonPath("$._links.self.href", endsWith("/api/core/bitstreamformats/" + id))
         );
@@ -58,7 +56,6 @@ public class BitstreamFormatMatcher {
                 hasJsonPath("$.mimetype", is(mimetype)),
                 hasJsonPath("$.supportLevel", is(supportLevel)),
                 hasJsonPath("$.type", is("bitstreamformat")),
-                hasJsonPath("$.uniqueType", is("core.bitstreamformat")),
                 hasJsonPath("$._links.self.href", startsWith(REST_SERVER_URL)),
                 hasJsonPath("$._links.self.href", endsWith("/api/core/bitstreamformats/" + id))
         );
@@ -68,16 +65,14 @@ public class BitstreamFormatMatcher {
         return allOf(
             hasJsonPath("$.mimetype", is(mimetype)),
             hasJsonPath("$.description", is(description)),
-            hasJsonPath("$.type", is("bitstreamformat")),
-            hasJsonPath("$.uniqueType", is("core.bitstreamformat"))
+            hasJsonPath("$.type", is("bitstreamformat"))
         );
     }
 
     public static Matcher<? super Object> matchBitstreamFormatMimeType(String mimetype) {
         return allOf(
             hasJsonPath("$.mimetype", is(mimetype)),
-            hasJsonPath("$.type", is("bitstreamformat")),
-            hasJsonPath("$.uniqueType", is("core.bitstreamformat"))
+            hasJsonPath("$.type", is("bitstreamformat"))
         );
     }
 }

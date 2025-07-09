@@ -16,6 +16,7 @@ import java.io.InputStream;
 import org.apache.commons.codec.CharEncoding;
 import org.apache.commons.io.IOUtils;
 import org.dspace.app.rest.test.AbstractControllerIntegrationTest;
+import org.dspace.authorize.ResourcePolicy;
 import org.dspace.builder.BitstreamBuilder;
 import org.dspace.builder.BundleBuilder;
 import org.dspace.builder.CollectionBuilder;
@@ -666,7 +667,7 @@ public class GenericAuthorizationFeatureIT extends AbstractControllerIntegration
         // grant item 1 admin REMOVE permissions on the item’s owning collection
         // verify item 1 admin has this feature on item 1
         context.turnOffAuthorisationSystem();
-        ResourcePolicyBuilder.createResourcePolicy(context, item1Writer, null)
+        ResourcePolicy removePermission = ResourcePolicyBuilder.createResourcePolicy(context, item1Writer, null)
             .withDspaceObject(collectionX)
             .withAction(Constants.REMOVE)
             .build();
@@ -685,7 +686,7 @@ public class GenericAuthorizationFeatureIT extends AbstractControllerIntegration
 
         // grant item 1 write REMOVE permissions on the item’s owning collection
         context.turnOffAuthorisationSystem();
-        ResourcePolicyBuilder.createResourcePolicy(context, item1Writer, null)
+        ResourcePolicy removePermission = ResourcePolicyBuilder.createResourcePolicy(context, item1Writer, null)
             .withDspaceObject(collectionX)
             .withAction(Constants.REMOVE)
             .build();
@@ -1463,3 +1464,4 @@ public class GenericAuthorizationFeatureIT extends AbstractControllerIntegration
             );
     }
 }
+

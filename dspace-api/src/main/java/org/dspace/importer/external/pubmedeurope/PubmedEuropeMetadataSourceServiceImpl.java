@@ -292,9 +292,6 @@ public class PubmedEuropeMetadataSourceServiceImpl extends AbstractImportMetadat
         try {
             Map<String, Map<String, String>> params = new HashMap<String, Map<String,String>>();
             String response = liveImportClient.executeHttpGetRequest(1000, buildURI(1, query), params);
-            if (StringUtils.isEmpty(response)) {
-                return 0;
-            }
 
             SAXBuilder saxBuilder = new SAXBuilder();
             // disallow DTD parsing to ensure no XXE attacks can occur

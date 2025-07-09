@@ -18,7 +18,6 @@ import static org.orcid.jaxb.model.common.CitationType.FORMATTED_UNSPECIFIED;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.charset.Charset;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -262,8 +261,8 @@ public class OrcidPublicationDataProvider extends AbstractExternalDataProvider {
     }
 
     private String getAccessToken(String orcid) {
-        Iterator<Item> iterator = orcidSynchronizationService.findProfilesByOrcid(new Context(), orcid);
-        return Optional.ofNullable(iterator.hasNext() ? iterator.next() : null)
+        List<Item> items = orcidSynchronizationService.findProfilesByOrcid(new Context(), orcid);
+        return Optional.ofNullable(items.isEmpty() ? null : items.get(0))
             .flatMap(item -> getAccessToken(item))
             .orElseGet(() -> getReadPublicAccessToken());
     }

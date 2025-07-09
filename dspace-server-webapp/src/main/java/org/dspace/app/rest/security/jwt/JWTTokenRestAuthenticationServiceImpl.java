@@ -105,7 +105,7 @@ public class JWTTokenRestAuthenticationServiceImpl implements RestAuthentication
         try {
             String token = shortLivedJWTTokenHandler.createTokenForEPerson(context, request, null);
             context.commit();
-            return AuthenticationToken.shortLivedToken(token);
+            return new AuthenticationToken(token);
         } catch (JOSEException e) {
             log.error("JOSE Exception", e);
         } catch (SQLException e) {
@@ -116,22 +116,9 @@ public class JWTTokenRestAuthenticationServiceImpl implements RestAuthentication
     }
 
     @Override
-    public AuthenticationToken getMachineAuthenticationToken(Context context, HttpServletRequest request) {
-        request.setAttribute(MachineClaimProvider.MACHINE_TOKEN, true);
-        try {
-            String token = loginJWTTokenHandler.createTokenForEPerson(context, request, null);
-            context.commit();
-            return AuthenticationToken.machineToken(token);
-        } catch (Exception ex) {
-            log.error("An error occurs creating machine authentication token", ex);
-            throw new RuntimeException(ex);
-        }
-    }
-
-    @Override
     public EPerson getAuthenticatedEPerson(HttpServletRequest request, HttpServletResponse response, Context context) {
         try {
-            String token = getLoginToken(request);
+            String token = getLoginToken(request, response);
             EPerson ePerson = null;
             if (token == null) {
                 token = getShortLivedToken(request);
@@ -160,18 +147,11 @@ public class JWTTokenRestAuthenticationServiceImpl implements RestAuthentication
     @Override
     public void invalidateAuthenticationData(HttpServletRequest request, HttpServletResponse response,
                                              Context context) throws Exception {
-        String token = getLoginToken(request);
+        String token = getLoginToken(request, response);
         loginJWTTokenHandler.invalidateToken(token, request, context);
 
         // Reset our CSRF token, generating a new one
         resetCSRFToken(request, response);
-    }
-
-    @Override
-    public void invalidateMachineAuthenticationToken(Context context, HttpServletRequest request) throws Exception {
-        String token = getLoginToken(request);
-        loginJWTTokenHandler.invalidateMachineToken(context, request, token);
-        context.commit();
     }
 
     /**
@@ -289,7 +269,7 @@ public class JWTTokenRestAuthenticationServiceImpl implements RestAuthentication
      * @param request current request
      * @return authentication token (if found), or null
      */
-    private String getLoginToken(HttpServletRequest request) {
+    private String getLoginToken(HttpServletRequest request, HttpServletResponse response) {
         String tokenValue = null;
         String authHeader = request.getHeader(AUTHORIZATION_HEADER);
         String authCookie = getAuthorizationCookie(request);

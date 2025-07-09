@@ -11,7 +11,6 @@ import static org.dspace.app.rest.matcher.ProcessMatcher.matchProcess;
 import static org.dspace.content.ProcessStatus.SCHEDULED;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -32,17 +31,14 @@ import org.dspace.app.rest.matcher.PageMatcher;
 import org.dspace.app.rest.matcher.ProcessFileTypesMatcher;
 import org.dspace.app.rest.matcher.ProcessMatcher;
 import org.dspace.app.rest.test.AbstractControllerIntegrationTest;
-import org.dspace.builder.EPersonBuilder;
 import org.dspace.builder.ProcessBuilder;
 import org.dspace.content.Bitstream;
 import org.dspace.content.ProcessStatus;
-import org.dspace.eperson.EPerson;
 import org.dspace.scripts.DSpaceCommandLineParameter;
 import org.dspace.scripts.Process;
 import org.dspace.scripts.ProcessLogLevel;
 import org.dspace.scripts.service.ProcessService;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,6 +95,13 @@ public class ProcessRestRepositoryIT extends AbstractControllerIntegrationTest {
     }
 
     @Test
+    public void getProcessAnonymousUnauthorizedException() throws Exception {
+
+        getClient().perform(get("/api/system/processes/" + process.getID()))
+                   .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     public void getProcessForStartedUser() throws Exception {
         Process newProcess = ProcessBuilder.createProcess(context, eperson, "mock-script", new LinkedList<>()).build();
 
@@ -118,14 +121,10 @@ public class ProcessRestRepositoryIT extends AbstractControllerIntegrationTest {
     @Test
     public void getProcessForDifferentUserForbiddenException() throws Exception {
         String token = getAuthToken(eperson.getEmail(), password);
+
         getClient(token).perform(get("/api/system/processes/" + process.getID()))
                         .andExpect(status().isForbidden());
-    }
 
-    @Test
-    public void getProcessAnonymousUnauthorizedException() throws Exception {
-        getClient().perform(get("/api/system/processes/" + process.getID()))
-                   .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -144,26 +143,6 @@ public class ProcessRestRepositoryIT extends AbstractControllerIntegrationTest {
                    .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    public void getProcessCreatedByAnonymousForDifferentUsersTest() throws Exception {
-        context.turnOffAuthorisationSystem();
-        Process processByAnonymous = ProcessBuilder.createProcess(context, null, "mock-script", parameters).build();
-        context.restoreAuthSystemState();
-
-        String token = getAuthToken(eperson.getEmail(), password);
-        getClient(token).perform(get("/api/system/processes/" + processByAnonymous.getID()))
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$", Matchers.is(
-                                   ProcessMatcher.matchProcess(processByAnonymous.getName(),
-                                   null, processByAnonymous.getID(), parameters, ProcessStatus.SCHEDULED))));
-
-        // by anonymous
-        getClient().perform(get("/api/system/processes/" + processByAnonymous.getID()))
-                   .andExpect(status().isOk())
-                   .andExpect(jsonPath("$", Matchers.is(
-                              ProcessMatcher.matchProcess(processByAnonymous.getName(),
-                              null, processByAnonymous.getID(), parameters, ProcessStatus.SCHEDULED))));
-    }
 
     @Test
     public void getAllProcessesTestAdmin() throws Exception {
@@ -908,6 +887,30 @@ public class ProcessRestRepositoryIT extends AbstractControllerIntegrationTest {
     }
 
     @Test
+    public void testFindByCurrentUser() throws Exception {
+
+        Process process1 = ProcessBuilder.createProcess(context, eperson, "mock-script", parameters)
+            .withStartAndEndTime("10/01/1990", "20/01/1990")
+            .build();
+        ProcessBuilder.createProcess(context, admin, "mock-script", parameters)
+            .withStartAndEndTime("11/01/1990", "19/01/1990")
+            .build();
+        Process process3 = ProcessBuilder.createProcess(context, eperson, "mock-script", parameters)
+            .withStartAndEndTime("12/01/1990", "18/01/1990")
+            .build();
+
+        String token = getAuthToken(eperson.getEmail(), password);
+
+        getClient(token).perform(get("/api/system/processes/search/own"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$._embedded.processes", contains(
+                matchProcess(process3.getName(), eperson.getID().toString(), process3.getID(), parameters, SCHEDULED),
+                matchProcess(process1.getName(), eperson.getID().toString(), process1.getID(), parameters, SCHEDULED))))
+            .andExpect(jsonPath("$.page", is(PageMatcher.pageEntryWithTotalPagesAndElements(0, 20, 1, 2))));
+
+    }
+
+    @Test
     public void getProcessOutput() throws Exception {
         context.setCurrentUser(eperson);
         Process process1 = ProcessBuilder.createProcess(context, eperson, "mock-script", parameters)
@@ -926,10 +929,10 @@ public class ProcessRestRepositoryIT extends AbstractControllerIntegrationTest {
         getClient(token).perform(get("/api/system/processes/" + process1.getID() + "/output"))
                         .andExpect(status().isOk())
                         .andExpect(jsonPath("$.name",
-                                            is(process1.getName() + process1.getID() + ".log")))
+                                            is(process1.getID() + "-" + process1.getName() + ".log")))
                         .andExpect(jsonPath("$.type", is("bitstream")))
                         .andExpect(jsonPath("$.metadata['dc.title'][0].value",
-                                            is(process1.getName() + process1.getID() + ".log")))
+                                            is(process1.getID() + "-" + process1.getName() + ".log")))
                         .andExpect(jsonPath("$.metadata['dspace.process.filetype'][0].value",
                                             is("script_output")));
 
@@ -939,116 +942,12 @@ public class ProcessRestRepositoryIT extends AbstractControllerIntegrationTest {
                         .perform(get("/api/system/processes/" + process1.getID() + "/output"))
                         .andExpect(status().isOk())
                         .andExpect(jsonPath("$.name",
-                                            is(process1.getName() + process1.getID() + ".log")))
+                                            is(process1.getID() + "-" + process1.getName() + ".log")))
                         .andExpect(jsonPath("$.type", is("bitstream")))
                         .andExpect(jsonPath("$.metadata['dc.title'][0].value",
-                                            is(process1.getName() + process1.getID() + ".log")))
+                                            is(process1.getID() + "-" + process1.getName() + ".log")))
                         .andExpect(jsonPath("$.metadata['dspace.process.filetype'][0].value",
                                             is("script_output")));
 
     }
-
-    @Test
-    public void getProcessOutputOfOthersByAdminTest() throws Exception {
-
-        Process process = ProcessBuilder.createProcess(context, eperson, "mock-script", parameters).build();
-        try (InputStream is = IOUtils.toInputStream("Test File For Process", CharEncoding.UTF_8)) {
-            processService.appendLog(process.getID(), process.getName(), "testlog", ProcessLogLevel.INFO);
-        }
-        processService.createLogBitstream(context, process);
-        List<String> fileTypesToCheck = new LinkedList<>();
-        fileTypesToCheck.add("inputfile");
-
-        String token = getAuthToken(admin.getEmail(), password);
-
-        getClient(token).perform(get("/api/system/processes/" + process.getID() + "/output"))
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.name",
-                            is(process.getName() + process.getID() + ".log")))
-                        .andExpect(jsonPath("$.type", is("bitstream")))
-                        .andExpect(jsonPath("$.metadata['dc.title'][0].value",
-                            is(process.getName() + process.getID() + ".log")))
-                        .andExpect(jsonPath("$.metadata['dspace.process.filetype'][0].value",
-                            is("script_output")));
-
-
-    }
-
-    @Test
-    public void getProcessOutputByNotAdminTest() throws Exception {
-        Process process = ProcessBuilder.createProcess(context, eperson, "mock-script", parameters).build();
-        try (InputStream is = IOUtils.toInputStream("Test File For Process", CharEncoding.UTF_8)) {
-            processService.appendLog(process.getID(), process.getName(), "testlog", ProcessLogLevel.INFO);
-        }
-        processService.createLogBitstream(context, process);
-        List<String> fileTypesToCheck = new LinkedList<>();
-        fileTypesToCheck.add("inputfile");
-
-        String token = getAuthToken(eperson.getEmail(), password);
-
-        getClient(token).perform(get("/api/system/processes/" + process.getID() + "/output"))
-                        .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.name",
-                            is(process.getName() + process.getID() + ".log")))
-                        .andExpect(jsonPath("$.type", is("bitstream")))
-                        .andExpect(jsonPath("$.metadata['dc.title'][0].value",
-                            is(process.getName() + process.getID() + ".log")))
-                        .andExpect(jsonPath("$.metadata['dspace.process.filetype'][0].value",
-                            is("script_output")));
-
-
-    }
-
-    @Test
-    public void getProcessOutputOfOthersByNotAdminTest() throws Exception {
-
-        context.turnOffAuthorisationSystem();
-        EPerson ePerson1 = EPersonBuilder.createEPerson(context)
-                                         .withEmail("test1@email.com")
-                                         .withPassword("qwerty01")
-                                         .build();
-        context.restoreAuthSystemState();
-
-        Process process = ProcessBuilder.createProcess(context, ePerson1, "mock-script", parameters).build();
-        try (InputStream is = IOUtils.toInputStream("Test File For Process", CharEncoding.UTF_8)) {
-            processService.appendLog(process.getID(), process.getName(), "testlog", ProcessLogLevel.INFO);
-        }
-
-        String token = getAuthToken(eperson.getEmail(), password);
-
-        getClient(token).perform(get("/api/system/processes/" + process.getID() + "/output"))
-                        .andExpect(status().isForbidden());
-        processService.delete(context, process);
-    }
-
-    @Test
-    public void testFindByCurrentUser() throws Exception {
-
-        Process process1 = ProcessBuilder.createProcess(context, eperson, "mock-script", parameters)
-            .withStartAndEndTime("10/01/1990", "20/01/1990")
-            .build();
-        ProcessBuilder.createProcess(context, admin, "mock-script", parameters)
-            .withStartAndEndTime("11/01/1990", "19/01/1990")
-            .build();
-        Process process3 = ProcessBuilder.createProcess(context, eperson, "mock-script", parameters)
-            .withStartAndEndTime("12/01/1990", "18/01/1990")
-            .build();
-
-        String token = getAuthToken(eperson.getEmail(), password);
-
-        getClient(token).perform(get("/api/system/processes/search/own"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$._embedded.processes", containsInRelativeOrder(
-                matchProcess(process3.getName(), eperson.getID().toString(), process3.getID(), parameters, SCHEDULED),
-                matchProcess(process1.getName(), eperson.getID().toString(), process1.getID(), parameters, SCHEDULED))))
-            .andExpect(jsonPath("$.page", is(PageMatcher.pageEntryWithTotalPagesAndElements(0, 20, 1, 2))));
-
-    }
-
-    @After
-    @Override
-    public void destroy() throws Exception {
-        super.destroy();
-    }
-
 }

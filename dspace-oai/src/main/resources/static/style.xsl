@@ -21,8 +21,8 @@
 	<xsl:template match="/">
 		<html>
 			<head>
-                <title>DSpace-CRIS OAI-PMH Data Provider</title>
-                <meta name="Generator" content="DSpace-CRIS"/>
+                <title>DSpace OAI-PMH Data Provider</title>
+                <meta name="Generator" content="DSpace"/>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
                 <!-- NOTE: We use JQuery and Bootstrap via WebJars which are configured in dspace-server-webapp -->
@@ -127,7 +127,7 @@
                         <p><small>DSpace OAI-PMH Data Provider</small></p>
                         <p>
                             <a href="https://dspace.org">
-                                <img src="static/img/dspace-cris-logo-200.png" alt="DSpace-CRIS" />
+                                <img src="static/img/dspace-logo.png" alt="DSpace" />
                             </a>
                         </p>
                     </div>
@@ -522,15 +522,14 @@
 				<xsl:choose>
 					<xsl:when test="normalize-space($path/../oai:resumptionToken/text()) = ''">
 					<!-- on the last page of results we have to assume that @completeListSize is available -->
-						<xsl:value-of
-							select="$total - $count" />
+						<xsl:value-of select="(number($total) - $count) + 1" />
 						-
 						<xsl:value-of select="$total" />
 					</xsl:when>
 					<xsl:otherwise>
-						<xsl:value-of select="$cursor * $count" />
+						<xsl:value-of select="(number($cursor) * $count) + 1" />
 						-
-						<xsl:value-of select="($cursor+1) * $count" />
+						<xsl:value-of select="(number($cursor) + 1) * $count" />
 					</xsl:otherwise>
 				</xsl:choose>
 			</xsl:when>

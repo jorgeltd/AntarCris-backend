@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.dspace.app.rest.model.ScopeEnum;
@@ -26,13 +25,8 @@ import org.dspace.app.rest.model.submit.SelectableRelationship;
 import org.dspace.app.rest.projection.Projection;
 import org.dspace.app.rest.repository.SubmissionFormRestRepository;
 import org.dspace.app.rest.utils.AuthorityUtils;
-import org.dspace.app.rest.utils.ContextUtil;
 import org.dspace.app.util.DCInput;
 import org.dspace.app.util.DCInputSet;
-import org.dspace.core.Context;
-import org.dspace.core.Utils;
-import org.dspace.services.RequestService;
-import org.dspace.services.model.Request;
 import org.dspace.submit.model.LanguageFormField;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -50,13 +44,9 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
     private static final String INPUT_TYPE_NAME = "name";
     private static final String INPUT_TYPE_LOOKUP = "lookup";
     private static final String INPUT_TYPE_LOOKUP_NAME = "lookup-name";
-    private static final String INPUT_TYPE_DROPDOWN = "dropdown";
 
     @Autowired
     private AuthorityUtils authorityUtils;
-
-    @Autowired
-    private RequestService requestService;
 
     @Autowired
     private SubmissionFormRestRepository submissionFormRestRepository;
@@ -96,7 +86,10 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
         inputField.setStyle(dcinput.getStyle());
         inputField.setMandatoryMessage(dcinput.getWarning());
         inputField.setMandatory(dcinput.isRequired());
-        inputField.setVisibility(getVisibility(dcinput));
+        inputField.setScope(ScopeEnum.fromString(dcinput.getScope()));
+        inputField.setVisibility(new SubmissionVisibilityRest(
+            VisibilityEnum.fromString(dcinput.isReadOnly("submission") ? "read-only" : null),
+            VisibilityEnum.fromString(dcinput.isReadOnly("workflow") ? "read-only" : null)));
         inputField.setRepeatable(dcinput.isRepeatable());
         if (dcinput.getLanguage()) {
             int idx = 1;
@@ -121,43 +114,20 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
 
                 // value-pair and vocabulary are a special kind of authorities
                 String inputType = dcinput.getInputType();
+
                 SelectableMetadata selMd = new SelectableMetadata();
                 if (isChoice(dcinput.getSchema(), dcinput.getElement(), dcinput.getQualifier(),
-                    dcinput.getPairsType(), dcinput.getVocabulary(), formName)) {
+                        dcinput.getPairsType(), dcinput.getVocabulary())) {
                     inputRest.setType(getPresentation(dcinput.getSchema(), dcinput.getElement(),
                                                       dcinput.getQualifier(), inputType));
                     selMd.setControlledVocabulary(getAuthorityName(dcinput.getSchema(), dcinput.getElement(),
                                                         dcinput.getQualifier(), dcinput.getPairsType(),
-                                                        dcinput.getVocabulary(), formName));
+                                                        dcinput.getVocabulary()));
                     selMd.setClosed(
                             isClosed(dcinput.getSchema(), dcinput.getElement(), dcinput.getQualifier(),
                                     dcinput.getPairsType(), dcinput.getVocabulary(), dcinput.isClosedVocabulary()));
                 } else {
                     inputRest.setType(inputType);
-                }
-
-                Context context = null;
-                Request currentRequest = requestService.getCurrentRequest();
-                if (currentRequest != null) {
-                    HttpServletRequest request = currentRequest.getHttpServletRequest();
-                    context = ContextUtil.obtainContext(request);
-                } else {
-                    context = new Context();
-                }
-
-                if (StringUtils.equalsIgnoreCase(dcinput.getInputType(), "group") ||
-                        StringUtils.equalsIgnoreCase(dcinput.getInputType(), "inline-group")) {
-                    inputField.setRows(submissionFormRestRepository.findOne(context, formName + "-" + Utils
-                        .standardize(dcinput.getSchema(), dcinput.getElement(), dcinput.getQualifier(), "-")));
-                } else if (authorityUtils.isChoice(dcinput.getSchema(), dcinput.getElement(), dcinput.getQualifier(),
-                    formName)) {
-                    inputRest.setType(getPresentation(dcinput.getSchema(), dcinput.getElement(),
-                                                      dcinput.getQualifier(), inputType));
-                    selMd.setControlledVocabulary(getAuthorityName(dcinput.getSchema(), dcinput.getElement(),
-                                                        dcinput.getQualifier(), dcinput.getPairsType(),
-                                                        dcinput.getVocabulary(), formName));
-                    selMd.setClosed(isClosed(dcinput.getSchema(), dcinput.getElement(),
-                            dcinput.getQualifier(), null, dcinput.getVocabulary(), dcinput.isClosedVocabulary()));
                 }
                 selMd.setMetadata(org.dspace.core.Utils
                     .standardize(dcinput.getSchema(), dcinput.getElement(), dcinput.getQualifier(), "."));
@@ -171,10 +141,9 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
                     selMd.setLabel((String) pairs.get(idx));
                     selMd.setMetadata(org.dspace.core.Utils
                             .standardize(dcinput.getSchema(), dcinput.getElement(), pairs.get(idx + 1), "."));
-                    if (authorityUtils.isChoice(dcinput.getSchema(), dcinput.getElement(), dcinput.getQualifier(),
-                        formName)) {
+                    if (authorityUtils.isChoice(dcinput.getSchema(), dcinput.getElement(), dcinput.getQualifier())) {
                         selMd.setControlledVocabulary(getAuthorityName(dcinput.getSchema(), dcinput.getElement(),
-                                pairs.get(idx + 1), dcinput.getPairsType(), dcinput.getVocabulary(), formName));
+                                pairs.get(idx + 1), dcinput.getPairsType(), dcinput.getVocabulary()));
                         selMd.setClosed(isClosed(dcinput.getSchema(), dcinput.getElement(),
                                 dcinput.getQualifier(), null, dcinput.getVocabulary(), dcinput.isClosedVocabulary()));
                     }
@@ -193,18 +162,6 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
             inputField.setSelectableRelationship(selectableRelationship);
         }
         return inputField;
-    }
-
-    private SubmissionVisibilityRest getVisibility(DCInput dcinput) {
-        SubmissionVisibilityRest submissionVisibility = new SubmissionVisibilityRest();
-        for (ScopeEnum scope : ScopeEnum.values()) {
-            if (!dcinput.isVisible(scope.getText())) {
-                submissionVisibility.addVisibility(scope, VisibilityEnum.HIDDEN);
-            } else if (dcinput.isReadOnly(scope.getText())) {
-                submissionVisibility.addVisibility(scope, VisibilityEnum.READ_ONLY);
-            }
-        }
-        return submissionVisibility;
     }
 
     /**
@@ -233,8 +190,6 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
                     return INPUT_TYPE_ONEBOX;
                 } else if (AuthorityUtils.PRESENTATION_TYPE_LOOKUP.equals(presentation)) {
                     return INPUT_TYPE_LOOKUP;
-                } else if (AuthorityUtils.PRESENTATION_TYPE_SELECT.equals(presentation)) {
-                    return INPUT_TYPE_DROPDOWN;
                 }
             } else if (INPUT_TYPE_NAME.equals(inputType)) {
                 if (AuthorityUtils.PRESENTATION_TYPE_LOOKUP.equals(presentation) ||
@@ -247,13 +202,13 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
     }
 
     private String getAuthorityName(String schema, String element, String qualifier, String valuePairsName,
-                                    String vocabularyName, String formName) {
+                                    String vocabularyName) {
         if (StringUtils.isNotBlank(valuePairsName)) {
             return valuePairsName;
         } else if (StringUtils.isNotBlank(vocabularyName)) {
             return vocabularyName;
         }
-        return authorityUtils.getAuthorityName(schema, element, qualifier, formName);
+        return authorityUtils.getAuthorityName(schema, element, qualifier);
     }
 
     private boolean isClosed(String schema, String element, String qualifier, String valuePairsName,
@@ -267,11 +222,11 @@ public class SubmissionFormConverter implements DSpaceConverter<DCInputSet, Subm
     }
 
     private boolean isChoice(String schema, String element, String qualifier, String valuePairsName,
-            String vocabularyName, String formname) {
+            String vocabularyName) {
         if (StringUtils.isNotBlank(valuePairsName) || StringUtils.isNotBlank(vocabularyName)) {
             return true;
         }
-        return authorityUtils.isChoice(schema, element, qualifier, formname);
+        return authorityUtils.isChoice(schema, element, qualifier);
     }
 
     @Override

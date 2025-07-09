@@ -38,7 +38,7 @@ public class SolrServicePrivateItemPlugin implements SolrServiceSearchPlugin {
         try {
             // Prevents access if user has no administrative rights on the community or collection.
             // NOTE: the resource restriction plugin adds location filters for community and collection admins.
-            if (discoveryQuery.isIncludeNotDiscoverableOrWithdrawn() || authorizeService.isAdmin(context)) {
+            if (authorizeService.isAdmin(context)) {
                 return;
             }
             if (!StringUtils.equalsIgnoreCase(discoveryQuery.getDiscoveryConfigurationName(), "administrativeView")) {

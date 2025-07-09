@@ -7,8 +7,6 @@
  */
 package org.dspace.app.rest.model;
 
-import java.util.Map;
-
 import org.dspace.app.rest.RestResourceController;
 
 /**
@@ -16,7 +14,9 @@ import org.dspace.app.rest.RestResourceController;
  *
  * @author Andrea Bollini (andrea.bollini at 4science.it)
  */
-@LinksRest(links = {@LinkRest(name = VocabularyRest.ENTRIES, method = "filter")})
+@LinksRest(links = {
+    @LinkRest(name = VocabularyRest.ENTRIES, method = "filter"),
+})
 public class VocabularyRest extends BaseObjectRest<String> {
 
     public static final String NAME = "vocabulary";
@@ -31,10 +31,6 @@ public class VocabularyRest extends BaseObjectRest<String> {
     private boolean hierarchical;
 
     private Integer preloadLevel;
-
-    private String entity;
-
-    private Map<String,String> externalSource;
 
     @Override
     public String getId() {
@@ -71,22 +67,6 @@ public class VocabularyRest extends BaseObjectRest<String> {
 
     public void setPreloadLevel(Integer preloadLevel) {
         this.preloadLevel = preloadLevel;
-    }
-
-    public String getEntity() {
-        return entity;
-    }
-
-    public void setEntity(String entity) {
-        this.entity = entity;
-    }
-
-    public Map<String, String> getExternalSource() {
-        return externalSource;
-    }
-
-    public void setExternalSource(Map<String, String> externalSource) {
-        this.externalSource = externalSource;
     }
 
     @Override

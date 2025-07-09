@@ -35,7 +35,7 @@ import org.dspace.workflow.WorkflowItem;
 @Entity
 @Table(name = "workspaceitem")
 public class WorkspaceItem
-    implements InProgressSubmission<Integer>, Serializable {
+    implements InProgressSubmission, Serializable {
 
     @Id
     @Column(name = "workspace_item_id", unique = true, nullable = false)
@@ -165,7 +165,7 @@ public class WorkspaceItem
         return item;
     }
 
-    public void setItem(Item item) {
+    void setItem(Item item) {
         this.item = item;
     }
 
@@ -174,7 +174,7 @@ public class WorkspaceItem
         return collection;
     }
 
-    public void setCollection(Collection collection) {
+    void setCollection(Collection collection) {
         this.collection = collection;
     }
 

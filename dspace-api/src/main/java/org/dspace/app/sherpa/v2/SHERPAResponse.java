@@ -61,6 +61,11 @@ public class SHERPAResponse implements Serializable {
     @JsonIgnore
     private Date retrievalTime = new Date();
 
+    // Format enum - currently only JSON is supported
+    public enum SHERPAFormat {
+        JSON, XML
+    };
+
     private static Logger log = LogManager.getLogger();
 
     /**

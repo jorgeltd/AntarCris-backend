@@ -20,42 +20,42 @@ import org.dspace.core.Context;
 public interface SuggestionService {
 
     /** find a {@link SuggestionTarget } by source name and suggestion id */
-    SuggestionTarget find(Context context, String source, UUID id);
+    public SuggestionTarget find(Context context, String source, UUID id);
 
     /** count all suggetion targets by suggestion source */
-    long countAll(Context context, String source);
+    public long countAll(Context context, String source);
 
     /** find all suggestion targets by source (paged) */
-    List<SuggestionTarget> findAllTargets(Context context, String source, int pageSize, long offset);
+    public List<SuggestionTarget> findAllTargets(Context context, String source, int pageSize, long offset);
 
     /** count all (unprocessed) suggestions by the given target uuid */
-    long countAllByTarget(Context context, UUID target);
+    public long countAllByTarget(Context context, UUID target);
 
     /** find suggestion target by targeted item (paged) */
-    List<SuggestionTarget> findByTarget(Context context, UUID target, int pageSize, long offset);
+    public List<SuggestionTarget> findByTarget(Context context, UUID target, int pageSize, long offset);
 
     /** find suggestion source by source name */
-    SuggestionSource findSource(Context context, String source);
+    public SuggestionSource findSource(Context context, String source);
 
     /** count all suggestion sources */
-    long countSources(Context context);
+    public long countSources(Context context);
 
     /** find all suggestion sources (paged) */
-    List<SuggestionSource> findAllSources(Context context, int pageSize, long offset);
+    public List<SuggestionSource> findAllSources(Context context, int pageSize, long offset);
 
     /** find unprocessed suggestion by id */
-    Suggestion findUnprocessedSuggestion(Context context, String id);
+    public Suggestion findUnprocessedSuggestion(Context context, String id);
 
     /** reject a specific suggestion by its id */
-    void rejectSuggestion(Context context, String id);
+    public void rejectSuggestion(Context context, String id);
 
     /** find all suggestions by targeted item and external source */
-    List<Suggestion> findByTargetAndSource(Context context, UUID target, String source, int pageSize,
+    public List<Suggestion> findByTargetAndSource(Context context, UUID target, String source, int pageSize,
             long offset, boolean ascending);
 
     /** count all suggestions by targeted item id and source name */
-    long countAllByTargetAndSource(Context context, String source, UUID target);
+    public long countAllByTargetAndSource(Context context, String source, UUID target);
 
     /** returns all suggestion providers */
-    List<SuggestionProvider> getSuggestionProviders();
+    public List<SuggestionProvider> getSuggestionProviders();
 }

@@ -19,18 +19,14 @@ import org.dspace.app.rest.RestResourceController;
  *
  * @author Andrea Bollini (andrea.bollini at 4science.it)
  */
-@LinksRest(links =
-    {
-        @LinkRest(
-                name = EPersonRest.GROUPS,
-                method = "getGroups"
-        )
-    }
-)
+@LinksRest(links = {
+    @LinkRest(name = EPersonRest.GROUPS, method = "getGroups")
+})
 public class EPersonRest extends DSpaceObjectRest {
     public static final String NAME = "eperson";
     public static final String PLURAL_NAME = "epersons";
     public static final String CATEGORY = RestAddressableModel.EPERSON;
+
     public static final String GROUPS = "groups";
 
     private String netid;
@@ -47,8 +43,6 @@ public class EPersonRest extends DSpaceObjectRest {
 
     @JsonProperty(access = Access.WRITE_ONLY)
     private String password;
-
-    private boolean machineTokenGenerated;
 
     @Override
     @JsonProperty(access = Access.READ_ONLY)
@@ -115,14 +109,6 @@ public class EPersonRest extends DSpaceObjectRest {
 
     public void setPassword(String password) {
         this.password = password;
-    }
-
-    public boolean isMachineTokenGenerated() {
-        return machineTokenGenerated;
-    }
-
-    public void setMachineTokenGenerated(boolean machineTokenGenerated) {
-        this.machineTokenGenerated = machineTokenGenerated;
     }
 
     @Override

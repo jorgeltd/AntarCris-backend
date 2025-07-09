@@ -9,7 +9,6 @@ package org.dspace.authenticate;
 
 
 import static java.lang.String.format;
-import static java.lang.String.join;
 import static java.net.URLEncoder.encode;
 import static org.apache.commons.lang.BooleanUtils.toBoolean;
 import static org.apache.commons.lang3.StringUtils.isAnyBlank;
@@ -156,9 +155,12 @@ public class OidcAuthenticationBean implements AuthenticationMethod {
         String redirectUri = configurationService.getProperty("authentication-oidc.redirect-url");
         String tokenUrl = configurationService.getProperty("authentication-oidc.token-endpoint");
         String userInfoUrl = configurationService.getProperty("authentication-oidc.user-info-endpoint");
-
-        String[] defaultScopes = {  "openid", "email", "profile" };
-        String scopes = join(" ", configurationService.getArrayProperty("authentication-oidc.scopes", defaultScopes));
+        String[] defaultScopes =
+            new String[] {
+                "openid", "email", "profile"
+            };
+        String scopes = String.join(" ", configurationService.getArrayProperty("authentication-oidc.scopes",
+            defaultScopes));
 
         if (isAnyBlank(authorizeUrl, clientId, redirectUri, clientSecret, tokenUrl, userInfoUrl)) {
             LOGGER.error("Missing mandatory configuration properties for OidcAuthenticationBean");
@@ -223,7 +225,6 @@ public class OidcAuthenticationBean implements AuthenticationMethod {
 
         } catch (Exception ex) {
             LOGGER.error("An error occurs registering a new EPerson from OIDC", ex);
-            context.rollback();
             return NO_SUCH_USER;
         } finally {
             context.restoreAuthSystemState();

@@ -7,14 +7,21 @@
  */
 package org.dspace.app.rest.converter;
 
-import java.util.Optional;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Logger;
 import org.dspace.app.rest.model.ItemRest;
 import org.dspace.app.rest.model.MetadataValueList;
 import org.dspace.app.rest.projection.Projection;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataField;
-import org.dspace.content.security.service.MetadataSecurityService;
+import org.dspace.content.MetadataValue;
 import org.dspace.content.service.ItemService;
 import org.dspace.core.Context;
 import org.dspace.discovery.IndexableObject;
@@ -35,8 +42,7 @@ public class ItemConverter
     @Autowired
     private ItemService itemService;
 
-    @Autowired
-    private MetadataSecurityService metadataSecurityService;
+    private static final Logger log = org.apache.logging.log4j.LogManager.getLogger(ItemConverter.class);
 
     @Override
     public ItemRest convert(Item obj, Projection projection) {
@@ -45,7 +51,13 @@ public class ItemConverter
         item.setDiscoverable(obj.isDiscoverable());
         item.setWithdrawn(obj.isWithdrawn());
         item.setLastModified(obj.getLastModified());
-        item.setEntityType(itemService.getEntityTypeLabel(obj));
+
+        List<MetadataValue> entityTypes =
+            itemService.getMetadata(obj, "dspace", "entity", "type", Item.ANY, false);
+        if (CollectionUtils.isNotEmpty(entityTypes) && StringUtils.isNotBlank(entityTypes.get(0).getValue())) {
+            item.setEntityType(entityTypes.get(0).getValue());
+        }
+
         return item;
     }
 
@@ -54,30 +66,35 @@ public class ItemConverter
      * When the context is null, it will return the metadatalist as for an anonymous user
      * Overrides the parent method to include virtual metadata
      * @param context The context
-     * @param item     The object of which the filtered metadata will be retrieved
-     * @param projection The projection(s) used into current request
-     * @return A list of object metadata (including virtual metadata) filtered based on the the hidden metadata
+     * @param obj     The object of which the filtered metadata will be retrieved
+     * @return A list of object metadata (including virtual metadata) filtered based on the hidden metadata
      * configuration
      */
     @Override
-    public MetadataValueList getPermissionFilteredMetadata(Context context, Item item, Projection projection) {
-        boolean preventSecurityCheck = preventSecurityCheck(projection);
-        if (projection.isAllLanguages()) {
-            return new MetadataValueList(
-                metadataSecurityService.getPermissionFilteredMetadataValues(context, item, preventSecurityCheck));
+    public MetadataValueList getPermissionFilteredMetadata(Context context, Item obj) {
+        List<MetadataValue> fullList = itemService.getMetadata(obj, Item.ANY, Item.ANY, Item.ANY, Item.ANY, true);
+        List<MetadataValue> returnList = new LinkedList<>();
+        try {
+            if (obj.isWithdrawn() && (Objects.isNull(context) ||
+                                      Objects.isNull(context.getCurrentUser()) || !authorizeService.isAdmin(context))) {
+                return new MetadataValueList(new ArrayList<MetadataValue>());
+            }
+            if (context != null && (authorizeService.isAdmin(context) || itemService.canEdit(context, obj))) {
+                return new MetadataValueList(fullList);
+            }
+            for (MetadataValue mv : fullList) {
+                MetadataField metadataField = mv.getMetadataField();
+                if (!metadataExposureService
+                        .isHidden(context, metadataField.getMetadataSchema().getName(),
+                                  metadataField.getElement(),
+                                  metadataField.getQualifier())) {
+                    returnList.add(mv);
+                }
+            }
+        } catch (SQLException e) {
+            log.error("Error filtering item metadata based on permissions", e);
         }
-        return new MetadataValueList(
-            metadataSecurityService.getPermissionAndLangFilteredMetadataFields(context, item, preventSecurityCheck));
-    }
-
-    public boolean checkMetadataFieldVisibility(Context context, Item item, MetadataField metadataField) {
-        return metadataSecurityService.checkMetadataFieldVisibility(context, item, metadataField);
-    }
-
-    private boolean preventSecurityCheck(Projection projection) {
-        return Optional.ofNullable(projection)
-            .map(Projection::preventMetadataLevelSecurity)
-            .orElse(false);
+        return new MetadataValueList(returnList);
     }
 
     @Override

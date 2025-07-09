@@ -9,7 +9,6 @@ package org.dspace.app.iiif.service;
 
 import java.sql.SQLException;
 
-import org.apache.logging.log4j.Logger;
 import org.dspace.app.iiif.model.generator.CanvasGenerator;
 import org.dspace.app.iiif.service.utils.IIIFUtils;
 import org.dspace.content.Bitstream;
@@ -33,8 +32,6 @@ import org.springframework.web.context.annotation.RequestScope;
 @Component
 public class CanvasLookupService extends AbstractResourceService {
 
-    private static final Logger log = org.apache.logging.log4j.LogManager.getLogger(CanvasLookupService.class);
-
     @Autowired
     IIIFUtils utils;
 
@@ -46,12 +43,8 @@ public class CanvasLookupService extends AbstractResourceService {
     }
 
     public String generateCanvas(Context context, Item item, String canvasId) {
-        Bitstream bitstream = null;
-        try {
-            bitstream = utils.getBitstreamForCanvas(context, item, canvasId);
-        } catch (SQLException e) {
-            log.error(e.getMessage(), e);
-        }
+        int canvasPosition = utils.getCanvasId(canvasId);
+        Bitstream bitstream = utils.getBitstreamForCanvas(context, item, canvasPosition);
         if (bitstream == null) {
             throw new ResourceNotFoundException();
         }
@@ -59,7 +52,7 @@ public class CanvasLookupService extends AbstractResourceService {
         CanvasGenerator canvasGenerator;
         try {
             canvasGenerator = canvasService.getCanvas(context, item.getID().toString(), bitstream,
-                    bitstream.getBundles().get(0), item, canvasId, mimeType);
+                    bitstream.getBundles().get(0), item, canvasPosition, mimeType);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }

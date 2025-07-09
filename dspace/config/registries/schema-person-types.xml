@@ -138,26 +138,22 @@
     
     <dc-type>
         <schema>person</schema>
-        <element>identifier</element>
-        <qualifier>research-gate-id</qualifier>
+        <element>country</element>
+        <scope_note>Country in which person lives</scope_note>
     </dc-type>
     
     <dc-type>
         <schema>person</schema>
-        <element>identifier</element>
-        <qualifier>twitter-id</qualifier>
+        <element>name</element>
+        <qualifier>translated</qualifier>
+        <scope_note>Full name translation</scope_note>
     </dc-type>
     
     <dc-type>
         <schema>person</schema>
-        <element>identifier</element>
-        <qualifier>facebook-id</qualifier>
-    </dc-type>
-    
-    <dc-type>
-        <schema>person</schema>
-        <element>identifier</element>
-        <qualifier>linkedin-id</qualifier>
+        <element>name</element>
+        <qualifier>variant</qualifier>
+        <scope_note>Full name variant</scope_note>
     </dc-type>
 
 </dspace-dc-types>

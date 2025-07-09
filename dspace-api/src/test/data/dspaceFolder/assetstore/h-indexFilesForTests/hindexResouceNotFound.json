@@ -1,8 +1,0 @@
-{
-    "service-error": {
-        "status": {
-            "statusCode": "RESOURCE_NOT_FOUND",
-            "statusText": "The resource specified cannot be found."
-        }
-    }
-}

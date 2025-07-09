@@ -20,10 +20,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -123,20 +121,13 @@ public class RestResourceController implements InitializingBean {
     @Override
     public void afterPropertiesSet() {
         List<Link> links = new ArrayList<>();
-        Set<String> relations = new HashSet<>();
         for (String r : utils.getRepositories()) {
             // this doesn't work as we don't have an active http request
             // see https://github.com/spring-projects/spring-hateoas/issues/408
             // Link l = linkTo(this.getClass(), r).withRel(r);
             String[] split = r.split("\\.", 2);
-            String base = split[0];
-            String suffix = split[1];
-            String relation = suffix;
-            if (relations.contains(relation)) {
-                relation = String.format("%s-%s", base, suffix);
-            }
-            relations.add(relation);
-            Link l = Link.of("/api/" + base + "/" + suffix, relation);
+            String plural = split[1];
+            Link l = Link.of("/api/" + split[0] + "/" + plural, plural);
             links.add(l);
             log.debug(l.getRel().value() + " " + l.getHref());
         }
@@ -773,6 +764,7 @@ public class RestResourceController implements InitializingBean {
             modelObject = repository.patch(request, apiCategory, model, id, patch);
         } catch (RepositoryMethodNotImplementedException | UnprocessableEntityException |
             DSpaceBadRequestException | ResourceNotFoundException e) {
+            log.error(e.getMessage(), e);
             throw e;
         }
         if (modelObject != null) {
@@ -868,8 +860,8 @@ public class RestResourceController implements InitializingBean {
             Method linkMethod = utils.requireMethod(linkRepository.getClass(), linkRest.method());
             try {
                 if (Page.class.isAssignableFrom(linkMethod.getReturnType())) {
-                    Page<? extends RestModel> pageResult = (Page<? extends RestModel>) linkMethod.invoke(linkRepository,
-                            request, uuid, page, utils.obtainProjection());
+                    Page<? extends RestModel> pageResult = (Page<? extends RestModel>) linkMethod
+                            .invoke(linkRepository, request, uuid, page, utils.obtainProjection());
 
                     if (pageResult == null) {
                         // Link repositories may throw an exception or return an empty page,
@@ -884,17 +876,16 @@ public class RestResourceController implements InitializingBean {
                     String querystring = request.getQueryString();
                     if (querystring != null && querystring.length() > 0) {
                         link = linkTo(this.getClass(), apiCategory, model).slash(uuid)
-                                .slash(subpath + '?' + querystring).withSelfRel();
+                            .slash(subpath + '?' + querystring).withSelfRel();
                     } else {
                         link = linkTo(this.getClass(), apiCategory, model).slash(uuid).slash(subpath).withSelfRel();
                     }
 
                     return EntityModel.of(new EmbeddedPage(link.getHref(),
                             pageResult.map(converter::toResource), null, subpath));
-
                 } else {
-                    RestModel object = (RestModel) linkMethod.invoke(linkRepository, request, uuid, page,
-                            utils.obtainProjection());
+                    RestModel object = (RestModel) linkMethod.invoke(linkRepository, request,
+                            uuid, page, utils.obtainProjection());
                     if (object == null) {
                         response.setStatus(HttpServletResponse.SC_NO_CONTENT);
                         return null;

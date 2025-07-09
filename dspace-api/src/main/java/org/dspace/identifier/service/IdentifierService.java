@@ -19,6 +19,7 @@ import org.dspace.identifier.Identifier;
 import org.dspace.identifier.IdentifierException;
 import org.dspace.identifier.IdentifierNotFoundException;
 import org.dspace.identifier.IdentifierNotResolvableException;
+import org.dspace.identifier.IdentifierProvider;
 
 /**
  * @author Fabio Bolognesi (fabio at atmire dot com)
@@ -195,16 +196,8 @@ public interface IdentifierService {
         throws AuthorizeException, SQLException, IdentifierException;
 
     /**
-     * Checks whether the given identifier matches the one of an once-existing object or it's a non-existent one
-     * 
-     * @param context    The relevant DSpace Context.
-     * @param identifier instance of an Identifier of the required type.
-     * @return
-     * @throws SQLException                     if database error
-     * @throws IdentifierNotFoundException      if identifier not found
-     * @throws IdentifierNotResolvableException if identifier not resolvable
+     * Get List of currently enabled IdentifierProviders
+     * @return List of enabled IdentifierProvider objects.
      */
-    boolean isGone(Context context, String identifier)
-            throws SQLException, IdentifierNotFoundException, IdentifierNotResolvableException;
-
+    List<IdentifierProvider> getProviders();
 }

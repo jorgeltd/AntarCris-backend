@@ -219,7 +219,7 @@ public class ItemImport extends DSpaceRunnable<ItemImportScriptConfiguration> {
             itemImportService.setHandler(handler);
 
             try {
-                handleAuthorizationSystem(context);
+                context.turnOffAuthorisationSystem();
 
                 readZip(context, itemImportService);
 
@@ -231,8 +231,6 @@ public class ItemImport extends DSpaceRunnable<ItemImportScriptConfiguration> {
                 context.abort();
                 throw new Exception(
                     "Error committing changes to database: " + e.getMessage() + ", aborting most recent changes", e);
-            } finally {
-                handleAuthorizationSystem(context);
             }
 
             if (isTest) {

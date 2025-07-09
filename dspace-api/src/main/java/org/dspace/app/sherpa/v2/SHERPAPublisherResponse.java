@@ -49,6 +49,11 @@ public class SHERPAPublisherResponse {
     // SHERPA URI (the human page version of this API response)
     private String uri;
 
+    // Format enum - currently only JSON is supported
+    public enum SHERPAFormat {
+        JSON, XML
+    };
+
     private static Logger log = LogManager.getLogger();
 
     /**

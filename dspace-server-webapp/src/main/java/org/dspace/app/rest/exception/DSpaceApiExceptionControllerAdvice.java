@@ -19,23 +19,16 @@ import java.util.Set;
 import jakarta.inject.Inject;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.apache.catalina.connector.ClientAbortException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dspace.app.exception.ResourceAlreadyExistsException;
-import org.dspace.app.exception.ResourceConflictException;
-import org.dspace.app.rest.converter.ConverterService;
-import org.dspace.app.rest.model.RestModel;
 import org.dspace.app.rest.utils.ContextUtil;
-import org.dspace.app.rest.utils.Utils;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.core.Context;
 import org.dspace.eperson.InvalidReCaptchaException;
 import org.dspace.orcid.exception.OrcidValidationException;
 import org.dspace.services.ConfigurationService;
 import org.springframework.beans.TypeMismatchException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.data.repository.support.QueryMethodParameterConversionException;
 import org.springframework.http.HttpHeaders;
@@ -78,13 +71,6 @@ public class DSpaceApiExceptionControllerAdvice extends ResponseEntityExceptionH
 
     @Inject
     private ConfigurationService configurationService;
-
-    @Autowired
-    @Lazy
-    private ConverterService converterService;
-
-    @Autowired
-    private Utils utils;
 
     @ExceptionHandler({AuthorizeException.class, RESTAuthorizationException.class, AccessDeniedException.class})
     protected void handleAuthorizeException(HttpServletRequest request, HttpServletResponse response, Exception ex)
@@ -191,26 +177,6 @@ public class DSpaceApiExceptionControllerAdvice extends ResponseEntityExceptionH
         );
     }
 
-    @ExceptionHandler(UnprocessableEditException.class)
-    protected ResponseEntity<Object> handleCustomUnprocessableEditException(HttpServletRequest request,
-                                                                            HttpServletResponse response,
-                                                                            UnprocessableEditException ex)
-                                                                     throws IOException {
-        String location;
-        String exceptionMessage;
-        if (null == ex) {
-            exceptionMessage = "none";
-            location = "unknown";
-        } else {
-            exceptionMessage = ex.getMessage();
-            StackTraceElement[] trace = ex.getStackTrace();
-            location = trace.length <= 0 ? "unknown" : trace[0].toString();
-        }
-        log.warn("{} (status:{} exception: {} at: {})", "unprocessable edit item", HttpStatus.UNPROCESSABLE_ENTITY,
-                exceptionMessage, location);
-        return new ResponseEntity<>(ex.getErrors(), null, HttpStatus.UNPROCESSABLE_ENTITY);
-    }
-
     @ExceptionHandler(QueryMethodParameterConversionException.class)
     protected void ParameterConversionException(HttpServletRequest request, HttpServletResponse response, Exception ex)
         throws IOException {
@@ -241,12 +207,6 @@ public class DSpaceApiExceptionControllerAdvice extends ResponseEntityExceptionH
         sendErrorResponse(request, response, ex, "Invalid captcha token", SC_FORBIDDEN);
     }
 
-    @ExceptionHandler(ResourceConflictException.class)
-    protected ResponseEntity<? extends RestModel> resourceConflictException(ResourceConflictException ex) {
-        RestModel resource = converterService.toRest(ex.getResource(), utils.obtainProjection());
-        return new ResponseEntity<RestModel>(resource, HttpStatus.CONFLICT);
-    }
-
     @Override
     protected ResponseEntity<Object> handleMissingServletRequestParameter(MissingServletRequestParameterException ex,
                                                                           HttpHeaders headers, HttpStatusCode status,
@@ -260,14 +220,6 @@ public class DSpaceApiExceptionControllerAdvice extends ResponseEntityExceptionH
                                                         HttpStatusCode status, WebRequest request) {
         // we want the 400 status for missing parameters, see https://github.com/DSpace/DSpace/issues/7765
         return super.handleTypeMismatch(ex, headers, HttpStatus.BAD_REQUEST, request);
-    }
-
-    @ExceptionHandler(ClientAbortException.class)
-    public void clientAbortExceptionHandler(HttpServletRequest request, ClientAbortException e) {
-        // This usually means the browser closed or disconnected or
-        // something. We can't do anything. To avoid excessive stack traces
-        // in log, just print a simple message
-        log.warn("ClientAbortException");
     }
 
     @ExceptionHandler(Exception.class)

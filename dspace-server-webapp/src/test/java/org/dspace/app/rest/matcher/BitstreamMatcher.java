@@ -91,7 +91,6 @@ public class BitstreamMatcher {
         return allOf(
             hasJsonPath("$.mimetype", not(empty())),
             hasJsonPath("$.type", is("bitstreamformat")),
-            hasJsonPath("$.uniqueType", is("core.bitstreamformat")),
             hasJsonPath("$._links.self.href", not(empty()))
         );
     }

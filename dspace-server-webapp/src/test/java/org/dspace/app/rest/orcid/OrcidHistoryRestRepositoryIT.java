@@ -622,7 +622,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
             .withDescription("IT")
             .withOperation(OrcidOperation.INSERT)
             .withRecordType("COUNTRY")
-            .withMetadata("crisrp.country::IT")
+            .withMetadata("person.country::IT")
             .build();
         context.restoreAuthSystemState();
 
@@ -678,7 +678,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
             .withDescription("IT")
             .withOperation(OrcidOperation.DELETE)
             .withRecordType("COUNTRY")
-            .withMetadata("crisrp.country::IT")
+            .withMetadata("person.country::IT")
             .withPutCode("12345")
             .build();
         context.restoreAuthSystemState();
@@ -725,7 +725,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
         context.turnOffAuthorisationSystem();
 
         Collection fundings = CollectionBuilder.createCollection(context, parentCommunity)
-            .withEntityType("Funding")
+            .withEntityType("Project")
             .withName("Collection 3")
             .build();
 
@@ -735,7 +735,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
             .build();
 
         Item orgUnit = ItemBuilder.createItem(context, orgUnits)
-            .withTitle("4Science")
+            .withOrgUnitLegalName("4Science")
             .withOrgUnitCountry("IT")
             .withOrgUnitLocality("Milan")
             .withOrgUnitCrossrefIdentifier("12345")
@@ -743,12 +743,11 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
 
         Item funding = ItemBuilder.createItem(context, fundings)
             .withTitle("Test funding")
-            .withFundingStartDate("2013-08-03")
-            .withInternalId("888-666-444")
-            .withFunder("4Science", orgUnit.getID().toString())
+            .withProjectStartDate("2013-08-03")
+            .withIdentifier("888-666-444")
             .build();
 
-        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Funding").build();
+        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Project").build();
         EntityType orgUnitType = EntityTypeBuilder.createEntityTypeBuilder(context, "OrgUnit").build();
 
         RelationshipType isAuthorOfPublication = createRelationshipTypeBuilder(context, orgUnitType, fundingType,
@@ -759,7 +758,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
         OrcidQueue orcidQueue = OrcidQueueBuilder.createOrcidQueue(context, profile, funding)
             .withDescription("Test funding")
             .withOperation(OrcidOperation.INSERT)
-            .withRecordType("Funding")
+            .withRecordType("Project")
             .build();
 
         context.restoreAuthSystemState();
@@ -815,7 +814,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
         context.turnOffAuthorisationSystem();
 
         Collection fundings = CollectionBuilder.createCollection(context, parentCommunity)
-            .withEntityType("Funding")
+            .withEntityType("Project")
             .withName("Collection 3")
             .build();
 
@@ -825,7 +824,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
             .build();
 
         Item orgUnit = ItemBuilder.createItem(context, orgUnits)
-            .withTitle("4Science")
+            .withOrgUnitLegalName("4Science")
             .withOrgUnitCountry("IT")
             .withOrgUnitLocality("Milan")
             .withOrgUnitCrossrefIdentifier("12345")
@@ -833,18 +832,17 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
 
         Item funding = ItemBuilder.createItem(context, fundings)
             .withTitle("Test funding")
-            .withFundingStartDate("2013-08-03")
-            .withInternalId("888-666-444")
-            .withFunder("4Science", orgUnit.getID().toString())
+            .withProjectStartDate("2013-08-03")
+            .withIdentifier("888-666-444")
             .build();
 
         OrcidQueue orcidQueue = OrcidQueueBuilder.createOrcidQueue(context, profile, funding)
             .withDescription("Test funding")
             .withOperation(OrcidOperation.INSERT)
-            .withRecordType("Funding")
+            .withRecordType("Project")
             .build();
 
-        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Funding").build();
+        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Project").build();
         EntityType orgUnitType = EntityTypeBuilder.createEntityTypeBuilder(context, "OrgUnit").build();
 
         RelationshipType isAuthorOfPublication = createRelationshipTypeBuilder(context, orgUnitType, fundingType,
@@ -897,7 +895,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
         context.turnOffAuthorisationSystem();
 
         Collection fundings = CollectionBuilder.createCollection(context, parentCommunity)
-            .withEntityType("Funding")
+            .withEntityType("Project")
             .withName("Collection 3")
             .build();
 
@@ -907,7 +905,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
             .build();
 
         Item orgUnit = ItemBuilder.createItem(context, orgUnits)
-            .withTitle("4Science")
+            .withOrgUnitLegalName("4Science")
             .withOrgUnitCountry("IT")
             .withOrgUnitLocality("Milan")
             .withOrgUnitCrossrefIdentifier("12345")
@@ -915,18 +913,17 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
 
         Item funding = ItemBuilder.createItem(context, fundings)
             .withTitle("Test funding")
-            .withFundingStartDate("2013-08-03")
-            .withInternalId("888-666-444")
-            .withFunder("4Science", orgUnit.getID().toString())
+            .withProjectStartDate("2013-08-03")
+            .withIdentifier("888-666-444")
             .build();
 
         OrcidQueue orcidQueue = OrcidQueueBuilder.createOrcidQueue(context, profile, funding)
             .withDescription("Test funding")
             .withOperation(OrcidOperation.INSERT)
-            .withRecordType("Funding")
+            .withRecordType("Project")
             .build();
 
-        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Funding").build();
+        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Project").build();
         EntityType orgUnitType = EntityTypeBuilder.createEntityTypeBuilder(context, "OrgUnit").build();
 
         RelationshipType isAuthorOfPublication = createRelationshipTypeBuilder(context, orgUnitType, fundingType,
@@ -979,7 +976,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
         context.turnOffAuthorisationSystem();
 
         Collection fundings = CollectionBuilder.createCollection(context, parentCommunity)
-            .withEntityType("Funding")
+            .withEntityType("Project")
             .withName("Collection 3")
             .build();
 
@@ -989,7 +986,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
             .build();
 
         Item orgUnit = ItemBuilder.createItem(context, orgUnits)
-            .withTitle("4Science")
+            .withOrgUnitLegalName("4Science")
             .withOrgUnitCountry("IT")
             .withOrgUnitLocality("Milan")
             .withOrgUnitCrossrefIdentifier("12345")
@@ -997,19 +994,18 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
 
         Item funding = ItemBuilder.createItem(context, fundings)
             .withTitle("Test funding")
-            .withFundingStartDate("2013-08-03")
-            .withInternalId("888-666-444")
-            .withFunder("4Science", orgUnit.getID().toString())
+            .withProjectStartDate("2013-08-03")
+            .withIdentifier("888-666-444")
             .build();
 
         OrcidQueue orcidQueue = OrcidQueueBuilder.createOrcidQueue(context, profile, funding)
             .withDescription("Test funding")
             .withOperation(OrcidOperation.UPDATE)
-            .withRecordType("Funding")
+            .withRecordType("Project")
             .withPutCode("12345")
             .build();
 
-        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Funding").build();
+        EntityType fundingType = EntityTypeBuilder.createEntityTypeBuilder(context, "Project").build();
         EntityType orgUnitType = EntityTypeBuilder.createEntityTypeBuilder(context, "OrgUnit").build();
 
         RelationshipType isAuthorOfPublication = createRelationshipTypeBuilder(context, orgUnitType, fundingType,
@@ -1069,7 +1065,7 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
     public void testCreationForFundingDeletion() throws Exception {
 
         context.turnOffAuthorisationSystem();
-        OrcidQueue orcidQueue = createOrcidQueue(context, profile, "Description", "Funding", "12345").build();
+        OrcidQueue orcidQueue = createOrcidQueue(context, profile, "Description", "Project", "12345").build();
         context.restoreAuthSystemState();
 
         when(orcidClientMock.deleteByPutCode(ACCESS_TOKEN, ORCID, "12345", "/funding")).thenReturn(deletedResponse());
@@ -1113,32 +1109,19 @@ public class OrcidHistoryRestRepositoryIT extends AbstractControllerIntegrationT
         context.turnOffAuthorisationSystem();
 
         Collection fundings = CollectionBuilder.createCollection(context, parentCommunity)
-            .withEntityType("Funding")
+            .withEntityType("Project")
             .withName("Collection 3")
-            .build();
-
-        Collection orgUnits = CollectionBuilder.createCollection(context, parentCommunity)
-            .withEntityType("OrgUnit")
-            .withName("Collection 4")
-            .build();
-
-        Item orgUnit = ItemBuilder.createItem(context, orgUnits)
-            .withTitle("4Science")
-            .withOrgUnitCountry("IT")
-            .withOrgUnitCrossrefIdentifier("12345")
             .build();
 
         Item funding = ItemBuilder.createItem(context, fundings)
             .withTitle("Test funding")
-            .withFundingStartDate("2013-08-03")
-            .withInternalId("888-666-444")
-            .withFunder("4Science", orgUnit.getID().toString())
+            .withProjectStartDate("2013-08-03")
             .build();
 
         OrcidQueue orcidQueue = OrcidQueueBuilder.createOrcidQueue(context, profile, funding)
             .withDescription("Test funding")
             .withOperation(OrcidOperation.INSERT)
-            .withRecordType("Funding")
+            .withRecordType("Project")
             .build();
 
         context.restoreAuthSystemState();

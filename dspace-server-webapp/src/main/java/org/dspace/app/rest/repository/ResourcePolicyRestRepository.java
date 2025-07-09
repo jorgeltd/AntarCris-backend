@@ -30,9 +30,7 @@ import org.dspace.app.rest.utils.Utils;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.authorize.ResourcePolicy;
 import org.dspace.authorize.service.ResourcePolicyService;
-import org.dspace.content.Bitstream;
 import org.dspace.content.DSpaceObject;
-import org.dspace.content.service.BitstreamService;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
 import org.dspace.eperson.EPerson;
@@ -77,9 +75,6 @@ public class ResourcePolicyRestRepository extends DSpaceRestRepository<ResourceP
 
     @Autowired
     DiscoverableEndpointsService discoverableEndpointsService;
-
-    @Autowired
-    BitstreamService bitstreamService;
 
     @Override
     @PreAuthorize("hasPermission(#id, 'resourcepolicy', 'READ')")
@@ -313,11 +308,6 @@ public class ResourcePolicyRestRepository extends DSpaceRestRepository<ResourceP
                     ResourcePolicyRest.CATEGORY + "." + ResourcePolicyRest.NAME + " with id: " + id + " not found");
             }
             resourcePolicyService.delete(context, resourcePolicy);
-
-            if (bitstreamService.isOriginalBitstream(resourcePolicy.getdSpaceObject())) {
-                bitstreamService.updateThumbnailResourcePolicies(context, (Bitstream) resourcePolicy.getdSpaceObject());
-            }
-
         } catch (SQLException e) {
             throw new RuntimeException("Unable to delete ResourcePolicy with id = " + id, e);
         }

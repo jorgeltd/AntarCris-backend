@@ -48,8 +48,6 @@ import org.dspace.core.SelfNamedPlugin;
  * fields.
  */
 public class DCInputAuthority extends SelfNamedPlugin implements ChoiceAuthority {
-    public static final String UNKNOWN_KEY = "UNKNOWN KEY ";
-
     private static Logger log = org.apache.logging.log4j.LogManager.getLogger(DCInputAuthority.class);
 
     /**
@@ -75,11 +73,6 @@ public class DCInputAuthority extends SelfNamedPlugin implements ChoiceAuthority
     }
 
     @Override
-    public boolean isPublic() {
-        return true;
-    }
-
-    @Override
     public boolean storeAuthorityInMetadata() {
         // For backward compatibility value pairs don't store authority in
         // the metadatavalue
@@ -94,7 +87,7 @@ public class DCInputAuthority extends SelfNamedPlugin implements ChoiceAuthority
             initPluginNames();
         }
 
-        return ArrayUtils.clone(pluginNames);
+        return (String[]) ArrayUtils.clone(pluginNames);
     }
 
     private static synchronized void initPluginNames() {
@@ -175,7 +168,7 @@ public class DCInputAuthority extends SelfNamedPlugin implements ChoiceAuthority
             }
         }
         Choice[] vArray = new Choice[v.size()];
-        return new Choices(v.toArray(vArray), start, found, Choices.CF_UNSET, false, dflt);
+        return new Choices(v.toArray(vArray), start, found, Choices.CF_AMBIGUOUS, false, dflt);
     }
 
     @Override
@@ -187,8 +180,8 @@ public class DCInputAuthority extends SelfNamedPlugin implements ChoiceAuthority
         for (int i = 0; i < valuesLocale.length; ++i) {
             if (text.equalsIgnoreCase(valuesLocale[i])) {
                 Choice v[] = new Choice[1];
-                v[0] = new Choice(null, valuesLocale[i], labelsLocale[i]);
-                return new Choices(v, 0, v.length, Choices.CF_UNSET, false, 0);
+                v[0] = new Choice(String.valueOf(i), valuesLocale[i], labelsLocale[i]);
+                return new Choices(v, 0, v.length, Choices.CF_UNCERTAIN, false, 0);
             }
         }
         return new Choices(Choices.CF_NOTFOUND);
@@ -203,21 +196,18 @@ public class DCInputAuthority extends SelfNamedPlugin implements ChoiceAuthority
             locale = I18nUtil.getDefaultLocale().getLanguage();
         }
 
-        String[] valuesLocale = values.get(locale);
         String[] labelsLocale = labels.get(locale);
         int pos = -1;
-        // search in the values to return the label
-        for (int i = 0; valuesLocale != null && i < valuesLocale.length; i++) {
-            if (valuesLocale[i].equals(key)) {
+        for (int i = 0; i < labelsLocale.length; i++) {
+            if (labelsLocale[i].equals(key)) {
                 pos = i;
                 break;
             }
         }
-        if (pos != -1 && labelsLocale != null) {
-            // return the label in the same position where we found the value
+        if (pos != -1) {
             return labelsLocale[pos];
         } else {
-            return UNKNOWN_KEY + key;
+            return "UNKNOWN KEY " + key;
         }
     }
 

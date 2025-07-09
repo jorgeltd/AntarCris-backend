@@ -9,14 +9,12 @@ package org.dspace.app.rest.security;
 
 import java.io.Serializable;
 import java.sql.SQLException;
-import java.util.Objects;
 import java.util.UUID;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dspace.app.rest.utils.ContextUtil;
 import org.dspace.authorize.service.AuthorizeService;
-import org.dspace.content.Bitstream;
 import org.dspace.content.DSpaceObject;
 import org.dspace.content.Item;
 import org.dspace.content.factory.ContentServiceFactory;
@@ -24,7 +22,7 @@ import org.dspace.content.service.DSpaceObjectService;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
 import org.dspace.eperson.EPerson;
-import org.dspace.profile.service.ResearcherProfileService;
+import org.dspace.eperson.service.EPersonService;
 import org.dspace.services.RequestService;
 import org.dspace.services.model.Request;
 import org.dspace.util.UUIDUtils;
@@ -46,17 +44,13 @@ public class AuthorizeServicePermissionEvaluatorPlugin extends RestObjectPermiss
     private AuthorizeService authorizeService;
 
     @Autowired
-    private ResearcherProfileService researcherProfileService;
-
-    @Autowired
     private RequestService requestService;
 
     @Autowired
-    private ContentServiceFactory contentServiceFactory;
+    private EPersonService ePersonService;
 
     @Autowired
-    private BitstreamCrisSecurityService bitstreamCrisSecurityService;
-
+    private ContentServiceFactory contentServiceFactory;
 
     @Override
     public boolean hasDSpacePermission(Authentication authentication, Serializable targetId, String targetType,
@@ -103,35 +97,6 @@ public class AuthorizeServicePermissionEvaluatorPlugin extends RestObjectPermiss
                         if (!DSpaceRestPermission.READ.equals(restPermission) &&
                                    !item.isArchived() && !item.isWithdrawn()) {
                             return false;
-                        }
-
-                        if (DSpaceRestPermission.READ.equals(restPermission)
-                                && !item.isArchived()
-                                && !item.isWithdrawn()
-                                && researcherProfileService.isAuthorOf(context, ePerson, item)) {
-                            return true;
-                        }
-
-                    }
-
-                    if (dSpaceObject instanceof Bitstream && Objects.isNull(ePerson)
-                        && authorizeService.authorizeActionBoolean(context, dSpaceObject,
-                                restPermission.getDspaceApiActionId())) {
-                        return true;
-                    }
-
-                    if (dSpaceObject instanceof Bitstream && !Objects.isNull(ePerson)) {
-                        Bitstream bit = (Bitstream) dSpaceObject;
-                        try {
-                            if (bitstreamCrisSecurityService
-                                    .isBitstreamAccessAllowedByCrisSecurity(context, ePerson, bit)) {
-                                return true;
-                            }
-                        } catch (Exception e) {
-                            log.warn(
-                                    "We got an exception during the cris security evaluation, safe fallback " +
-                                    "ignoring extra grant given by cris",
-                                    e);
                         }
                     }
 

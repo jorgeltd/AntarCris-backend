@@ -17,11 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.collections4.ListUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.solr.client.solrj.response.PivotField;
 import org.dspace.discovery.configuration.DiscoveryConfigurationParameters;
 import org.dspace.discovery.configuration.DiscoverySearchFilterFacet;
-import org.dspace.discovery.configuration.GraphDiscoverSearchFilterFacet;
 
 /**
  * This class represents the result that the discovery search impl returns
@@ -34,10 +31,9 @@ public class DiscoverResult {
     private int start;
     private List<IndexableObject> indexableObjects;
     private Map<String, List<FacetResult>> facetResults;
-    private Map<String, Long> facetResultsMissing;
-    private Map<String, Long> facetResultMore;
-    private Map<String, Long> facetResultTotalElements;
-    private Map<String, List<FacetPivotResult>> facetPivotResults;
+
+    // Total count of facet entries calculated for a metadata browsing query
+    private long totalEntries;
 
     /**
      * A map that contains all the documents sougth after, the key is a string representation of the Indexable Object
@@ -51,11 +47,7 @@ public class DiscoverResult {
     public DiscoverResult() {
         indexableObjects = new ArrayList<IndexableObject>();
         facetResults = new LinkedHashMap<String, List<FacetResult>>();
-        facetPivotResults = new LinkedHashMap<String, List<FacetPivotResult>>();
         searchDocuments = new LinkedHashMap<String, List<SearchDocument>>();
-        facetResultsMissing = new LinkedHashMap<String, Long>();
-        facetResultMore = new LinkedHashMap<String, Long>();
-        facetResultTotalElements = new LinkedHashMap<String, Long>();
         highlightedResults = new HashMap<String, IndexableObjectHighlightResult>();
     }
 
@@ -73,6 +65,14 @@ public class DiscoverResult {
 
     public void setTotalSearchResults(long totalSearchResults) {
         this.totalSearchResults = totalSearchResults;
+    }
+
+    public long getTotalEntries() {
+        return totalEntries;
+    }
+
+    public void setTotalEntries(long totalEntries) {
+        this.totalEntries = totalEntries;
     }
 
     public int getStart() {
@@ -108,39 +108,6 @@ public class DiscoverResult {
         this.facetResults.put(facetField, facetValues);
     }
 
-    public void addFacetPivotResult(String facetPivot, FacetPivotResult... pivotResults) {
-        List<FacetPivotResult> facetValues = this.facetPivotResults.get(facetPivot);
-        if (facetValues == null) {
-            facetValues = new ArrayList<FacetPivotResult>();
-        }
-        facetValues.addAll(Arrays.asList(pivotResults));
-        this.facetPivotResults.put(facetPivot, facetValues);
-    }
-
-    public void setFacetResultMissing(String facetField, long missingCount) {
-        facetResultsMissing.put(facetField, missingCount);
-    }
-
-    public Long getFacetResultMissing(String facetField) {
-        return facetResultsMissing.get(facetField);
-    }
-
-    public void setFacetResultMore(String field, long l) {
-        facetResultMore.put(field, l);
-    }
-
-    public Long getFacetResultMore(String facetField) {
-        return facetResultMore.get(facetField);
-    }
-
-    public void setFacetResultTotalElements(String field, Long countDistinct) {
-        facetResultTotalElements.put(field, countDistinct);
-    }
-
-    public Long getFacetResultTotalElements(String facetField) {
-        return facetResultTotalElements.get(facetField);
-    }
-
     public Map<String, List<FacetResult>> getFacetResults() {
         return facetResults;
     }
@@ -149,20 +116,8 @@ public class DiscoverResult {
         return ListUtils.emptyIfNull(facetResults.get(facet));
     }
 
-    public Map<String, List<FacetPivotResult>> getFacetPivotResults() {
-        return facetPivotResults;
-    }
-
-    public List<FacetPivotResult> getFacetPivotResult(String facetPivot) {
-        return ListUtils.emptyIfNull(facetPivotResults.get(facetPivot));
-    }
-
     public List<FacetResult> getFacetResult(DiscoverySearchFilterFacet field) {
-        String facetName = field.getIndexFieldName();
-        if (StringUtils.startsWith(field.getIndexFieldName(), GraphDiscoverSearchFilterFacet.TYPE_PREFIX)) {
-            facetName = facetName.split("\\.", 3)[2];
-        }
-        List<DiscoverResult.FacetResult> facetValues = getFacetResult(facetName);
+        List<DiscoverResult.FacetResult> facetValues = getFacetResult(field.getIndexFieldName());
         // Check if we are dealing with a date, sometimes the facet values arrive as dates !
         if (facetValues.size() == 0 && field.getType().equals(DiscoveryConfigurationParameters.TYPE_DATE)) {
             facetValues = getFacetResult(field.getIndexFieldName() + ".year");
@@ -188,9 +143,6 @@ public class DiscoverResult {
         private String sortValue;
         private long count;
         private String fieldType;
-        private int missing;
-        private int more;
-        private int totalElements;
 
         public FacetResult(String asFilterQuery, String displayedValue, String authorityKey, String sortValue,
                 long count, String fieldType) {
@@ -200,22 +152,6 @@ public class DiscoverResult {
             this.sortValue = sortValue;
             this.count = count;
             this.fieldType = fieldType;
-            this.missing = -1;
-            this.more = -1;
-            this.totalElements = -1;
-        }
-
-        public FacetResult(String asFilterQuery, String displayedValue, String authorityKey, String sortValue,
-                long count, String fieldType, int missing, int more, int totalElements) {
-            this.asFilterQuery = asFilterQuery;
-            this.displayedValue = displayedValue;
-            this.authorityKey = authorityKey;
-            this.sortValue = sortValue;
-            this.count = count;
-            this.fieldType = fieldType;
-            this.missing = missing;
-            this.more = more;
-            this.totalElements = totalElements;
         }
 
         public String getAsFilterQuery() {
@@ -249,71 +185,6 @@ public class DiscoverResult {
         public String getFieldType() {
             return fieldType;
         }
-
-        public int getMissing() {
-            return missing;
-        }
-
-        public int getMore() {
-            return more;
-        }
-
-        public int getTotalElements() {
-            return totalElements;
-        }
-    }
-
-    public static class FacetPivotResult {
-
-        private long count;
-
-        private String value;
-
-        private FacetPivotResult[] pivot;
-
-        public FacetPivotResult(long count, String value, FacetPivotResult[] pivot) {
-            this.count = count;
-            this.value = value;
-            this.pivot = pivot;
-        }
-
-        public static FacetPivotResult[] fromPivotFields(List<PivotField> pivotFields) {
-            return ListUtils.emptyIfNull(pivotFields).stream()
-                .map(FacetPivotResult::fromPivotField)
-                .toArray(FacetPivotResult[]::new);
-        }
-
-        public static FacetPivotResult fromPivotField(PivotField pivotField) {
-            int count = pivotField.getCount();
-            String value = String.valueOf(pivotField.getValue());
-            FacetPivotResult[] pivot = fromPivotFields(pivotField.getPivot());
-            return new FacetPivotResult(count, value, pivot);
-        }
-
-        public long getCount() {
-            return count;
-        }
-
-        public void setCount(long count) {
-            this.count = count;
-        }
-
-        public String getValue() {
-            return value;
-        }
-
-        public void setValue(String value) {
-            this.value = value;
-        }
-
-        public FacetPivotResult[] getPivot() {
-            return pivot;
-        }
-
-        public void setPivot(FacetPivotResult[] pivot) {
-            this.pivot = pivot;
-        }
-
     }
 
     public String getSpellCheckQuery() {
@@ -429,5 +300,4 @@ public class DiscoverResult {
             return idxObj.getType() + ":" + idxObj.getID();
         }
     }
-
 }

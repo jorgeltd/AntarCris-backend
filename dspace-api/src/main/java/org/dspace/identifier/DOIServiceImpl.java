@@ -171,13 +171,7 @@ public class DOIServiceImpl implements DOIService {
 
     @Override
     public List<DOI> getDOIsByStatus(Context context, List<Integer> statuses) throws SQLException {
-        return doiDAO.findByStatus(context, statuses, -1, -1);
-    }
-
-    @Override
-    public List<DOI> getDOIsByStatus(Context context, List<Integer> statuses, int offset, int limit)
-        throws SQLException {
-        return doiDAO.findByStatus(context, statuses, offset, limit);
+        return doiDAO.findByStatus(context, statuses);
     }
 
     @Override

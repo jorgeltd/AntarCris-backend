@@ -15,10 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.dspace.importer.external.metadatamapping.MetadataFieldConfig;
-import org.dspace.importer.external.metadatamapping.MetadataFieldMapping;
 import org.dspace.importer.external.metadatamapping.MetadatumDTO;
 import org.jaxen.JaxenException;
 import org.jdom2.Element;
@@ -41,9 +39,6 @@ public class AuthorMetadataContributor extends SimpleXpathMetadatumContributor {
     private MetadataFieldConfig affiliation;
 
     private Map<String, String> affId2affName = new HashMap<String, String>();
-    private MetadataFieldMapping<Element, MetadataContributor<Element>> metadataFieldMapping;
-    private SimpleXpathMetadatumContributor creatorMetadataContributor;
-
 
     /**
      * Retrieve the metadata associated with the given object.
@@ -72,24 +67,7 @@ public class AuthorMetadataContributor extends SimpleXpathMetadatumContributor {
         } catch (JaxenException e) {
             throw new RuntimeException(e);
         }
-
-        if (CollectionUtils.isEmpty(values)) {
-            values.addAll(creatorMetadataContributor.contributeMetadata(element));
-        }
-
         return values;
-    }
-
-    /**
-     * Set the metadataFieldMapping of this SimpleXpathMetadatumContributor
-     *
-     * @param metadataFieldMapping the new mapping.
-     */
-    @Override
-    public void setMetadataFieldMapping(
-        MetadataFieldMapping<Element, MetadataContributor<Element>> metadataFieldMapping) {
-        this.metadataFieldMapping = metadataFieldMapping;
-        creatorMetadataContributor.setMetadataFieldMapping(metadataFieldMapping);
     }
 
     /**
@@ -110,18 +88,17 @@ public class AuthorMetadataContributor extends SimpleXpathMetadatumContributor {
         Element orcid = element.getChild("orcid", NAMESPACE);
         Element afid = element.getChild("afid", NAMESPACE);
 
-        addMetadatum(metadatums, getMetadata(getElementValue(surname) + ", " +
-            getElementValue(givenName), this.authname));
-        if (this.scopusId != null) {
-            addMetadatum(metadatums, getMetadata(getElementValue(scopusId), this.scopusId));
+        if (authname != null) {
+            addMetadatum(metadatums, getMetadata(getElementValue(authname), this.authname));
+        } else {
+            addMetadatum(metadatums, getMetadata(getElementValue(surname) + ", " +
+                    getElementValue(givenName), this.authname));
         }
-        if (this.orcid != null) {
-            addMetadatum(metadatums, getMetadata(getElementValue(orcid), this.orcid));
-        }
-        if (this.affiliation != null) {
-            addMetadatum(metadatums, getMetadata(StringUtils.isNotBlank(afid.getValue())
-                    ? this.affId2affName.get(afid.getValue()) : null, this.affiliation));
-        }
+
+        addMetadatum(metadatums, getMetadata(getElementValue(scopusId), this.scopusId));
+        addMetadatum(metadatums, getMetadata(getElementValue(orcid), this.orcid));
+        addMetadatum(metadatums, getMetadata(StringUtils.isNotBlank(afid.getValue())
+                                 ? this.affId2affName.get(afid.getValue()) : null, this.affiliation));
         return metadatums;
     }
 
@@ -201,12 +178,4 @@ public class AuthorMetadataContributor extends SimpleXpathMetadatumContributor {
         this.affiliation = affiliation;
     }
 
-    public SimpleXpathMetadatumContributor getCreatorMetadataContributor() {
-        return creatorMetadataContributor;
-    }
-
-    public void setCreatorMetadataContributor(
-        SimpleXpathMetadatumContributor creatorMetadataContributor) {
-        this.creatorMetadataContributor = creatorMetadataContributor;
-    }
 }

@@ -10,7 +10,6 @@ package org.dspace.app.rest.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import org.apache.commons.collections4.MapUtils;
 import org.dspace.app.rest.RestResourceController;
 
 /**
@@ -29,7 +28,6 @@ public class SubmissionSectionRest extends BaseObjectRest<String> {
 
     private String header;
     private boolean mandatory;
-    private boolean opened;
     private String sectionType;
     private ScopeEnum scope;
     private SubmissionVisibilityRest visibility;
@@ -46,16 +44,8 @@ public class SubmissionSectionRest extends BaseObjectRest<String> {
         return mandatory;
     }
 
-    public boolean isOpened() {
-        return opened;
-    }
-
     public void setMandatory(boolean mandatory) {
         this.mandatory = mandatory;
-    }
-
-    public void setOpened(boolean opened) {
-        this.opened = opened;
     }
 
     public String getType() {
@@ -80,7 +70,7 @@ public class SubmissionSectionRest extends BaseObjectRest<String> {
     }
 
     public void setVisibility(SubmissionVisibilityRest visibility) {
-        if (visibility != null && (MapUtils.isNotEmpty(visibility.getVisibilities()))) {
+        if (visibility != null && (visibility.getMain() != null || visibility.getOther() != null)) {
             this.visibility = visibility;
         }
     }

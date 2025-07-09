@@ -14,7 +14,7 @@ import org.dspace.core.Context;
 import org.dspace.external.model.ExternalDataObject;
 
 /**
- *
+ * 
  * Interface for suggestion management like finding and counting.
  * @see org.dspace.app.suggestion.SuggestionTarget
  * @author Francesco Bacchelli (francesco.bacchelli at 4science.com)

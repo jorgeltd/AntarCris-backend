@@ -16,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -28,7 +27,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.dspace.content.MetadataFieldName;
 import org.dspace.content.dto.MetadataValueDTO;
 import org.dspace.external.OrcidRestConnector;
 import org.dspace.external.model.ExternalDataObject;
@@ -37,7 +35,6 @@ import org.dspace.external.provider.orcid.xml.XMLtoBio;
 import org.json.JSONObject;
 import org.orcid.jaxb.model.v3.release.common.OrcidIdentifier;
 import org.orcid.jaxb.model.v3.release.record.Person;
-import org.orcid.jaxb.model.v3.release.record.Record;
 import org.orcid.jaxb.model.v3.release.search.Result;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -62,8 +59,6 @@ public class OrcidV3AuthorDataProvider extends AbstractExternalDataProvider {
     private String orcidUrl;
 
     private XMLtoBio converter;
-
-    private Map<String, String> externalIdentifiers;
 
     public static final String ORCID_ID_SYNTAX = "\\d{4}-\\d{4}-\\d{4}-(\\d{3}X|\\d{4})";
     private static final int MAX_INDEX = 10000;
@@ -118,13 +113,12 @@ public class OrcidV3AuthorDataProvider extends AbstractExternalDataProvider {
 
     @Override
     public Optional<ExternalDataObject> getExternalDataObject(String id) {
-        Record record = getBio(id);
-        ExternalDataObject externalDataObject = convertToExternalDataObject(record);
+        Person person = getBio(id);
+        ExternalDataObject externalDataObject = convertToExternalDataObject(person);
         return Optional.of(externalDataObject);
     }
 
-    protected ExternalDataObject convertToExternalDataObject(Record record) {
-        Person person = record.getPerson();
+    protected ExternalDataObject convertToExternalDataObject(Person person) {
         ExternalDataObject externalDataObject = new ExternalDataObject(sourceIdentifier);
         if (person.getName() != null) {
             String lastName = "";
@@ -146,13 +140,7 @@ public class OrcidV3AuthorDataProvider extends AbstractExternalDataProvider {
                             new MetadataValueDTO("person", "identifier", "orcid", null, person.getName().getPath()));
             externalDataObject
                     .addMetadata(new MetadataValueDTO("dc", "identifier", "uri", null,
-                                                      orcidUrl + '/' + person.getName().getPath()));
-
-            appendOtherNames(externalDataObject, person);
-            appendResearcherUrls(externalDataObject, person);
-            appendExternalIdentifiers(externalDataObject, person);
-            appendAffiliations(externalDataObject, record);
-
+                                                      orcidUrl + "/" + person.getName().getPath()));
             if (!StringUtils.isBlank(lastName) && !StringUtils.isBlank(firstName)) {
                 externalDataObject.setDisplayValue(lastName + ", " + firstName);
                 externalDataObject.setValue(lastName + ", " + firstName);
@@ -169,64 +157,24 @@ public class OrcidV3AuthorDataProvider extends AbstractExternalDataProvider {
         return externalDataObject;
     }
 
-    private void appendOtherNames(ExternalDataObject externalDataObject, Person person) {
-        person.getOtherNames().getOtherNames().forEach(otherName ->
-            externalDataObject.addMetadata(new MetadataValueDTO("crisrp", "name", "variant", null,
-                otherName.getContent())));
-    }
-
-    private void appendResearcherUrls(ExternalDataObject externalDataObject, Person person) {
-        person.getResearcherUrls().getResearcherUrls().forEach(researcherUrl ->
-            externalDataObject.addMetadata(new MetadataValueDTO("oairecerif", "identifier", "url", null,
-                researcherUrl.getUrl().getValue())));
-    }
-
-    private void appendExternalIdentifiers(ExternalDataObject externalDataObject, Person person) {
-        if (getExternalIdentifiers() != null) {
-            person.getExternalIdentifiers()
-                  .getExternalIdentifiers()
-                  .forEach(externalIdentifier -> {
-                      String metadataField = externalIdentifiers.get(externalIdentifier.getType());
-                      if (StringUtils.isNotEmpty(metadataField)) {
-                          MetadataFieldName field = new MetadataFieldName(metadataField);
-                          externalDataObject.addMetadata(
-                              new MetadataValueDTO(field.schema, field.element, field.qualifier, null,
-                                  externalIdentifier.getValue()));
-                      }
-                  });
-        }
-    }
-
-    private void appendAffiliations(ExternalDataObject externalDataObject, Record record) {
-        record.getActivitiesSummary()
-              .getEmployments()
-              .getEmploymentGroups()
-              .stream()
-              .flatMap(affiliationGroup ->
-                  affiliationGroup.getActivities().stream())
-              .forEach(employmentSummary ->
-                  externalDataObject.addMetadata(new MetadataValueDTO("person", "affiliation", "name",
-                      null, employmentSummary.getOrganization().getName())));
-    }
-
     /**
-     * Retrieve a Record object based on a given orcid identifier.
+     * Retrieve a Person object based on a given orcid identifier.
      * @param id orcid identifier
-     * @return Record
+     * @return Person
      */
-    public Record getBio(String id) {
+    public Person getBio(String id) {
         log.debug("getBio called with ID=" + id);
         if (!isValid(id)) {
             return null;
         }
-        InputStream bioDocument = orcidRestConnector.get(id, accessToken);
-        Record record = converter.convertToRecord(bioDocument);
+        InputStream bioDocument = orcidRestConnector.get(id + ((id.endsWith("/person")) ? "" : "/person"), accessToken);
+        Person person = converter.convertSinglePerson(bioDocument);
         try {
             bioDocument.close();
         } catch (IOException e) {
             log.error(e.getMessage(), e);
         }
-        return record;
+        return person;
     }
 
     /**
@@ -253,13 +201,13 @@ public class OrcidV3AuthorDataProvider extends AbstractExternalDataProvider {
         log.debug("queryBio searchPath=" + searchPath + " accessToken=" + accessToken);
         InputStream bioDocument = orcidRestConnector.get(searchPath, accessToken);
         List<Result> results = converter.convert(bioDocument);
-        List<Record> bios = new LinkedList<>();
+        List<Person> bios = new LinkedList<>();
         for (Result result : results) {
             OrcidIdentifier orcidIdentifier = result.getOrcidIdentifier();
             if (orcidIdentifier != null) {
                 log.debug("Found OrcidId=" + orcidIdentifier.toString());
                 String orcid = orcidIdentifier.getPath();
-                Record bio = getBio(orcid);
+                Person bio = getBio(orcid);
                 if (bio != null) {
                     bios.add(bio);
                 }
@@ -350,11 +298,4 @@ public class OrcidV3AuthorDataProvider extends AbstractExternalDataProvider {
         this.orcidRestConnector = orcidRestConnector;
     }
 
-    public Map<String, String> getExternalIdentifiers() {
-        return externalIdentifiers;
-    }
-
-    public void setExternalIdentifiers(Map<String, String> externalIdentifiers) {
-        this.externalIdentifiers = externalIdentifiers;
-    }
 }

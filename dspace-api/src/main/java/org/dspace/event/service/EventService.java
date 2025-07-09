@@ -34,9 +34,4 @@ public interface EventService {
     public void returnDispatcher(String key, Dispatcher disp);
 
     public int getConsumerIndex(String consumerClass);
-
-    /**
-     * Reload the dispatcher configuration.
-     */
-    public void reloadConfiguration();
 }

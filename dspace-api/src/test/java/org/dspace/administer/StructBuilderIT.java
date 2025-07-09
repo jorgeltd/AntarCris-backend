@@ -17,32 +17,28 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Iterator;
-import java.util.UUID;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.Source;
 import javax.xml.transform.stream.StreamSource;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.dspace.AbstractIntegrationTest;
+import org.dspace.AbstractIntegrationTestWithDatabase;
 import org.dspace.authorize.AuthorizeException;
+import org.dspace.builder.CollectionBuilder;
+import org.dspace.builder.CommunityBuilder;
 import org.dspace.content.Collection;
 import org.dspace.content.Community;
-import org.dspace.content.Item;
-import org.dspace.content.MetadataSchemaEnum;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.CollectionService;
 import org.dspace.content.service.CommunityService;
-import org.dspace.content.service.ItemService;
 import org.dspace.handle.Handle;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.w3c.dom.Attr;
 import org.w3c.dom.Node;
-import org.xml.sax.SAXException;
 import org.xmlunit.builder.DiffBuilder;
 import org.xmlunit.diff.Comparison;
 import org.xmlunit.diff.ComparisonFormatter;
@@ -55,17 +51,14 @@ import org.xmlunit.diff.Difference;
  *
  * @author Mark H. Wood <mwood@iupui.edu>
  */
-@Ignore
 public class StructBuilderIT
-        extends AbstractIntegrationTest {
+        extends AbstractIntegrationTestWithDatabase {
     private static final Logger log = LogManager.getLogger();
 
     private static final CommunityService communityService
             = ContentServiceFactory.getInstance().getCommunityService();
     private static final CollectionService collectionService
             = ContentServiceFactory.getInstance().getCollectionService();
-    private static final ItemService itemService
-        = ContentServiceFactory.getInstance().getItemService();
 
     public StructBuilderIT() {
     }
@@ -86,7 +79,8 @@ public class StructBuilderIT
      * @throws IOException passed through.
      */
     @Before
-    public void setUp() throws SQLException, AuthorizeException, IOException {
+    public void setUp() throws Exception {
+        super.setUp();
         // Clear out all communities and collections.
         context.turnOffAuthorisationSystem();
         for (Community community : communityService.findAllTop(context)) {
@@ -119,21 +113,6 @@ public class StructBuilderIT
             "      <sidebar>Another sidebar</sidebar>\n" +
             "      <collection identifier='" + COLLECTION_0_0_0_HANDLE + "'>\n" +
             "        <name>Collection 0.0.0</name>\n" +
-            "        <templateItem>\n" +
-            "            <metadata schema='dc' element='title'>\n" +
-            "                <value>template item</value>\n" +
-            "            </metadata>\n" +
-            "            <metadata schema='dc' element='contributor' qualifier='author'>\n" +
-            "                <value>Walter White</value>\n" +
-            "                <authority>" + UUID.randomUUID() + "</authority>\n" +
-            "                <confidence>600</confidence>\n" +
-            "            </metadata>\n" +
-            "            <metadata schema='dc' element='contributor' qualifier='author'>\n" +
-            "                <value>Donald, Smith</value>\n" +
-            "                <authority>" + UUID.randomUUID() + "</authority>\n" +
-            "                <confidence>400</confidence>\n" +
-            "            </metadata>\n" +
-            "        </templateItem>\n" +
             "        <description>A collection</description>\n" +
             "        <intro>Our next guest needs no introduction</intro>\n" +
             "        <copyright>1776</copyright>\n" +
@@ -169,11 +148,6 @@ public class StructBuilderIT
             "    <description/><intro/><copyright/><sidebar/>\n" +
             "    <collection>\n" +
             "      <name>Collection 0.0</name>\n" +
-            "      <templateItem>\n" +
-            "          <metadata schema='dc' element='title'>\n" +
-            "              <value>template item</value>\n" +
-            "          </metadata>\n" +
-            "      </templateItem>\n" +
             "      <description/><intro/><copyright/><sidebar/><license/>\n" +
             "    </collection>\n" +
             "  </community>\n" +
@@ -312,23 +286,15 @@ public class StructBuilderIT
      * @throws org.dspace.authorize.AuthorizeException passed through.
      */
     @Test
-    public void testExportStructure()
-            throws ParserConfigurationException, SAXException, IOException,
-            SQLException, AuthorizeException {
+    public void testExportStructure() {
         // Create some structure to test.
         context.turnOffAuthorisationSystem();
-        Community community0 = communityService.create(null, context);
-        communityService.setMetadataSingleValue(context, community0,
-                MetadataSchemaEnum.DC.getName(), "title", null,
-                null, "Top Community 0");
-        Collection collection0_0 = collectionService.create(context, community0);
-        collectionService.setMetadataSingleValue(context, collection0_0,
-                MetadataSchemaEnum.DC.getName(), "title", null,
-                null, "Collection 0.0");
-
-        Item item = itemService.createTemplateItem(context, collection0_0);
-        itemService.addMetadata(context, item, MetadataSchemaEnum.DC.getName(), "title", null,
-            Item.ANY, "template item", null, -1);
+        // Top level community
+        Community community0 = CommunityBuilder.createCommunity(context)
+                .withName("Top Community 0").build();
+        // Collection below top level community
+        Collection collection0_0 = CollectionBuilder.createCollection(context, community0)
+                .withName("Collection 0.0").build();
 
         // Export the current structure.
         System.out.println("exportStructure");

@@ -36,19 +36,9 @@ public class DiscoverQuery {
     private List<String> dspaceObjectFilters = new ArrayList<>();
     private final List<String> fieldPresentQueries;
     private boolean spellCheck;
-    private boolean includeNotDiscoverableOrWithdrawn;
 
     private int start = 0;
     private int maxResults = -1;
-    private IndexableObject scopeObject;
-
-    public IndexableObject getScopeObject() {
-        return scopeObject;
-    }
-
-    public void setScopeObject(final IndexableObject scopeObject) {
-        this.scopeObject = scopeObject;
-    }
 
     /**
      * Attributes used for sorting of results
@@ -82,8 +72,6 @@ public class DiscoverQuery {
 
     private String discoveryConfigurationName;
 
-    private List<String> facetPivots;
-
     public DiscoverQuery() {
         //Initialize all our lists
         this.filterQueries = new ArrayList<>();
@@ -92,7 +80,6 @@ public class DiscoverQuery {
         this.facetFields = new ArrayList<>();
         this.facetQueries = new ArrayList<>();
         this.searchFields = new ArrayList<>();
-        this.facetPivots = new ArrayList<>();
         this.hitHighlighting = new HashMap<>();
         //Use a linked hashmap since sometimes insertion order might matter
         this.properties = new LinkedHashMap<>();
@@ -244,24 +231,6 @@ public class DiscoverQuery {
      */
     public List<DiscoverFacetField> getFacetFields() {
         return facetFields;
-    }
-
-    /**
-     * Adds a new facet pivot
-     *
-     * @param pivot the new facet pivot to be added
-     */
-    public void addFacetPivot(String pivot) {
-        facetPivots.add(pivot);
-    }
-
-    /**
-     * Gets the facet pivots configured
-     *
-     * @return the facet pivots for this query
-     */
-    public List<String> getFacetPivots() {
-        return facetPivots;
     }
 
     /**
@@ -441,13 +410,5 @@ public class DiscoverQuery {
      */
     public void setDiscoveryConfigurationName(String discoveryConfigurationName) {
         this.discoveryConfigurationName = discoveryConfigurationName;
-    }
-
-    public boolean isIncludeNotDiscoverableOrWithdrawn() {
-        return includeNotDiscoverableOrWithdrawn;
-    }
-
-    public void setIncludeNotDiscoverableOrWithdrawn(boolean includeNotDiscoverableAndWithdrawn) {
-        this.includeNotDiscoverableOrWithdrawn = includeNotDiscoverableAndWithdrawn;
     }
 }

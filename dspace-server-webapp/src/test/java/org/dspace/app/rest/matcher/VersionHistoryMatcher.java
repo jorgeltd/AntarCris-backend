@@ -22,8 +22,7 @@ public class VersionHistoryMatcher {
     public static Matcher<? super Object> matchEntry(VersionHistory versionHistory) {
         return allOf(
             hasJsonPath("$.id", is(versionHistory.getID())),
-            hasJsonPath("$.type", is("versionhistory")),
-            hasJsonPath("$.uniqueType", is("versioning.versionhistory"))
+            hasJsonPath("$.type", is("versionhistory"))
 
         );
     }

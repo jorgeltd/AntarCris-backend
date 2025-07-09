@@ -7,8 +7,6 @@
  */
 package org.dspace.discovery.configuration;
 
-import static org.apache.commons.collections4.CollectionUtils.isNotEmpty;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,9 +61,5 @@ public class DiscoverySortConfiguration {
             }
         }
         return null;
-    }
-
-    public String getDefaultSortDirection() {
-        return isNotEmpty(getSortFields()) ? getSortFields().get(0).getDefaultSortOrder().name() : null;
     }
 }

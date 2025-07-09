@@ -19,9 +19,6 @@ import org.apache.commons.lang3.EnumUtils;
  */
 public enum OrcidProfileSectionType {
 
-    AFFILIATION("/employment"),
-    EDUCATION("/education"),
-    QUALIFICATION("/qualification"),
     OTHER_NAMES("/other-names"),
     COUNTRY("/address"),
     KEYWORDS("/keywords"),

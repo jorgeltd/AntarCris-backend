@@ -83,7 +83,7 @@ public class MetadatafieldRestRepositoryIT extends AbstractControllerIntegration
         context.restoreAuthSystemState();
 
         getClient().perform(get("/api/core/metadatafields")
-            .param("size", String.valueOf(300)))
+            .param("size", String.valueOf(100)))
                    .andExpect(status().isOk())
                    .andExpect(content().contentType(contentType))
                    .andExpect(jsonPath("$._embedded.metadatafields", Matchers.hasItems(
@@ -95,7 +95,7 @@ public class MetadatafieldRestRepositoryIT extends AbstractControllerIntegration
                    .andExpect(jsonPath("$._links.next.href", Matchers.containsString("/api/core/metadatafields")))
                    .andExpect(jsonPath("$._links.last.href", Matchers.containsString("/api/core/metadatafields")))
 
-                   .andExpect(jsonPath("$.page.size", is(300)));
+                   .andExpect(jsonPath("$.page.size", is(100)));
     }
 
     @Test
@@ -139,14 +139,14 @@ public class MetadatafieldRestRepositoryIT extends AbstractControllerIntegration
 
         getClient().perform(get("/api/core/metadatafields/search/bySchema")
             .param("schema", "dc")
-            .param("size", String.valueOf(200)))
+            .param("size", String.valueOf(100)))
                    .andExpect(status().isOk())
                    .andExpect(content().contentType(contentType))
                    .andExpect(jsonPath("$._embedded.metadatafields", Matchers.hasItems(
                        MetadataFieldMatcher.matchMetadataFieldByKeys("dc", "title", null),
                        MetadataFieldMatcher.matchMetadataFieldByKeys("dc", "date", "issued"))
                                       ))
-                   .andExpect(jsonPath("$.page.size", is(200)));
+                   .andExpect(jsonPath("$.page.size", is(100)));
 
         getClient().perform(get("/api/core/metadatafields/search/bySchema")
             .param("schema", schema.getName()))
@@ -1224,16 +1224,11 @@ public class MetadatafieldRestRepositoryIT extends AbstractControllerIntegration
                    .andExpect(status().isOk())
                    .andExpect(content().contentType(contentType))
                    // Metadata fields are returned alphabetically. So, look for the next 3 alphabetically
-                   .andExpect(
-                       jsonPath(
-                           "$._embedded.metadatafields",
-                           Matchers.hasItems(
+                   .andExpect(jsonPath("$._embedded.metadatafields", Matchers.hasItems(
                               MetadataFieldMatcher.matchMetadataField(alphabeticMdFields.get(3)),
                               MetadataFieldMatcher.matchMetadataField(alphabeticMdFields.get(4)),
                               MetadataFieldMatcher.matchMetadataField(alphabeticMdFields.get(5))
-                          )
-                       )
-                   )
+                              )))
                    .andExpect(jsonPath("$._links.first.href", Matchers.allOf(
                            Matchers.containsString("/api/core/metadatafields?"),
                            Matchers.containsString("page=0"), Matchers.containsString("size=" + pageSize))))

@@ -11,7 +11,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import org.dspace.AbstractIntegrationTest;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -21,7 +20,6 @@ import org.junit.Test;
  * @author Andrea Bollini (andrea.bollini at 4science.it)
  *
  */
-@Ignore
 public class AuthorizeConfigIT extends AbstractIntegrationTest {
 
     @Test

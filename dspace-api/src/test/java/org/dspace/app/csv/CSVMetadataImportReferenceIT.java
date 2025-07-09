@@ -24,7 +24,6 @@ import org.dspace.AbstractIntegrationTestWithDatabase;
 import org.dspace.app.bulkedit.MetadataImportException;
 import org.dspace.app.bulkedit.MetadataImportInvalidHeadingException;
 import org.dspace.app.scripts.handler.impl.TestDSpaceRunnableHandler;
-import org.dspace.authorize.AuthorizeException;
 import org.dspace.builder.CollectionBuilder;
 import org.dspace.builder.CommunityBuilder;
 import org.dspace.builder.EntityTypeBuilder;
@@ -46,7 +45,6 @@ import org.dspace.scripts.DSpaceRunnable;
 import org.dspace.scripts.configuration.ScriptConfiguration;
 import org.dspace.scripts.factory.ScriptServiceFactory;
 import org.dspace.scripts.service.ScriptService;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -109,16 +107,6 @@ public class CSVMetadataImportReferenceIT extends AbstractIntegrationTestWithDat
                                                               "isPublicationOfProject", 0, null, 0,
                                                               null).withCopyToRight(true).build();
 
-        context.restoreAuthSystemState();
-    }
-
-    @After
-    public void after() throws SQLException, AuthorizeException {
-        context.turnOffAuthorisationSystem();
-        List<Relationship> relationships = relationshipService.findAll(context);
-        for (Relationship relationship : relationships) {
-            relationshipService.delete(context, relationship);
-        }
         context.restoreAuthSystemState();
     }
 
@@ -700,9 +688,9 @@ public class CSVMetadataImportReferenceIT extends AbstractIntegrationTestWithDat
         try {
             String[] args = null;
             if (validateOnly) {
-                args = new String[] {"metadata-import", "-f", fileLocation, "-e", admin.getEmail(), "-s", "-v"};
+                args = new String[] {"metadata-import", "-f", fileLocation, "-e", eperson.getEmail(), "-s", "-v"};
             } else {
-                args = new String[] {"metadata-import", "-f", fileLocation, "-e", admin.getEmail(), "-s",};
+                args = new String[] {"metadata-import", "-f", fileLocation, "-e", eperson.getEmail(), "-s",};
             }
             TestDSpaceRunnableHandler testDSpaceRunnableHandler = new TestDSpaceRunnableHandler();
 

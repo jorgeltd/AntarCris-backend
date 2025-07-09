@@ -68,7 +68,7 @@ public class ScriptProcessesController {
      * @throws Exception    If something goes wrong
      */
     @RequestMapping(method = RequestMethod.POST, consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("permitAll()")
+    @PreAuthorize("hasAuthority('AUTHENTICATED')")
     public ResponseEntity<RepresentationModel<?>> startProcess(
         @PathVariable(name = "name") String scriptName,
         @RequestParam(name = "file", required = false) List<MultipartFile> files)

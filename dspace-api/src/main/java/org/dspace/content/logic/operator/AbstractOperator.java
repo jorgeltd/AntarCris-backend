@@ -64,7 +64,7 @@ public abstract class AbstractOperator implements LogicalStatement {
      * @throws LogicalStatementException
      */
     @Override
-    public Boolean getResult(Context context, Item item) throws LogicalStatementException {
+    public boolean getResult(Context context, Item item) throws LogicalStatementException {
         return false;
     }
 }

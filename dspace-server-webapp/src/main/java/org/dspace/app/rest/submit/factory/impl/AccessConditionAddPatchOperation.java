@@ -22,9 +22,7 @@ import org.dspace.authorize.ResourcePolicy;
 import org.dspace.authorize.service.ResourcePolicyService;
 import org.dspace.content.InProgressSubmission;
 import org.dspace.content.Item;
-import org.dspace.core.Constants;
 import org.dspace.core.Context;
-import org.dspace.services.ConfigurationService;
 import org.dspace.submit.model.AccessConditionConfiguration;
 import org.dspace.submit.model.AccessConditionConfigurationService;
 import org.dspace.util.TimeHelpers;
@@ -41,9 +39,6 @@ public class AccessConditionAddPatchOperation extends AddPatchOperation<AccessCo
     private ResourcePolicyService resourcePolicyService;
     @Autowired
     private AccessConditionConfigurationService accessConditionConfigurationService;
-
-    @Autowired
-    private ConfigurationService configurationService;
 
     @Override
     void add(Context context, HttpServletRequest currentRequest, InProgressSubmission source, String path, Object value)
@@ -77,9 +72,6 @@ public class AccessConditionAddPatchOperation extends AddPatchOperation<AccessCo
         if (absolutePath.length == 1) {
             // to replace completely the access conditions
             resourcePolicyService.removePolicies(context, item, ResourcePolicy.TYPE_CUSTOM);
-            if (isAppendModeDisabled() && item.isArchived()) {
-                resourcePolicyService.removePolicies(context, item, ResourcePolicy.TYPE_INHERITED, Constants.READ);
-            }
         }
 
         // apply policies
@@ -105,10 +97,6 @@ public class AccessConditionAddPatchOperation extends AddPatchOperation<AccessCo
             AccessConditionResourcePolicyUtils.canApplyResourcePolicy(context, configuration.getOptions(),
                     dto.getName(), dto.getStartDate(), dto.getEndDate());
         }
-    }
-
-    private boolean isAppendModeDisabled() {
-        return !configurationService.getBooleanProperty("core.authorization.installitem.inheritance-read.append-mode");
     }
 
     @Override

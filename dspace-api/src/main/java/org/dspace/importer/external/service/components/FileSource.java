@@ -11,8 +11,6 @@ package org.dspace.importer.external.service.components;
 import java.io.InputStream;
 import java.util.List;
 
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.dspace.importer.external.datamodel.ImportRecord;
 import org.dspace.importer.external.exception.FileMultipleOccurencesException;
 import org.dspace.importer.external.exception.FileSourceException;
@@ -52,27 +50,20 @@ public interface FileSource extends MetadataSource {
 
     /**
      * This method is used to decide if the FileSource manage the file format
-     *
+     * 
      * @param originalName the file file original name
      * @return true if the FileSource can parse the file, false otherwise
      */
     public default boolean isValidSourceForFile(String originalName) {
         List<String> extensions = getSupportedExtensions();
-        if (CollectionUtils.isEmpty(extensions)) {
+        if (extensions == null || extensions.isEmpty()) {
             return false;
         }
         if (originalName != null && originalName.contains(".")) {
-            return getSupportedExtensions().contains(FilenameUtils.getExtension(originalName));
+            String extension = originalName.substring(originalName.lastIndexOf('.') + 1,
+                originalName.length());
+            return getSupportedExtensions().contains(extension);
         }
-        return false;
-    }
-
-    /**
-     * This method is used to determine if we can import multiple records at once placed in the same source file.
-     *
-     * @return true if allowed to import multiple records in the same file, false otherwise
-     */
-    public default boolean canImportMultipleRecords() {
         return false;
     }
 

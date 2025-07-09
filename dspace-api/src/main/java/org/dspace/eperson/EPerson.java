@@ -70,9 +70,6 @@ public class EPerson extends CacheableDSpaceObject implements DSpaceObjectLegacy
     @Column(name = "session_salt", length = 32)
     private String sessionSalt;
 
-    @Column(name = "machine_salt", length = 32)
-    private String machineSessionSalt;
-
     @Column(name = "digest_algorithm", length = 16)
     private String digestAlgorithm;
 
@@ -436,14 +433,6 @@ public class EPerson extends CacheableDSpaceObject implements DSpaceObjectLegacy
 
     public void setSessionSalt(String sessionSalt) {
         this.sessionSalt = sessionSalt;
-    }
-
-    public String getMachineSessionSalt() {
-        return machineSessionSalt;
-    }
-
-    public void setMachineSessionSalt(String machineSalt) {
-        this.machineSessionSalt = machineSalt;
     }
 
     public Date getPreviousActive() {

@@ -59,13 +59,8 @@ public class DSpaceItemSolrRepository extends DSpaceItemRepository {
         String parts[] = identifier.split(Pattern.quote(":"));
         if (parts.length == 3) {
             try {
-                try {
-                    SolrQuery params = new SolrQuery("item.legacyoaiidentifier:" + parts[2]);
-                    return new DSpaceSolrItem(DSpaceSolrSearch.querySingle(server, params));
-                } catch (SolrSearchEmptyException ex) {
-                    SolrQuery altParams = new SolrQuery("item.handle:" + parts[2]);
-                    return new DSpaceSolrItem(DSpaceSolrSearch.querySingle(server, altParams));
-                }
+                SolrQuery params = new SolrQuery("item.handle:" + parts[2]);
+                return new DSpaceSolrItem(DSpaceSolrSearch.querySingle(server, params));
             } catch (SolrSearchEmptyException | IOException ex) {
                 throw new IdDoesNotExistException(ex);
             }

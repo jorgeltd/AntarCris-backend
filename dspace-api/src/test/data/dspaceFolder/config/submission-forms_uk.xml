@@ -90,18 +90,6 @@
                     <required></required>
                 </field>
             </row>
-            <row>
-		        <field>
-		          <dc-schema>dc</dc-schema>
-		          <dc-element>type</dc-element>
-		          <label>Type</label>
-		          <input-type>onebox</input-type>
-		          <repeatable>false</repeatable>
-		          <required>Ви повинні вибрати тип публікації</required>
-		          <hint>Виберіть тип вмісту публікації.</hint>
-		          <vocabulary>publication-coar-types_uk</vocabulary>
-		        </field>
-            </row>
         </form>
     </form-definitions>
 
@@ -165,8 +153,8 @@
                 <stored-value>pt</stored-value>
             </pair>
             <pair>
-                <displayed-value>Український</displayed-value>
-                <stored-value>uk</stored-value>
+                <displayed-value>Турецька</displayed-value>
+                <stored-value>tr</stored-value>
             </pair>
             <pair>
                 <displayed-value>(Iнша)</displayed-value>

@@ -26,7 +26,6 @@ import org.dspace.authorize.AuthorizeException;
 import org.dspace.authorize.service.AuthorizeService;
 import org.dspace.content.dao.EntityTypeDAO;
 import org.dspace.content.service.EntityTypeService;
-import org.dspace.content.service.ItemService;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
 import org.dspace.discovery.SolrSearchCore;
@@ -42,9 +41,6 @@ public class EntityTypeServiceImpl implements EntityTypeService {
 
     @Autowired(required = true)
     protected AuthorizeService authorizeService;
-
-    @Autowired(required = true)
-    protected ItemService itemService;
 
     @Autowired
     protected GroupService groupService;
@@ -122,12 +118,6 @@ public class EntityTypeServiceImpl implements EntityTypeService {
                 "Only administrators can delete entityType");
         }
         entityTypeDAO.delete(context, entityType);
-    }
-
-    @Override
-    public EntityType findByItem(Context context, Item item) throws SQLException {
-        String entityType = itemService.getMetadataFirstValue(item, "dspace", "entity", "type", Item.ANY);
-        return entityType != null ? findByEntityType(context, entityType) : null;
     }
 
     @Override

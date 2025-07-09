@@ -48,7 +48,7 @@ public class RorParentOrgUnitMetadataContributor extends SimpleJsonPathMetadataC
      * Creates a {@code MetadatumDTO} for each correctly mapped JSON node
      * of the ROR response.
      * Partial / Unmatched parent-type metadatum will be ignored from this mapping.
-     *
+     * 
      * @param fullJson ROR response
      * @return a collection of read ROR metadata.
      */

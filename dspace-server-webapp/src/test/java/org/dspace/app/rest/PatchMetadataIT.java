@@ -38,23 +38,19 @@ import org.dspace.app.rest.model.patch.Operation;
 import org.dspace.app.rest.model.patch.RemoveOperation;
 import org.dspace.app.rest.model.patch.ReplaceOperation;
 import org.dspace.app.rest.test.AbstractEntityIntegrationTest;
-import org.dspace.authorize.AuthorizeException;
 import org.dspace.builder.CollectionBuilder;
 import org.dspace.builder.CommunityBuilder;
 import org.dspace.builder.ItemBuilder;
-import org.dspace.builder.RelationshipTypeBuilder;
+import org.dspace.builder.RelationshipBuilder;
 import org.dspace.builder.WorkspaceItemBuilder;
 import org.dspace.content.Collection;
 import org.dspace.content.Community;
-import org.dspace.content.EntityType;
 import org.dspace.content.Item;
 import org.dspace.content.MetadataValue;
-import org.dspace.content.Relationship;
 import org.dspace.content.RelationshipType;
 import org.dspace.content.WorkspaceItem;
 import org.dspace.content.service.EntityTypeService;
 import org.dspace.content.service.ItemService;
-import org.dspace.content.service.RelationshipService;
 import org.dspace.content.service.RelationshipTypeService;
 import org.dspace.content.service.WorkspaceItemService;
 import org.dspace.services.ConfigurationService;
@@ -82,9 +78,6 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
     private RelationshipTypeService relationshipTypeService;
 
     @Autowired
-    private RelationshipService relationshipService;
-
-    @Autowired
     private EntityTypeService entityTypeService;
 
     @Autowired
@@ -108,6 +101,9 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
 
     private List<MetadataValue> authorsMetadataOriginalOrder;
 
+    private AtomicReference<Integer> idRef1;
+    private AtomicReference<Integer> idRef2;
+
     private String addedAuthor;
     private String replacedAuthor;
 
@@ -121,28 +117,13 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
                 .withName("Parent community")
                 .build();
         personCollection = CollectionBuilder.createCollection(context, community)
-                .withName("Collection")
-                .withEntityType("Person")
-                .withSubmissionDefinition("traditional")
-                .build();
+                                            .withName("Person Collection")
+                                            .withEntityType("Person")
+                                            .build();
         publicationCollection = CollectionBuilder.createCollection(context, community)
-                .withName("Collection")
+                .withName("Publication Collection")
                 .withEntityType("Publication")
-                .withSubmissionDefinition("traditional")
                 .build();
-
-        EntityType publicationType =
-            entityTypeService.findByEntityType(context, "Publication");
-
-        RelationshipTypeBuilder.createRelationshipTypeBuilder(
-            context,
-            publicationType,
-            publicationType,
-            "isCorrectionOfItem",
-            "isCorrectedByItem",
-            0, 1,
-            0, 1
-        );
 
         context.restoreAuthSystemState();
     }
@@ -150,8 +131,8 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
     @After
     @Override
     public void destroy() throws Exception {
-        cleanupRelations();
         super.destroy();
+        cleanupPersonRelations();
     }
 
     /**
@@ -191,6 +172,7 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
                 .build();
         publicationWorkspaceItem = WorkspaceItemBuilder.createWorkspaceItem(context, publicationCollection)
                                                        .withTitle("Publication 1")
+                                                       .withEntityType("Publication")
                                                        .build();
         publicationPersonRelationshipType = relationshipTypeService.findbyTypesAndTypeName(context,
                 entityTypeService.findByEntityType(context, "Publication"),
@@ -209,13 +191,15 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
         context.restoreAuthSystemState();
 
         // Create a relationship between publication and person 1
+        idRef1 = new AtomicReference<>();
         getClient(adminToken).perform(post("/api/core/relationships")
                 .param("relationshipType", publicationPersonRelationshipType.getID().toString())
                 .contentType(MediaType.parseMediaType
                         (org.springframework.data.rest.webmvc.RestMediaTypes.TEXT_URI_LIST_VALUE))
                 .content("https://localhost:8080/server/api/core/items/" + publicationWorkspaceItem.getItem().getID() + "\n" +
                                 "https://localhost:8080/server/api/core/items/" + personItem1.getID()))
-            .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andDo(result -> idRef1.set(read(result.getResponse().getContentAsString(), "$.id")));
         context.turnOffAuthorisationSystem();
 
         // Add two more regular authors
@@ -277,7 +261,7 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
 
         for (String author : authorsOriginalOrder) {
             itemService.addMetadata(
-                context, publicationItem, "dc", "contributor", "author", Item.ANY, author
+                context, publicationItem, "dc", "contributor", "author", null, author
             );
         }
 
@@ -285,18 +269,19 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
     }
 
     /**
-     * Clean up created Relationshipts
+     * Clean up created Person Relationshipts
      * @throws IOException
      * @throws SQLException
-     * @throws AuthorizeException
      */
-    private void cleanupRelations() throws IOException, SQLException, AuthorizeException {
-        context.turnOffAuthorisationSystem();
-        List<Relationship> relationships = relationshipService.findAll(context);
-        for (Relationship relationship : relationships) {
-            relationshipService.delete(context, relationship);
+    private void cleanupPersonRelations() throws IOException, SQLException {
+        if (idRef1 != null) {
+            RelationshipBuilder.deleteRelationship(idRef1.get());
+            idRef1 = null;
         }
-        context.restoreAuthSystemState();
+        if (idRef2 != null) {
+            RelationshipBuilder.deleteRelationship(idRef2.get());
+            idRef2 = null;
+        }
     }
 
     /**
@@ -1632,19 +1617,18 @@ public class PatchMetadataIT extends AbstractEntityIntegrationTest {
      */
     private void patchAddEntireArray(List<MetadataValue> metadataValues) throws Exception {
         List<Operation> ops = new ArrayList<Operation>();
+        List<MetadataValueRest> value = new ArrayList<MetadataValueRest>();
+
         // generates the MetadataValueRest list
-        List<MetadataValueRest> value =
-            metadataValues.stream()
-                          .map(mv -> {
-                              MetadataValueRest mrv = new MetadataValueRest();
-                              mrv.setValue(mv.getValue());
-                              if (mv.getAuthority() != null && mv.getAuthority().startsWith("virtual::")) {
-                                  mrv.setAuthority(mv.getAuthority());
-                                  mrv.setConfidence(mv.getConfidence());
-                              }
-                              return mrv;
-                          })
-                          .collect(Collectors.toList());
+        metadataValues.stream().forEach(mv -> {
+            MetadataValueRest mrv = new MetadataValueRest();
+            value.add(mrv);
+            mrv.setValue(mv.getValue());
+            if (mv.getAuthority() != null && mv.getAuthority().startsWith("virtual::")) {
+                mrv.setAuthority(mv.getAuthority());
+                mrv.setConfidence(mv.getConfidence());
+            }
+        });
 
         AddOperation add = new AddOperation("/sections/traditionalpageone/dc.contributor.author", value);
         ops.add(add);

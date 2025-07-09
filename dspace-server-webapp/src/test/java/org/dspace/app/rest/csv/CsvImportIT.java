@@ -19,7 +19,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
@@ -38,7 +37,6 @@ import org.dspace.app.rest.matcher.RelationshipMatcher;
 import org.dspace.app.rest.model.ParameterValueRest;
 import org.dspace.app.rest.projection.Projection;
 import org.dspace.app.rest.test.AbstractEntityIntegrationTest;
-import org.dspace.authorize.AuthorizeException;
 import org.dspace.builder.CollectionBuilder;
 import org.dspace.builder.CommunityBuilder;
 import org.dspace.builder.ItemBuilder;
@@ -54,7 +52,6 @@ import org.dspace.content.service.RelationshipService;
 import org.dspace.content.service.RelationshipTypeService;
 import org.dspace.scripts.DSpaceCommandLineParameter;
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -76,16 +73,6 @@ public class CsvImportIT extends AbstractEntityIntegrationTest {
 
     @Autowired
     private DSpaceRunnableParameterConverter dSpaceRunnableParameterConverter;
-
-    @After
-    public void cleanupRelations() throws IOException, SQLException, AuthorizeException {
-        context.turnOffAuthorisationSystem();
-        List<Relationship> relationships = relationshipService.findAll(context);
-        for (Relationship relationship : relationships) {
-            relationshipService.delete(context, relationship);
-        }
-        context.restoreAuthSystemState();
-    }
 
     @Test
     public void createRelationshipsWithCsvImportTest() throws Exception {
@@ -234,8 +221,7 @@ public class CsvImportIT extends AbstractEntityIntegrationTest {
         String[] csv = {"id,collection,dc.title,dspace.entity.type,relation." + relationshipTypeLabel, csvLineString};
         performImportScript(csv);
 
-        Iterator<Item> itemIteratorItem = itemService.findArchivedByMetadataField(context, "dc", "title",
-            null, itemTitle);
+        Iterator<Item> itemIteratorItem = itemService.findByMetadataField(context, "dc", "title", null, itemTitle);
         Item item = itemIteratorItem.next();
 
         List<Relationship> relationships = relationshipService.findByItem(context, item);
@@ -267,8 +253,7 @@ public class CsvImportIT extends AbstractEntityIntegrationTest {
             .getHandle() + "," + itemTitle + "," + entityType + "," + idStringRelatedItems;
         String[] csv = {"id,collection,dc.title,dspace.entity.type,relation." + relationshipTypeLabel, csvLineString};
         performImportScript(csv);
-        Iterator<Item> itemIteratorItem = itemService.findArchivedByMetadataField(context, "dc", "title",
-            null, itemTitle);
+        Iterator<Item> itemIteratorItem = itemService.findByMetadataField(context, "dc", "title", null, itemTitle);
         Item item = itemIteratorItem.next();
 
 
@@ -371,8 +356,7 @@ public class CsvImportIT extends AbstractEntityIntegrationTest {
             ProcessBuilder.deleteProcess(idRef.get());
         }
 
-        Iterator<Item> itemIteratorItem = itemService.findArchivedByMetadataField(context, "dc", "title",
-            null, "TestItemB");
+        Iterator<Item> itemIteratorItem = itemService.findByMetadataField(context, "dc", "title", null, "TestItemB");
         assertFalse(itemIteratorItem.hasNext());
     }
 }

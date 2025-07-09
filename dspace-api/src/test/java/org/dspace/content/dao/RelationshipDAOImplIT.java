@@ -33,10 +33,12 @@ import org.dspace.content.service.RelationshipTypeService;
 import org.dspace.content.service.WorkspaceItemService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
-@Ignore
+/**
+ * Created by: Andrew Wood
+ * Date: 20 Sep 2019
+ */
 public class RelationshipDAOImplIT extends AbstractIntegrationTest {
 
     private static final Logger log = org.apache.logging.log4j.LogManager.getLogger(RelationshipDAOImplIT.class);
@@ -85,8 +87,8 @@ public class RelationshipDAOImplIT extends AbstractIntegrationTest {
             WorkspaceItem workspaceItemTwo = workspaceItemService.create(context, collection, false);
             itemOne = installItemService.installItem(context, workspaceItem);
             itemTwo = installItemService.installItem(context, workspaceItemTwo);
-            itemService.addMetadata(context, itemOne, "dspace", "entity", "type", Item.ANY, "Publication");
-            itemService.addMetadata(context, itemTwo, "dspace", "entity", "type", Item.ANY, "Person");
+            itemService.addMetadata(context, itemOne, "dspace", "entity", "type", null, "Publication");
+            itemService.addMetadata(context, itemTwo, "dspace", "entity", "type", null, "Person");
             itemService.update(context, itemOne);
             itemService.update(context, itemTwo);
             entityTypeOne = entityTypeService.create(context, "Person");

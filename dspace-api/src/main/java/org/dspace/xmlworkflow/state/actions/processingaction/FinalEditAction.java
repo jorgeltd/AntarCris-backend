@@ -15,11 +15,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.dspace.app.util.Util;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.core.Context;
-import org.dspace.versioning.ItemCorrectionService;
 import org.dspace.xmlworkflow.state.Step;
 import org.dspace.xmlworkflow.state.actions.ActionResult;
 import org.dspace.xmlworkflow.storedcomponents.XmlWorkflowItem;
-import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Processing class of an action that allows users to
@@ -33,9 +31,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class FinalEditAction extends ProcessingAction {
 
     private static final String SUBMIT_APPROVE = "submit_approve";
-
-    @Autowired
-    protected ItemCorrectionService itemCorrectionService;
 
     @Override
     public void activate(Context c, XmlWorkflowItem wf) {

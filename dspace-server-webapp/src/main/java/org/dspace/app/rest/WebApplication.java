@@ -12,7 +12,6 @@ import java.sql.SQLException;
 import java.util.List;
 
 import jakarta.servlet.Filter;
-import org.apache.commons.lang3.ArrayUtils;
 import org.dspace.app.ldn.LDNQueueExtractor;
 import org.dspace.app.ldn.LDNQueueTimeoutChecker;
 import org.dspace.app.rest.filter.DSpaceRequestContextFilter;
@@ -34,7 +33,6 @@ import org.springframework.hateoas.server.LinkRelationProvider;
 import org.springframework.lang.NonNull;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextListener;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -152,11 +150,6 @@ public class WebApplication {
     }
 
     @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
-    }
-
-    @Bean
     public WebMvcConfigurer webMvcConfigurer() {
 
         return new WebMvcConfigurer() {
@@ -169,34 +162,15 @@ public class WebApplication {
                 // Get allowed origins for api and iiif endpoints.
                 // The actuator endpoints are configured using management.endpoints.web.cors.* properties
                 String[] corsAllowedOrigins = configuration
-                    .getCorsAllowedOrigins(configuration.getCorsAllowedOriginsConfig());
+                        .getCorsAllowedOrigins(configuration.getCorsAllowedOriginsConfig());
                 String[] iiifAllowedOrigins = configuration
-                    .getCorsAllowedOrigins(configuration.getIiifAllowedOriginsConfig());
-                String[] bitstreamAllowedOrigins = configuration
-                    .getCorsAllowedOrigins(configuration.getBitstreamAllowedOriginsConfig());
+                        .getCorsAllowedOrigins(configuration.getIiifAllowedOriginsConfig());
                 String[] signpostingAllowedOrigins = configuration
                         .getCorsAllowedOrigins(configuration.getSignpostingAllowedOriginsConfig());
 
                 boolean corsAllowCredentials = configuration.getCorsAllowCredentials();
                 boolean iiifAllowCredentials = configuration.getIiifAllowCredentials();
-                boolean bitstreamAllowCredentials = configuration.getBitstreamsAllowCredentials();
                 boolean signpostingAllowCredentials = configuration.getSignpostingAllowCredentials();
-
-                if (ArrayUtils.isEmpty(bitstreamAllowedOrigins)) {
-                    bitstreamAllowedOrigins = corsAllowedOrigins;
-                }
-                if (!ArrayUtils.isEmpty(bitstreamAllowedOrigins)) {
-                    registry.addMapping("/api/core/bitstreams/**").allowedMethods(CorsConfiguration.ALL)
-                        // Set Access-Control-Allow-Credentials to "true" and specify which origins are valid
-                        // for our Access-Control-Allow-Origin header
-                        .allowCredentials(bitstreamAllowCredentials).allowedOrigins(bitstreamAllowedOrigins)
-                        // Allow list of request preflight headers allowed to be sent to us from the client
-                        .allowedHeaders("Accept", "Authorization", "Content-Type", "Origin", "X-On-Behalf-Of",
-                            "X-Requested-With", "X-XSRF-TOKEN", "X-CORRELATION-ID", "X-REFERRER",
-                            "x-recaptcha-token", "Access-Control-Allow-Origin")
-                        // Allow list of response headers allowed to be sent by us (the server) to the client
-                        .exposedHeaders("Authorization", "DSPACE-XSRF-TOKEN", "Location", "WWW-Authenticate");
-                }
                 if (corsAllowedOrigins != null) {
                     registry.addMapping("/api/**").allowedMethods(CorsConfiguration.ALL)
                             // Set Access-Control-Allow-Credentials to "true" and specify which origins are valid

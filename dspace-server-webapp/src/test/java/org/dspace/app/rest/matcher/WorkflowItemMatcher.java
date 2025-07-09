@@ -91,8 +91,7 @@ public class WorkflowItemMatcher {
     public static Matcher<? super Object> matchProperties(XmlWorkflowItem witem) {
         return allOf(
                 witem != null ? hasJsonPath("$.id", is(witem.getID())) : hasJsonPath("$.id"),
-                hasJsonPath("$.type", is("workflowitem")),
-                hasJsonPath("$.uniqueType", is("workflow.workflowitem"))
+                hasJsonPath("$.type", is("workflowitem"))
         );
     }
 

@@ -117,9 +117,4 @@ public class BibtexImportMetadataSourceServiceImpl extends AbstractPlainMetadata
         super.setMetadataFieldMap(metadataFieldMap);
     }
 
-    @Override
-    public boolean canImportMultipleRecords() {
-        return true;
-    }
-
 }

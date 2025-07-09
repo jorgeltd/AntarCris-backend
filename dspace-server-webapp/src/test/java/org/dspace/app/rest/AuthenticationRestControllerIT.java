@@ -7,25 +7,21 @@
  */
 package org.dspace.app.rest;
 
-import static com.jayway.jsonpath.JsonPath.read;
 import static java.lang.Thread.sleep;
 import static org.dspace.app.rest.matcher.GroupMatcher.matchGroupWithName;
-import static org.dspace.app.rest.security.StatelessAuthenticationFilter.ON_BEHALF_OF_REQUEST_PARAM;
 import static org.dspace.app.rest.utils.RegexUtils.REGEX_UUID;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -39,7 +35,6 @@ import java.io.InputStream;
 import java.text.ParseException;
 import java.util.Base64;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -57,10 +52,12 @@ import org.dspace.app.rest.matcher.AuthorizationMatcher;
 import org.dspace.app.rest.matcher.EPersonMatcher;
 import org.dspace.app.rest.matcher.GroupMatcher;
 import org.dspace.app.rest.matcher.HalMatcher;
+import org.dspace.app.rest.model.AuthnRest;
 import org.dspace.app.rest.model.EPersonRest;
 import org.dspace.app.rest.projection.DefaultProjection;
 import org.dspace.app.rest.test.AbstractControllerIntegrationTest;
 import org.dspace.app.rest.utils.Utils;
+import org.dspace.authenticate.OrcidAuthenticationBean;
 import org.dspace.builder.BitstreamBuilder;
 import org.dspace.builder.BundleBuilder;
 import org.dspace.builder.CollectionBuilder;
@@ -74,6 +71,9 @@ import org.dspace.content.Collection;
 import org.dspace.content.Item;
 import org.dspace.eperson.EPerson;
 import org.dspace.eperson.Group;
+import org.dspace.orcid.client.OrcidClient;
+import org.dspace.orcid.client.OrcidConfiguration;
+import org.dspace.orcid.model.OrcidTokenResponseDTO;
 import org.dspace.services.ConfigurationService;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -100,6 +100,12 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
 
     @Autowired
     private AuthorizationFeatureService authorizationFeatureService;
+
+    @Autowired
+    private OrcidConfiguration orcidConfiguration;
+
+    @Autowired
+    private OrcidAuthenticationBean orcidAuthentication;
 
     @Autowired
     private Utils utils;
@@ -779,9 +785,8 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
         String token = getAuthToken(eperson.getEmail(), password);
 
         // Save token to an Authorization cookie
-        Cookie[] cookies = new Cookie[2];
+        Cookie[] cookies = new Cookie[1];
         cookies[0] = new Cookie(AUTHORIZATION_COOKIE, token);
-        cookies[1] = new Cookie("DSPACE-XSRF-COOKIE", "e35a7170-3409-4bcf-9283-d63a4a8707dd");
 
         // POSTing to /login should be a valid request...it just refreshes your token (see testRefreshToken())
         // However, in this case, we are POSTing with an *INVALID* CSRF Token in Header.
@@ -1527,170 +1532,113 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
     }
 
     @Test
-    public void testGenerateShortLivedTokenWithShortLivedTokenUsingGet() throws Exception {
-        String token = getAuthToken(eperson.getEmail(), password);
-        String shortLivedToken = getShortLivedToken(token);
+    public void testStatusOrcidAuthenticatedWithCookie() throws Exception {
 
-        getClient().perform(
-            get("/api/authn/shortlivedtokens?authentication-token=" + shortLivedToken)
-                .with(ip(TRUSTED_IP))
-        )
-            .andExpect(status().isForbidden());
+        configurationService.setProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod", ORCID_ONLY);
 
-        // Logout, invalidating token
-        getClient(token).perform(post("/api/authn/logout"))
-                .andExpect(status().isNoContent());
-    }
-
-    @Test
-    public void testGenerateMachineTokenToDownloadBitstream() throws Exception {
+        String uiURL = configurationService.getProperty("dspace.ui.url");
 
         context.turnOffAuthorisationSystem();
 
-        EPerson user = EPersonBuilder.createEPerson(context)
+        String orcid = "0000-1111-2222-3333";
+        String code = "123456";
+        String orcidAccessToken = "c41e37e5-c2de-4177-91d6-ed9e9d1f31bf";
+
+        EPersonBuilder.createEPerson(context)
+            .withEmail("test@email.it")
+            .withNetId(orcid)
+            .withNameInMetadata("Test", "User")
             .withCanLogin(true)
-            .withPassword(password)
-            .withEmail("myuser@test.com")
-            .build();
-
-        Bitstream bitstream = createPrivateBitstream(user);
-
-        context.restoreAuthSystemState();
-
-        String token = getAuthToken(user.getEmail(), password);
-
-        AtomicReference<String> machineToken = new AtomicReference<>();
-
-        getClient(token).perform(post("/api/authn/machinetokens"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.token", notNullValue()))
-            .andExpect(jsonPath("$.type", is("machinetoken")))
-            .andDo(result -> machineToken.set(read(result.getResponse().getContentAsString(), "$.token")));
-
-        String machineSalt = context.reloadEntity(user).getMachineSessionSalt();
-        assertThat(machineSalt, notNullValue());
-
-        getClient(machineToken.get()).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-            .andExpect(status().isOk());
-
-        AtomicReference<String> newMachineToken = new AtomicReference<>();
-
-        getClient(token).perform(post("/api/authn/machinetokens"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.token", notNullValue()))
-            .andExpect(jsonPath("$.type", is("machinetoken")))
-            .andDo(result -> newMachineToken.set(read(result.getResponse().getContentAsString(), "$.token")));
-
-        assertThat(machineSalt, not(equalTo(context.reloadEntity(user).getMachineSessionSalt())));
-
-        getClient(newMachineToken.get()).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-            .andExpect(status().isOk());
-
-        getClient(machineToken.get()).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-            .andExpect(status().isUnauthorized());
-
-    }
-
-    @Test
-    public void testGenerateMachineTokenWithAnonymousUser() throws Exception {
-
-        getClient().perform(post("/api/authn/machinetokens"))
-            .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    public void testGenerateMachineTokenForbiddenWithLoginAsFeature() throws Exception {
-
-        configurationService.setProperty("webui.user.assumelogin", "true");
-
-        context.turnOffAuthorisationSystem();
-
-        EPerson user = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withPassword(password)
-            .withEmail("myuser@test.com")
             .build();
 
         context.restoreAuthSystemState();
 
-        String adminToken = getAuthToken(user.getEmail(), password);
+        OrcidClient orcidClientMock = mock(OrcidClient.class);
+        when(orcidClientMock.getAccessToken(code)).thenReturn(buildOrcidTokenResponse(orcid, orcidAccessToken));
 
-        getClient(adminToken).perform(post("/api/authn/machinetokens")
-            .header(ON_BEHALF_OF_REQUEST_PARAM, user.getID().toString()))
-            .andExpect(status().isForbidden());
-    }
+        OrcidClient originalOrcidClient = orcidAuthentication.getOrcidClient();
+        orcidAuthentication.setOrcidClient(orcidClientMock);
 
-    @Test
-    public void testDeleteMachineToken() throws Exception {
+        Cookie authCookie = null;
 
-        context.turnOffAuthorisationSystem();
+        try {
 
-        EPerson user = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withPassword(password)
-            .withEmail("myuser@test.com")
-            .build();
+            authCookie = getClient().perform(get("/api/" + AuthnRest.CATEGORY + "/orcid")
+                .param("redirectUrl", uiURL)
+                .param("code", code))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(uiURL))
+                .andExpect(cookie().doesNotExist("DSPACE-XSRF-COOKIE"))
+                .andExpect(header().doesNotExist("DSPACE-XSRF-TOKEN"))
+                .andExpect(cookie().exists(AUTHORIZATION_COOKIE))
+                .andReturn().getResponse().getCookie(AUTHORIZATION_COOKIE);
 
-        Bitstream bitstream = createPrivateBitstream(user);
+        } finally {
+            orcidAuthentication.setOrcidClient(originalOrcidClient);
+        }
 
-        context.restoreAuthSystemState();
+        assertNotNull(authCookie);
+        String token = authCookie.getValue();
 
-        String token = getAuthToken(user.getEmail(), password);
-
-        AtomicReference<String> machineToken = new AtomicReference<>();
-
-        getClient(token).perform(post("/api/authn/machinetokens"))
+        getClient().perform(get("/api/authn/status").header("Origin", uiURL)
+            .secure(true)
+            .cookie(authCookie))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.token", notNullValue()))
-            .andExpect(jsonPath("$.type", is("machinetoken")))
-            .andDo(result -> machineToken.set(read(result.getResponse().getContentAsString(), "$.token")));
+            .andExpect(content().contentType(contentType))
+            .andExpect(jsonPath("$.okay", is(true)))
+            .andExpect(jsonPath("$.authenticated", is(true)))
+            .andExpect(jsonPath("$.authenticationMethod", is("orcid")))
+            .andExpect(jsonPath("$.type", is("status")))
+            .andExpect(cookie().doesNotExist("DSPACE-XSRF-COOKIE"))
+            .andExpect(header().doesNotExist("DSPACE-XSRF-TOKEN"));
 
-        getClient(machineToken.get()).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-            .andExpect(status().isOk());
+        String headerToken = getClient().perform(post("/api/authn/login").header("Origin", uiURL)
+            .secure(true)
+            .cookie(authCookie))
+            .andExpect(status().isOk())
+            .andExpect(cookie().value(AUTHORIZATION_COOKIE, ""))
+            .andExpect(header().exists(AUTHORIZATION_HEADER))
+            .andExpect(cookie().exists("DSPACE-XSRF-COOKIE"))
+            .andExpect(header().exists("DSPACE-XSRF-TOKEN"))
+            .andReturn().getResponse()
+            .getHeader(AUTHORIZATION_HEADER).replace(AUTHORIZATION_TYPE, "");
 
-        getClient(token).perform(delete("/api/authn/machinetokens"))
+        assertTrue("Check tokens " + token + " and " + headerToken + " have same claims",
+            tokenClaimsEqual(token, headerToken));
+
+        getClient(headerToken).perform(get("/api/authn/status").header("Origin", uiURL))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType(contentType))
+            .andExpect(jsonPath("$.okay", is(true)))
+            .andExpect(jsonPath("$.authenticated", is(true)))
+            .andExpect(jsonPath("$.authenticationMethod", is("orcid")))
+            .andExpect(jsonPath("$.type", is("status")));
+
+        getClient(headerToken).perform(post("/api/authn/logout").header("Origin", uiURL))
             .andExpect(status().isNoContent());
-
-        user = context.reloadEntity(user);
-        assertThat(user.getMachineSessionSalt(), is(""));
-
-        getClient(machineToken.get()).perform(get("/api/core/bitstreams/" + bitstream.getID() + "/content"))
-            .andExpect(status().isUnauthorized());
-
     }
 
     @Test
-    public void testDeleteMachineTokenForbiddenWithLoginAsFeature() throws Exception {
+    public void testOrcidLoginURL() throws Exception {
 
-        configurationService.setProperty("webui.user.assumelogin", "true");
+        configurationService.setProperty("plugin.sequence.org.dspace.authenticate.AuthenticationMethod", ORCID_ONLY);
 
-        context.turnOffAuthorisationSystem();
+        String originalClientId = orcidConfiguration.getClientId();
+        orcidConfiguration.setClientId("CLIENT-ID");
 
-        EPerson user = EPersonBuilder.createEPerson(context)
-            .withCanLogin(true)
-            .withPassword(password)
-            .withEmail("myuser@test.com")
-            .build();
+        try {
 
-        context.restoreAuthSystemState();
+            getClient().perform(post("/api/authn/login"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate",
+                    "orcid realm=\"DSpace REST API\", " +
+                        "location=\"https://sandbox.orcid.org/oauth/authorize?client_id=CLIENT-ID&response_type=code"
+                        + "&scope=/authenticate+/read-limited+/activities/update+/person/update&redirect_uri"
+                        + "=http%3A%2F%2Flocalhost%2Fapi%2Fauthn%2Forcid\""));
 
-        String token = getAuthToken(user.getEmail(), password);
-
-        getClient(token).perform(post("/api/authn/machinetokens"))
-            .andExpect(status().isOk());
-
-        String adminToken = getAuthToken(admin.getEmail(), password);
-
-        getClient(adminToken).perform(delete("/api/authn/machinetokens")
-            .header(ON_BEHALF_OF_REQUEST_PARAM, user.getID().toString()))
-            .andExpect(status().isForbidden());
-    }
-
-    @Test
-    public void testDeleteMachineTokenWithAnonymousUser() throws Exception {
-
-        getClient().perform(delete("/api/authn/machinetokens"))
-            .andExpect(status().isUnauthorized());
+        } finally {
+            orcidConfiguration.setClientId(originalClientId);
+        }
     }
 
     @Test
@@ -1771,45 +1719,16 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
     }
 
     private Bitstream createPrivateBitstream() throws Exception {
-
         context.turnOffAuthorisationSystem();
 
-        Group staffGroup = GroupBuilder.createGroup(context)
-            .withName("Staff")
-            .addMember(eperson)
-            .build();
-
-        context.restoreAuthSystemState();
-
-        return createPrivateBitstream(staffGroup);
-    }
-
-    private Bitstream createPrivateBitstream(EPerson staffMember) throws Exception {
-
-        context.turnOffAuthorisationSystem();
-
-        Group staffGroup = GroupBuilder.createGroup(context)
-            .withName("Staff")
-            .addMember(staffMember)
-            .build();
-
-        context.restoreAuthSystemState();
-
-        return createPrivateBitstream(staffGroup);
-    }
-
-    private Bitstream createPrivateBitstream(Group staff) throws Exception {
-        context.turnOffAuthorisationSystem();
-
-        // ** GIVEN **
-        // 1. A community-collection structure with one parent community with
-        // sub-community and one collection.
+        //** GIVEN **
+        //1. A community-collection structure with one parent community with sub-community and one collection.
         parentCommunity = CommunityBuilder.createCommunity(context)
             .withName("Parent Community")
             .build();
         Collection col1 = CollectionBuilder.createCollection(context, parentCommunity).withName("Collection 1").build();
 
-        // 2. One public items that is readable by Anonymous
+        //2. One public items that is readable by Anonymous
         Item publicItem1 = ItemBuilder.createItem(context, col1)
             .withTitle("Test")
             .withIssueDate("2010-10-17")
@@ -1821,7 +1740,12 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
             .withName("TEST BUNDLE")
             .build();
 
-        // 2. An item restricted to a specific internal group
+        //2. An item restricted to a specific internal group
+        Group staffGroup = GroupBuilder.createGroup(context)
+            .withName("Staff")
+            .addMember(eperson)
+            .build();
+
         String bitstreamContent = "ThisIsSomeDummyText";
         Bitstream bitstream = null;
         try (InputStream is = IOUtils.toInputStream(bitstreamContent, CharEncoding.UTF_8)) {
@@ -1830,7 +1754,7 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
                 .withName("Bitstream")
                 .withDescription("description")
                 .withMimeType("text/plain")
-                .withReaderGroup(staff)
+                .withReaderGroup(staffGroup)
                 .build();
         }
 
@@ -1877,6 +1801,16 @@ public class AuthenticationRestControllerIT extends AbstractControllerIntegratio
         } catch (ParseException e) {
             return false;
         }
+    }
+
+    private OrcidTokenResponseDTO buildOrcidTokenResponse(String orcid, String accessToken) {
+        OrcidTokenResponseDTO token = new OrcidTokenResponseDTO();
+        token.setAccessToken(accessToken);
+        token.setOrcid(orcid);
+        token.setTokenType("Bearer");
+        token.setName("Test User");
+        token.setScope(String.join(" ", new String[] { "FirstScope", "SecondScope" }));
+        return token;
     }
 }
 

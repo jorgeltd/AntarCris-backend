@@ -10,19 +10,13 @@ package org.dspace.services.events;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Supplier;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import jakarta.annotation.PreDestroy;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.dspace.services.ConfigurationService;
 import org.dspace.services.EventService;
 import org.dspace.services.RequestService;
-import org.dspace.services.factory.DSpaceServicesFactory;
 import org.dspace.services.model.Event;
 import org.dspace.services.model.Event.Scope;
 import org.dspace.services.model.EventListener;
@@ -38,8 +32,6 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public final class SystemEventService implements EventService {
 
-    private static final int DEFAULT_THREAD_SIZE =  2;
-
     private final Logger log = LogManager.getLogger();
 
     /**
@@ -49,8 +41,6 @@ public final class SystemEventService implements EventService {
 
     private final RequestService requestService;
     private EventRequestInterceptor requestInterceptor;
-
-    private ExecutorService executorService;
 
     @Autowired(required = true)
     public SystemEventService(RequestService requestService) {
@@ -68,9 +58,6 @@ public final class SystemEventService implements EventService {
     public void shutdown() {
         this.requestInterceptor = null; // clear the interceptor
         this.listenersMap.clear();
-        if (this.executorService != null && !this.executorService.isShutdown()) {
-            this.executorService.shutdown();
-        }
     }
 
 
@@ -93,25 +80,6 @@ public final class SystemEventService implements EventService {
         boolean external = ArrayUtils.contains(scopes, Scope.EXTERNAL);
         if (external) {
             fireExternalEvent(event);
-        }
-    }
-
-    @Override
-    public void fireAsyncEvent(Supplier<? extends Event> eventSupplier) {
-        initExecutor();
-        this.executorService.submit(() -> this.fireEvent(eventSupplier.get()));
-    }
-
-    private void initExecutor() {
-        if (this.executorService != null) {
-            return;
-        }
-        ConfigurationService configurationService = DSpaceServicesFactory.getInstance().getConfigurationService();
-        int threadSize = configurationService.getIntProperty("system-event.thread.size", DEFAULT_THREAD_SIZE);
-        if (threadSize == 0) {
-            this.executorService = MoreExecutors.newDirectExecutorService();
-        } else {
-            this.executorService = Executors.newFixedThreadPool(threadSize);
         }
     }
 

@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,7 +20,6 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.Logger;
 import org.dspace.core.Context;
-import org.dspace.core.I18nUtil;
 import org.dspace.scripts.handler.DSpaceRunnableHandler;
 
 /**
@@ -122,10 +120,5 @@ public class CommandLineDSpaceRunnableHandler implements DSpaceRunnableHandler {
     @Override
     public List<UUID> getSpecialGroups() {
         return Collections.emptyList();
-    }
-
-    @Override
-    public Locale getLocale() {
-        return I18nUtil.getDefaultLocale();
     }
 }

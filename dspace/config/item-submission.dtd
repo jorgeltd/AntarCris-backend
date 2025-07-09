@@ -23,8 +23,7 @@
  <!ELEMENT step-definition (heading?, processing-class, type, scope?) >
  <!ATTLIST step-definition
  		   id NMTOKEN #REQUIRED
- 		   mandatory NMTOKEN #IMPLIED
- 		   opened NMTOKEN #IMPLIED>
+ 		   mandatory NMTOKEN #IMPLIED>
  
  <!ELEMENT heading (#PCDATA) >
  <!ELEMENT processing-class (#PCDATA)>

@@ -46,7 +46,7 @@ public class Or extends AbstractOperator {
      * @throws LogicalStatementException
      */
     @Override
-    public Boolean getResult(Context context, Item item) throws LogicalStatementException {
+    public boolean getResult(Context context, Item item) throws LogicalStatementException {
 
         for (LogicalStatement statement : getStatements()) {
             if (statement.getResult(context, item)) {

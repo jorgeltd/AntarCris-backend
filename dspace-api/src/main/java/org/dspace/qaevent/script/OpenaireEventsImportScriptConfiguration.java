@@ -21,6 +21,9 @@ import org.dspace.scripts.configuration.ScriptConfiguration;
  */
 public class OpenaireEventsImportScriptConfiguration<T extends OpenaireEventsImport> extends ScriptConfiguration<T> {
 
+    /*
+    private AuthorizeService authorizeService;
+     */
     private Class<T> dspaceRunnableClass;
 
     @Override
@@ -36,7 +39,16 @@ public class OpenaireEventsImportScriptConfiguration<T extends OpenaireEventsImp
     public void setDspaceRunnableClass(Class<T> dspaceRunnableClass) {
         this.dspaceRunnableClass = dspaceRunnableClass;
     }
-
+/*
+    @Override
+    public boolean isAllowedToExecute(Context context) {
+        try {
+            return authorizeService.isAdmin(context);
+        } catch (SQLException e) {
+            throw new RuntimeException("SQLException occurred when checking if the current user is an admin", e);
+        }
+    }
+*/
     @Override
     public Options getOptions() {
         if (options == null) {

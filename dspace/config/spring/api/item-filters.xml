@@ -15,9 +15,7 @@
        xsi:schemaLocation="http://www.springframework.org/schema/beans
            http://www.springframework.org/schema/beans/spring-beans-2.5.xsd
            http://www.springframework.org/schema/context
-           http://www.springframework.org/schema/context/spring-context-2.5.xsd
-           http://www.springframework.org/schema/util
-           http://www.springframework.org/schema/util/spring-util-3.0.xsd"
+           http://www.springframework.org/schema/context/spring-context-2.5.xsd http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
 >
     <!--   default-autowire-candidates="*Service,*DAO,javax.sql.DataSource"> -->
 
@@ -346,93 +344,12 @@
         </property>
     </bean>
 
-    <bean id="funding-has-at-least-one-investigator-or-one-lead-organization_filter" class="org.dspace.content.logic.DefaultFilter">
-        <property name="statement">
-            <bean class="org.dspace.content.logic.operator.Or">
-                <property name="statements">
-                    <list>
-                        <bean class="org.dspace.content.logic.operator.Not">
-                            <property name="statements">
-                                <ref bean="relationship-type-equals-funding_condition"/>
-                            </property>
-                        </bean>
-                        <ref bean="has-investigators-set_condition" />
-                        <ref bean="has-co-investigators-set_condition" />
-                        <ref bean="has-lead-organizations-set_condition" />
-                        <ref bean="has-lead-co-organizations-set_condition" />
-                    </list>
-                </property>
-            </bean>
-        </property>
-    </bean>
-
-    <!-- dspace.entity.type is exactly Funding -->
-    <bean id="relationship-type-equals-funding_condition" class="org.dspace.content.logic.condition.MetadataValueMatchCondition">
-        <property name="parameters">
-            <map>
-                <entry key="field" value="dspace.entity.type" />
-                <entry key="pattern" value="^Funding" />
-            </map>
-        </property>
-    </bean>
-
-    <bean id="has-investigators-set_condition" class="org.dspace.content.logic.condition.RequiredMetadataCondition">
-        <property name="parameters">
-            <map>
-                <entry key="field" value="crisfund.investigators" />
-            </map>
-        </property>
-    </bean>
-
-    <bean id="has-co-investigators-set_condition" class="org.dspace.content.logic.condition.RequiredMetadataCondition">
-        <property name="parameters">
-            <map>
-                <entry key="field" value="crisfund.coinvestigators" />
-            </map>
-        </property>
-    </bean>
-
-    <bean id="has-lead-organizations-set_condition" class="org.dspace.content.logic.condition.RequiredMetadataCondition">
-        <property name="parameters">
-            <map>
-                <entry key="field" value="crisfund.leadorganizations" />
-            </map>
-        </property>
-    </bean>
-
-    <bean id="has-lead-co-organizations-set_condition" class="org.dspace.content.logic.condition.RequiredMetadataCondition">
-        <property name="parameters">
-            <map>
-                <entry key="field" value="crisfund.leadcoorganizations" />
-            </map>
-        </property>
-    </bean>
-
-    <!-- The following is an example on how to configure a collection filter used to check if item belong to the given
-         collection(s). This could be used for example while configuring the edititem modes to set a specific mode
-         whether the item belong to a specific collection
-     -->
-<!--    <bean id="collectionCond" class="org.dspace.content.logic.condition.InCollectionCondition">
-        <property name="parameters">
-            <map>
-                <entry key="collections">
-                    <list>
-                        <value>{values}</value>
-                    </list>
-                </entry>
-            </map>
-        </property>
-    </bean>
-    <bean id="belongsToColl" class="org.dspace.content.logic.DefaultFilter">
-        <property name="statement" ref="collectionCond"/>
-    </bean>-->
-
     <util:map id="ldnItemFilters" key-type="java.lang.String"
               value-type="org.dspace.content.logic.LogicalStatement">
-        <entry key="item-is-public_condition" value-ref="item-is-public_condition"/>
-        <entry key="title-starts-with-pattern_condition" value-ref="title-starts-with-pattern_condition"/>
-        <entry key="type-equals-journal-article_condition" value-ref="type-equals-journal-article_condition"/>
-        <entry key="type-equals-dataset_condition" value-ref="type-equals-dataset_condition"/>
-        <entry key="has-one-bitstream_condition" value-ref="has-one-bitstream_condition"/>
+     	<entry key="item-is-public_condition" value-ref="item-is-public_condition"/>
+		<entry key="title-starts-with-pattern_condition" value-ref="title-starts-with-pattern_condition"/>
+		<entry key="type-equals-journal-article_condition" value-ref="type-equals-journal-article_condition"/>
+		<entry key="type-equals-dataset_condition" value-ref="type-equals-dataset_condition"/>
+		<entry key="has-one-bitstream_condition" value-ref="has-one-bitstream_condition"/>
     </util:map>
 </beans>

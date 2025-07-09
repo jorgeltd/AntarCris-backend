@@ -17,8 +17,6 @@ public enum MetadataSchemaEnum {
     DC("dc"),
     EPERSON("eperson"),
     RELATION("relation"),
-    CRIS("cris"),
-    OAIRECERIF("oairecerif"),
     PERSON("person");
 
     /**

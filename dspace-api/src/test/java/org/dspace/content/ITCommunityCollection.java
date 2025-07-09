@@ -36,7 +36,6 @@ import org.dspace.eperson.service.EPersonService;
 import org.dspace.eperson.service.GroupService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -47,7 +46,6 @@ import org.junit.Test;
  * @author pvillega
  * @author tdonohue
  */
-@Ignore
 public class ITCommunityCollection extends AbstractIntegrationTest {
     protected CommunityService communityService = ContentServiceFactory.getInstance().getCommunityService();
     protected CollectionService collectionService = ContentServiceFactory.getInstance().getCollectionService();

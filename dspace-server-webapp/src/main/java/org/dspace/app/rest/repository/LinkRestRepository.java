@@ -7,14 +7,12 @@
  */
 package org.dspace.app.rest.repository;
 
-import org.dspace.app.rest.RestRepository;
-
 /**
  * This is the interface for Link Repositories.
  *
  * @author Andrea Bollini (andrea.bollini at 4science.it)
  */
-public interface LinkRestRepository extends RestRepository {
+public interface LinkRestRepository {
     default boolean isEmbeddableRelation(Object data, String name) {
         return true;
     }

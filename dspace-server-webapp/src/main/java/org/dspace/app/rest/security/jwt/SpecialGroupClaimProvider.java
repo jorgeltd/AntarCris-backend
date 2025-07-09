@@ -21,7 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dspace.authenticate.service.AuthenticationService;
 import org.dspace.core.Context;
-import org.dspace.core.exception.SQLRuntimeException;
 import org.dspace.eperson.Group;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -49,12 +48,6 @@ public class SpecialGroupClaimProvider implements JWTClaimProvider {
 
     @Override
     public Object getValue(Context context, HttpServletRequest request) {
-
-        List<String> specialGroups = getSpecialGroupsFromContext(context);
-        if (CollectionUtils.isNotEmpty(specialGroups)) {
-            return specialGroups;
-        }
-
         List<Group> groups = new ArrayList<>();
         try {
             groups = authenticationService.getSpecialGroups(context, request);
@@ -62,8 +55,8 @@ public class SpecialGroupClaimProvider implements JWTClaimProvider {
             log.error("SQLException while retrieving special groups", e);
             return null;
         }
-
-        return getGroupsIds(groups);
+        List<String> groupIds = groups.stream().map(group -> group.getID().toString()).collect(Collectors.toList());
+        return groupIds;
     }
 
     @Override
@@ -77,20 +70,6 @@ public class SpecialGroupClaimProvider implements JWTClaimProvider {
         } catch (ParseException e) {
             log.error("Error while trying to access specialgroups from ClaimSet", e);
         }
-    }
-
-    private List<String> getSpecialGroupsFromContext(Context context) {
-        try {
-            return getGroupsIds(context.getSpecialGroups());
-        } catch (SQLException e) {
-            throw new SQLRuntimeException(e);
-        }
-    }
-
-    private List<String> getGroupsIds(List<Group> groups) {
-        return groups.stream()
-            .map(group -> group.getID().toString())
-            .collect(Collectors.toList());
     }
 
 }

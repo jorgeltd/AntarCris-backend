@@ -43,8 +43,8 @@ public class LanguageSupportIT extends AbstractControllerIntegrationTest {
     }
 
     @Test
-    @Ignore
-    //TODO investigate way the language support introduce such issue
+    @Ignore("This test fails due to a bug in the MockHttpResponseServlet,"
+            + " see https://github.com/spring-projects/spring-framework/issues/25281")
     public void checkEnabledMultipleLanguageSupportTest() throws Exception {
         context.turnOffAuthorisationSystem();
         String[] supportedLanguage = {"uk","it"};
@@ -78,7 +78,7 @@ public class LanguageSupportIT extends AbstractControllerIntegrationTest {
                                  .andExpect(header().stringValues("Content-Language","uk, it"));
 
         getClient(tokenEPersonFR).perform(get("/api").locale(it))
-                                 .andExpect(header().stringValues("Content-Language","en"));
+                                 .andExpect(header().stringValues("Content-Language","uk, it"));
 
         configurationService.setProperty("webui.supported.locales",null);
         legacyPluginService.clearNamedPluginClasses();

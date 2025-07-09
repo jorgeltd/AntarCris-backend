@@ -22,7 +22,6 @@ public class RootRest extends RestAddressableModel {
     private String dspaceName;
     private String dspaceServer;
     private String dspaceVersion;
-    private String crisVersion;
 
     public String getCategory() {
         return CATEGORY;
@@ -77,14 +76,6 @@ public class RootRest extends RestAddressableModel {
         this.dspaceVersion = dspaceVersion;
     }
 
-    public String getCrisVersion() {
-        return crisVersion;
-    }
-
-    public void setCrisVersion(String crisVersion) {
-        this.crisVersion = crisVersion;
-    }
-
     @Override
     public boolean equals(Object object) {
         return (object instanceof RootRest &&
@@ -94,7 +85,6 @@ public class RootRest extends RestAddressableModel {
                                .append(this.getDspaceUI(), ((RootRest) object).getDspaceUI())
                                .append(this.getDspaceName(), ((RootRest) object).getDspaceName())
                                .append(this.getDspaceServer(), ((RootRest) object).getDspaceServer())
-                               .append(this.getCrisVersion(), ((RootRest)object).getCrisVersion())
                                .isEquals());
     }
 
@@ -107,7 +97,6 @@ public class RootRest extends RestAddressableModel {
             .append(this.getDspaceName())
             .append(this.getDspaceUI())
             .append(this.getDspaceServer())
-            .append(this.getCrisVersion())
             .toHashCode();
     }
 }

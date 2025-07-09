@@ -7,13 +7,8 @@
  */
 package org.dspace.app.mediafilter;
 
-import java.sql.SQLException;
-import java.util.List;
-
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
-import org.dspace.core.Context;
-import org.dspace.scripts.DSpaceCommandLineParameter;
 import org.dspace.scripts.configuration.ScriptConfiguration;
 
 public class MediaFilterScriptConfiguration<T extends MediaFilterScript> extends ScriptConfiguration<T> {
@@ -21,17 +16,6 @@ public class MediaFilterScriptConfiguration<T extends MediaFilterScript> extends
     private Class<T> dspaceRunnableClass;
 
     private static final String MEDIA_FILTER_PLUGINS_KEY = "filter.plugins";
-
-    @Override
-    public boolean isAllowedToExecute(Context context, List<DSpaceCommandLineParameter> commandLineParameters) {
-        try {
-            return authorizeService.isAdmin(context) || authorizeService.isComColAdmin(context) ||
-                authorizeService.isItemAdmin(context);
-        } catch (SQLException e) {
-            throw new RuntimeException(
-                "SQLException occurred when checking if the current user is eligible to run the script", e);
-        }
-    }
 
     @Override
     public Class<T> getDspaceRunnableClass() {
@@ -67,6 +51,8 @@ public class MediaFilterScriptConfiguration<T extends MediaFilterScript> extends
                                                     " Extractor\")")
                                     .build();
         options.addOption(pluginOption);
+
+        options.addOption("d", "fromdate", true, "Process only item from specified last modified date");
 
         Option skipOption = Option.builder("s")
                                   .longOpt("skip")

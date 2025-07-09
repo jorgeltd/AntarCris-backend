@@ -22,7 +22,7 @@ import org.dspace.services.factory.DSpaceServicesFactory;
  *
  * @author Jason Sherman jsherman@usao.edu
  */
-public class BrandedPreviewJPEGFilter extends JPEGFilter {
+public class BrandedPreviewJPEGFilter extends MediaFilter {
     @Override
     public String getFilteredName(String oldFilename) {
         return oldFilename + ".preview.jpg";
@@ -34,6 +34,14 @@ public class BrandedPreviewJPEGFilter extends JPEGFilter {
     @Override
     public String getBundleName() {
         return "BRANDED_PREVIEW";
+    }
+
+    /**
+     * @return String bitstreamformat
+     */
+    @Override
+    public String getFormatString() {
+        return "JPEG";
     }
 
     /**
@@ -73,7 +81,9 @@ public class BrandedPreviewJPEGFilter extends JPEGFilter {
         String brandFont = configurationService.getProperty("webui.preview.brand.font");
         int brandFontPoint = configurationService.getIntProperty("webui.preview.brand.fontpoint");
 
-        return getThumbDim(currentItem, buf, verbose, xmax, ymax, blurring, hqscaling, brandHeight, brandFontPoint,
+        JPEGFilter jpegFilter = new JPEGFilter();
+        return jpegFilter
+            .getThumbDim(currentItem, buf, verbose, xmax, ymax, blurring, hqscaling, brandHeight, brandFontPoint,
                          brandFont);
     }
 }

@@ -22,7 +22,6 @@
         <!-- AWS Security credentials, with policies for specified bucket -->
         <property name="awsAccessKey" value="${assetstore.s3.awsAccessKey}"/>
         <property name="awsSecretKey" value="${assetstore.s3.awsSecretKey}"/>
-        <property name="awsSessionToken" value="${assetstore.s3.awsToken}"/>
         <property name="useRelativePath" value="${assetstore.s3.useRelativePath}"/>
 
         <!-- S3 bucket name to store assets in. example: longsight-dspace-auk -->
@@ -35,9 +34,6 @@
         <!-- Subfolder to organize assets within the bucket, in case this bucket is shared  -->
         <!-- Optional, default is root level of bucket -->
         <property name="subfolder" value="${assetstore.s3.subfolder}"/>
-        <property name="maxConnections" value="${assetstore.s3.maxConnections}"/>
-        <property name="connectionTimeout" value="${assetstore.s3.connectionTimeout}"/>
-        <property name="endpoint" value="${assetstore.s3.endpoint}"/>
     </bean>
 
     <!-- <bean name="localStore2 ... -->

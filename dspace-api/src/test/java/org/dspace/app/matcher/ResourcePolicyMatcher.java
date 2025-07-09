@@ -45,8 +45,8 @@ public class ResourcePolicyMatcher extends TypeSafeMatcher<ResourcePolicy> {
     private final Matcher<Date> endDate;
 
     public ResourcePolicyMatcher(Matcher<Integer> actionId, Matcher<EPerson> ePerson, Matcher<Group> group,
-        Matcher<String> rpName, Matcher<String> rptype, Matcher<Date> startDate,
-        Matcher<Date> endDate, Matcher<String> description) {
+                                 Matcher<String> rpName, Matcher<String> rptype, Matcher<Date> startDate,
+                                 Matcher<Date> endDate, Matcher<String> description) {
         this.actionId = actionId;
         this.ePerson = ePerson;
         this.group = group;

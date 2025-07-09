@@ -21,7 +21,6 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -57,7 +56,6 @@ import org.dspace.profile.service.ResearcherProfileService;
 import org.dspace.services.ConfigurationService;
 import org.dspace.util.UUIDUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.util.Assert;
 
 /**
@@ -99,10 +97,6 @@ public class ResearcherProfileServiceImpl implements ResearcherProfileService {
 
     @Autowired(required = false)
     private List<AfterResearcherProfileCreationAction> afterCreationActions;
-
-    @Autowired(required = false)
-    @Qualifier("sharedWorkspaceAuthorMetadataFields")
-    private List<String> sharedWorkspaceAuthorMetadataFields;
 
     @PostConstruct
     public void postConstruct() {
@@ -208,6 +202,11 @@ public class ResearcherProfileServiceImpl implements ResearcherProfileService {
             throw new IllegalArgumentException("The provided item has not a profile type. Item ID: " + item.getID());
         }
 
+        if (haveDifferentEmail(item, ePerson)) {
+            throw new IllegalArgumentException("The provided item is not claimable because it has a different email "
+                + "than the given user's email. Item ID: " + item.getID());
+        }
+
         String existingOwner = itemService.getMetadataFirstValue(item, "dspace", "object", "owner", Item.ANY);
 
         if (StringUtils.isNotBlank(existingOwner)) {
@@ -229,33 +228,6 @@ public class ResearcherProfileServiceImpl implements ResearcherProfileService {
             return false;
         }
         return profileType.equals(itemService.getEntityTypeLabel(item));
-    }
-
-    @Override
-    public boolean isAuthorOf(Context context, EPerson ePerson, Item item) {
-
-        try {
-
-            if (CollectionUtils.isEmpty(sharedWorkspaceAuthorMetadataFields) || Objects.isNull(ePerson)) {
-                return false;
-            }
-
-            ResearcherProfile researcherProfile = findById(context, ePerson.getID());
-
-            if (researcherProfile == null) {
-                return false;
-            }
-
-            String profileItemId = researcherProfile.getItem().getID().toString();
-
-            return sharedWorkspaceAuthorMetadataFields.stream()
-                .flatMap(field -> itemService.getMetadataByMetadataString(item, field).stream())
-                .anyMatch(metadataValue -> profileItemId.equals(metadataValue.getAuthority()));
-
-        } catch (SQLException | AuthorizeException e) {
-            throw new RuntimeException(e);
-        }
-
     }
 
     @Override
@@ -314,19 +286,13 @@ public class ResearcherProfileServiceImpl implements ResearcherProfileService {
 
         item = installItemService.installItem(context, workspaceItem);
 
-        context.uncacheEntity(workspaceItem);
-
         if (isNewProfileNotVisibleByDefault()) {
             Group anonymous = groupService.findByName(context, ANONYMOUS);
             authorizeService.removeGroupPolicies(context, item, anonymous);
         }
 
-        itemService.addResourcePolicy(context, item, READ, ePerson);
-
-        if (isAdditionOfWritePolicyOnProfileEnabled()) {
-            itemService.addResourcePolicy(context, item, WRITE, ePerson);
-        }
-
+        authorizeService.addPolicy(context, item, READ, ePerson);
+        authorizeService.addPolicy(context, item, WRITE, ePerson);
 
         return reloadItem(context, item);
     }
@@ -374,10 +340,6 @@ public class ResearcherProfileServiceImpl implements ResearcherProfileService {
         return configurationService.getBooleanProperty("researcher-profile.hard-delete.enabled");
     }
 
-    private boolean isAdditionOfWritePolicyOnProfileEnabled() {
-        return configurationService.getBooleanProperty("researcher-profile.add-write-policy");
-    }
-
     private boolean isNewProfileNotVisibleByDefault() {
         return !configurationService.getBooleanProperty("researcher-profile.set-new-profile-visible");
     }
@@ -385,6 +347,13 @@ public class ResearcherProfileServiceImpl implements ResearcherProfileService {
     private boolean isNotProfileCollection(Collection collection) {
         String entityType = collectionService.getMetadataFirstValue(collection, "dspace", "entity", "type", Item.ANY);
         return entityType == null || !entityType.equals(getProfileType());
+    }
+
+    private boolean haveDifferentEmail(Item item, EPerson currentUser) {
+        return itemService.getMetadataByMetadataString(item, "person.email").stream()
+            .map(MetadataValue::getValue)
+            .filter(StringUtils::isNotBlank)
+            .noneMatch(email -> email.equalsIgnoreCase(currentUser.getEmail()));
     }
 
     private void removeOwnerMetadata(Context context, Item profileItem) throws SQLException {

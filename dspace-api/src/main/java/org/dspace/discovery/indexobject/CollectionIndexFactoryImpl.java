@@ -132,9 +132,9 @@ public class CollectionIndexFactoryImpl extends DSpaceObjectIndexFactoryImpl<Ind
         if (StringUtils.isBlank(entityType)) {
             entityType = Constants.ENTITY_TYPE_NONE;
         }
-
         addContainerMetadataField(doc, highlightedMetadataFields, toIgnoreMetadataFields,
                                   "dspace.entity.type", entityType);
+
         return doc;
     }
 

@@ -210,9 +210,11 @@ public class EpoIdMetadataContributor implements MetadataContributor<Element> {
         private String date;
         private List<Namespace> namespaces;
 
+
         public static final String DOCDB = "docdb";
         public static final String EPODOC = "epodoc";
         public static final String ORIGIN = "origin";
+
 
         public EpoDocumentId(Element documentId, List<Namespace> namespaces) throws JaxenException {
             this.namespaces = namespaces;

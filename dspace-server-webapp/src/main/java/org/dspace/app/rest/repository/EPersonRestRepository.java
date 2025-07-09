@@ -15,7 +15,6 @@ import java.util.UUID;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -121,14 +120,6 @@ public class EPersonRestRepository extends DSpaceObjectRestRepository<EPerson, E
         return converter.toRest(eperson, utils.obtainProjection());
     }
 
-    private void addEPersonToGroups(Context context, EPerson eperson, List<Group> groups) {
-        if (CollectionUtils.isNotEmpty(groups)) {
-            for (Group group : groups) {
-                groupService.addMember(context, group, eperson);
-            }
-        }
-    }
-
     private EPerson createEPersonFromRestObject(Context context, EPersonRest epersonRest) throws AuthorizeException {
         EPerson eperson = null;
         try {
@@ -197,12 +188,10 @@ public class EPersonRestRepository extends DSpaceObjectRestRepository<EPerson, E
             throw new DSpaceBadRequestException("The self registered property cannot be set to false using this method"
                                                     + " with a token");
         }
-        checkRequiredProperties(registrationData, epersonRest);
+        checkRequiredProperties(epersonRest);
         // We'll turn off authorisation system because this call isn't admin based as it's token based
         context.turnOffAuthorisationSystem();
         EPerson ePerson = createEPersonFromRestObject(context, epersonRest);
-        List<Group> groups = registrationData.getGroups();
-        addEPersonToGroups(context, ePerson, groups);
         context.restoreAuthSystemState();
         // Restoring authorisation state right after the creation call
         accountService.deleteToken(context, token);
@@ -212,8 +201,8 @@ public class EPersonRestRepository extends DSpaceObjectRestRepository<EPerson, E
         return converter.toRest(ePerson, utils.obtainProjection());
     }
 
-    private void checkRequiredProperties(RegistrationData registration, EPersonRest epersonRest) {
-        MetadataRest<MetadataValueRest> metadataRest = epersonRest.getMetadata();
+    private void checkRequiredProperties(EPersonRest epersonRest) {
+        MetadataRest metadataRest = epersonRest.getMetadata();
         if (metadataRest != null) {
             List<MetadataValueRest> epersonFirstName = metadataRest.getMap().get("eperson.firstname");
             List<MetadataValueRest> epersonLastName = metadataRest.getMap().get("eperson.lastname");
@@ -222,25 +211,10 @@ public class EPersonRestRepository extends DSpaceObjectRestRepository<EPerson, E
                 throw new EPersonNameNotProvidedException();
             }
         }
-
         String password = epersonRest.getPassword();
-        String netId = epersonRest.getNetid();
-        if (StringUtils.isBlank(password) && StringUtils.isBlank(netId)) {
-            throw new DSpaceBadRequestException(
-                "You must provide a password or register using an external account"
-            );
+        if (StringUtils.isBlank(password)) {
+            throw new DSpaceBadRequestException("A password is required");
         }
-
-        if (StringUtils.isBlank(password) && !canRegisterExternalAccount(registration, epersonRest)) {
-            throw new DSpaceBadRequestException(
-                "Cannot register external account with netId: " + netId
-            );
-        }
-    }
-
-    private boolean canRegisterExternalAccount(RegistrationData registration, EPersonRest epersonRest) {
-        return accountService.isTokenValidForCreation(registration) &&
-            StringUtils.equals(registration.getNetId(), epersonRest.getNetid());
     }
 
     @Override
@@ -391,74 +365,6 @@ public class EPersonRestRepository extends DSpaceObjectRestRepository<EPerson, E
     @Override
     public Class<EPersonRest> getDomainClass() {
         return EPersonRest.class;
-    }
-    /**
-     * This method will perform an add into the table epersongroup2eperson
-     * for the user with id uuid and with the list o groups
-     * found on the registration data taken from token offered as query parameter
-     * It also deletes the registrationdata found with token after the creation of groups
-     * @return              The EPersonRest after the creation of groups
-     * @throws AuthorizeException   If user is not allowed
-     * @throws SQLException         If something goes wrong
-     */
-    public EPersonRest joinUserToGroups(UUID uuid, String token) throws AuthorizeException {
-        try {
-            Context context = obtainContext();
-            HttpServletRequest req = getRequestService().getCurrentRequest().getHttpServletRequest();
-            RegistrationData registrationData = registrationDataService.findByToken(context, token);
-            if (registrationData == null) {
-                throw new DSpaceBadRequestException("The token given as parameter: " + token + " does not exist" +
-                        " in the database");
-            }
-            if (uuid == null) {
-                throw new DSpaceBadRequestException("The uuid of the person cannot be null");
-            }
-            EPerson ePerson = es.findByIdOrLegacyId(context, uuid.toString());
-            if (ePerson == null) {
-                throw new DSpaceBadRequestException("The token given does not contains an email address that resolves" +
-                        " to an eperson");
-            }
-            if (!ePerson.equals(context.getCurrentUser())) {
-                throw new AuthorizeException("Only the user with id: " + uuid + " can make this action.");
-            }
-            // We'll turn off authorisation system because this call isn't admin based as it's token based
-            context.turnOffAuthorisationSystem();
-            List<Group> groups = registrationData.getGroups();
-            addEPersonToGroups(context, ePerson, groups);
-            context.restoreAuthSystemState();
-            // Restoring authorisation state right after the creation call
-            accountService.deleteToken(context, token);
-            return converter.toRest(ePerson, utils.obtainProjection());
-        } catch (AuthorizeException e) {
-            log.error(e);
-            throw new AuthorizeException(e.getMessage());
-        } catch (SQLException e) {
-            log.error(e);
-            throw new RuntimeException(e.getMessage());
-        }
-    }
-
-    public EPersonRest mergeFromRegistrationData(
-        Context context, UUID uuid, String token, List<String> override
-    ) throws AuthorizeException {
-        try {
-
-            if (uuid == null) {
-                throw new DSpaceBadRequestException("The uuid of the person cannot be null");
-            }
-
-            if (token == null) {
-                throw new DSpaceBadRequestException("You must provide a token for the eperson");
-            }
-
-            return converter.toRest(
-                accountService.mergeRegistration(context, uuid, token, override),
-                utils.obtainProjection()
-            );
-        } catch (SQLException e) {
-            log.error(e);
-            throw new RuntimeException(e);
-        }
     }
 
     @Override

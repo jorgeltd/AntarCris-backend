@@ -146,7 +146,7 @@ public class OpenSearchController {
 
             if (sort != null) {
                 DiscoveryConfiguration discoveryConfiguration =
-                    searchConfigurationService.getDiscoveryConfigurationByNameOrDefault("");
+                    searchConfigurationService.getDiscoveryConfiguration("");
                 if (discoveryConfiguration != null) {
                     DiscoverySortConfiguration searchSortConfiguration = discoveryConfiguration
                         .getSearchSortConfiguration();

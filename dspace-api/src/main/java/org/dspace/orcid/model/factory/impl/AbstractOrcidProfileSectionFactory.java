@@ -34,8 +34,6 @@ public abstract class AbstractOrcidProfileSectionFactory implements OrcidProfile
 
     protected final OrcidProfileSyncPreference preference;
 
-    protected Integer maxAllowedMetadataVisibility = 0;
-
     @Autowired
     protected ItemService itemService;
 
@@ -70,19 +68,6 @@ public abstract class AbstractOrcidProfileSectionFactory implements OrcidProfile
 
     protected List<MetadataValue> getMetadataValues(Item item, String metadataField) {
         return itemService.getMetadataByMetadataString(item, metadataField);
-    }
-
-    protected boolean isAllowedMetadataByVisibility(MetadataValue metadataValue) {
-        return metadataValue.getSecurityLevel() == null
-                || metadataValue.getSecurityLevel() <= getMaxAllowedMetadataVisibility();
-    }
-
-    public Integer getMaxAllowedMetadataVisibility() {
-        return maxAllowedMetadataVisibility;
-    }
-
-    public void setMaxAllowedMetadataVisibility(Integer maxAllowedMetadataVisibility) {
-        this.maxAllowedMetadataVisibility = maxAllowedMetadataVisibility;
     }
 
 }

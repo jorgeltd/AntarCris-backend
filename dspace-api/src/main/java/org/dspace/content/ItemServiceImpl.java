@@ -7,19 +7,11 @@
  */
 package org.dspace.content;
 
-import static org.dspace.authority.service.AuthorityValueService.AUTHORITY_CLEANUP_BUSINESS_MODE;
-import static org.dspace.authority.service.AuthorityValueService.AUTHORITY_CLEANUP_CLEAN_ALL_MODE;
-import static org.dspace.authority.service.AuthorityValueService.AUTHORITY_CLEANUP_PROPERTY_PREFIX;
-import static org.dspace.authority.service.AuthorityValueService.REFERENCE;
-import static org.dspace.authority.service.AuthorityValueService.SPLIT;
-import static org.dspace.content.authority.Choices.CF_UNSET;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -29,18 +21,15 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
-import org.dspace.app.metrics.service.CrisMetricsService;
 import org.dspace.app.requestitem.RequestItem;
 import org.dspace.app.requestitem.service.RequestItemService;
 import org.dspace.app.util.AuthorizeUtil;
-import org.dspace.authority.service.impl.ItemSearcherByMetadata;
 import org.dspace.authorize.AuthorizeConfiguration;
 import org.dspace.authorize.AuthorizeException;
 import org.dspace.authorize.ResourcePolicy;
@@ -60,22 +49,16 @@ import org.dspace.content.service.ItemService;
 import org.dspace.content.service.MetadataSchemaService;
 import org.dspace.content.service.RelationshipService;
 import org.dspace.content.service.WorkspaceItemService;
-import org.dspace.content.template.TemplateItemValueService;
 import org.dspace.content.virtual.VirtualMetadataPopulator;
-import org.dspace.content.vo.MetadataValueVO;
 import org.dspace.contentreport.QueryPredicate;
 import org.dspace.core.Constants;
 import org.dspace.core.Context;
 import org.dspace.core.LogHelper;
-import org.dspace.core.exception.SQLRuntimeException;
 import org.dspace.discovery.DiscoverQuery;
 import org.dspace.discovery.DiscoverResult;
-import org.dspace.discovery.DiscoverResultItemIterator;
 import org.dspace.discovery.SearchService;
 import org.dspace.discovery.SearchServiceException;
 import org.dspace.discovery.indexobject.IndexableItem;
-import org.dspace.discovery.indexobject.IndexableWorkflowItem;
-import org.dspace.discovery.indexobject.IndexableWorkspaceItem;
 import org.dspace.eperson.EPerson;
 import org.dspace.eperson.Group;
 import org.dspace.eperson.service.GroupService;
@@ -84,14 +67,10 @@ import org.dspace.event.Event;
 import org.dspace.harvest.HarvestedItem;
 import org.dspace.harvest.service.HarvestedItemService;
 import org.dspace.identifier.DOI;
+import org.dspace.identifier.DOIIdentifierProvider;
 import org.dspace.identifier.IdentifierException;
 import org.dspace.identifier.service.DOIService;
 import org.dspace.identifier.service.IdentifierService;
-import org.dspace.layout.CrisLayoutBox;
-import org.dspace.layout.CrisLayoutField;
-import org.dspace.layout.CrisLayoutFieldBitstream;
-import org.dspace.layout.CrisLayoutTab;
-import org.dspace.layout.service.CrisLayoutTabService;
 import org.dspace.orcid.OrcidHistory;
 import org.dspace.orcid.OrcidQueue;
 import org.dspace.orcid.OrcidToken;
@@ -165,8 +144,6 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     protected WorkspaceItemService workspaceItemService;
     @Autowired(required = true)
     protected WorkflowItemService workflowItemService;
-    @Autowired
-    private TemplateItemValueService templateItemValueService;
 
     @Autowired(required = true)
     protected RelationshipService relationshipService;
@@ -192,160 +169,51 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     @Autowired(required = true)
     private OrcidSynchronizationService orcidSynchronizationService;
 
-    @Autowired
-    private CrisLayoutTabService crisLayoutTabService;
-
-    @Autowired(required = true)
-    protected SubscribeService subscribeService;
-
-    @Autowired(required = true)
-    protected CrisMetricsService crisMetricsService;
-
     @Autowired(required = true)
     private ResearcherProfileService researcherProfileService;
     @Autowired(required = true)
     private RequestItemService requestItemService;
 
-    @Autowired
-    private VersionHistoryService versionHistoryService;
-
-    @Autowired
-    private List<ItemSearcherByMetadata> itemSearcherByMetadata;
+    @Autowired(required = true)
+    protected SubscribeService subscribeService;
 
     @Autowired
     private QAEventsDAO qaEventsDao;
+
+    @Autowired
+    private VersionHistoryService versionHistoryService;
 
     protected ItemServiceImpl() {
     }
 
     @Override
     public Thumbnail getThumbnail(Context context, Item item, boolean requireOriginal) throws SQLException {
-        // Search the thumbnail using the configuration
-        Thumbnail thumbnail = thumbnailLayoutTabConfigurationStrategy(context, item, requireOriginal);
-        if (thumbnail != null) {
-            return thumbnail;
+        Bitstream thumbBitstream;
+        List<Bundle> originalBundles = getBundles(item, "ORIGINAL");
+        Bitstream primaryBitstream = null;
+        if (CollectionUtils.isNotEmpty(originalBundles)) {
+            primaryBitstream = originalBundles.get(0).getPrimaryBitstream();
         }
-        return null;
-    }
-
-    /**
-     * @param context
-     * @param item
-     * @throws SQLException
-     */
-    private Thumbnail thumbnailLayoutTabConfigurationStrategy(Context context, Item item, boolean requireOriginal)
-        throws SQLException {
-        List<CrisLayoutTab> crisLayoutTabs = crisLayoutTabService.findByItem(context, String.valueOf(item.getID()));
-
-        List<CrisLayoutField> thumbFields = getThumbnailFields(crisLayoutTabs);
-        if (CollectionUtils.isEmpty(thumbFields)) {
-            // If no thumbnail is retrieved by the first strategy
-            // then use the fallback strategy
-            Bitstream thumbBitstream = null;
-            List<Bundle> originalBundles = getBundles(item, "ORIGINAL");
-            Bitstream primaryBitstream = null;
-            if (CollectionUtils.isNotEmpty(originalBundles)) {
-                primaryBitstream = originalBundles.get(0).getPrimaryBitstream();
-            }
-            if (primaryBitstream == null) {
-                if (requireOriginal) {
-                    primaryBitstream = bitstreamService.getFirstBitstream(item, "ORIGINAL");
-                }
-                thumbBitstream = bitstreamService.getFirstBitstream(item, "THUMBNAIL");
-            }
-            if (primaryBitstream != null) {
-                thumbBitstream = bitstreamService.getThumbnail(context, primaryBitstream);
-                if (thumbBitstream == null) {
-                    thumbBitstream = bitstreamService.getFirstBitstream(item, "THUMBNAIL");
-                    if (!bitstreamService.isValidThumbnail(context, thumbBitstream)) {
-                        thumbBitstream = null;
-                    }
-                }
-            }
-
-            if (thumbBitstream != null) {
-                return new Thumbnail(thumbBitstream, primaryBitstream);
-            }
-        }
-        return retrieveThumbnailFromFields(context, item, thumbFields);
-    }
-
-    /**
-     * @param context
-     * @param item
-     * @param thumbFields
-     * @return Thumbnail
-     * @throws SQLException
-     */
-    private Thumbnail retrieveThumbnailFromFields(Context context, Item item,
-            List<CrisLayoutField> thumbFields) throws SQLException {
-        for (CrisLayoutField thumbField : thumbFields) {
-            if (!(thumbField instanceof CrisLayoutFieldBitstream)) {
-                continue;
-            }
-            CrisLayoutFieldBitstream thumbFieldBitstream = (CrisLayoutFieldBitstream)thumbField;
-            String bundle = thumbFieldBitstream.getBundle();
-            MetadataField metadata = thumbFieldBitstream.getMetadataField();
-            String value = thumbFieldBitstream.getMetadataValue();
-            Thumbnail thumbnail = retrieveThumbnail(context, item, bundle, metadata, value);
-            if (thumbnail != null) {
-                return thumbnail;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * @param crisLayoutTabs
-     * @return List<CrisLayoutField>
-     */
-    private List<CrisLayoutField> getThumbnailFields(List<CrisLayoutTab> crisLayoutTabs) {
-        List<CrisLayoutField> thumbFields = new LinkedList<>();
-        for (CrisLayoutTab tab : crisLayoutTabs) {
-            for (CrisLayoutBox box : tab.getBoxes()) {
-                thumbFields.addAll(box.getLayoutFields().stream()
-                    .filter(field -> field.getRendering() != null && field.getRendering().equals("thumbnail"))
-                    .collect(Collectors.toList()));
-            }
-        }
-        return thumbFields;
-    }
-
-    /**
-     * @param context
-     * @param item
-     * @param bundle
-     * @param value
-     * @throws SQLException
-     * @return Bitstream
-     */
-    private Thumbnail retrieveThumbnail(Context context, Item item, String bundle,
-        MetadataField metadataField, String value) throws SQLException {
-        List<Bundle> bundles = getBundles(item, bundle);
-        if (CollectionUtils.isNotEmpty(bundles)) {
-            Optional<Bitstream> primaryBitstream = bundles.get(0).getBitstreams().stream().filter(bitstream -> {
-                return bitstream.getMetadata().stream().anyMatch(metadataValue -> {
-                    if (metadataField != null) {
-                        return metadataValue.getMetadataField().getID() == metadataField.getID()
-                            && metadataValue.getValue() != null
-                            && metadataValue.getValue().equalsIgnoreCase(value);
-                    } else {
-                        return true;
-                    }
-                });
-            }).findFirst();
-            if (primaryBitstream.isEmpty()) {
+        if (primaryBitstream != null) {
+            if (primaryBitstream.getFormat(context).getMIMEType().equals("text/html")) {
                 return null;
             }
-            Bitstream thumbBitstream = bitstreamService.getThumbnail(context, primaryBitstream.get());
-            // If the thumbnail is not available return the non thumbnail bitstream
-            // retrieved in the previous steps
-            if (thumbBitstream != null) {
-                return new Thumbnail(thumbBitstream, primaryBitstream.get());
-            } else {
-                return new Thumbnail(primaryBitstream.get(), primaryBitstream.get());
+
+            thumbBitstream = bitstreamService
+                .getBitstreamByName(item, "THUMBNAIL", primaryBitstream.getName() + ".jpg");
+
+        } else {
+            if (requireOriginal) {
+                primaryBitstream = bitstreamService.getFirstBitstream(item, "ORIGINAL");
             }
+
+            thumbBitstream = bitstreamService.getFirstBitstream(item, "THUMBNAIL");
         }
+
+        if (thumbBitstream != null) {
+            return new Thumbnail(thumbBitstream, primaryBitstream);
+        }
+
         return null;
     }
 
@@ -354,14 +222,16 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         Item item = itemDAO.findByID(context, Item.class, id);
         if (item == null) {
             if (log.isDebugEnabled()) {
-                log.debug(LogHelper.getHeader(context, "find_item", "not_found,item_id=" + id));
+                log.debug(LogHelper.getHeader(context, "find_item",
+                                               "not_found,item_id=" + id));
             }
             return null;
         }
 
         // not null, return item
         if (log.isDebugEnabled()) {
-            log.debug(LogHelper.getHeader(context, "find_item", "item_id=" + id));
+            log.debug(LogHelper.getHeader(context, "find_item", "item_id="
+                + id));
         }
 
         return item;
@@ -380,13 +250,18 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         if (workspaceItem.getItem() != null) {
             throw new IllegalArgumentException(
                     "Attempting to create an item for a workspace item that already contains an item");
-
         }
-
-        Item item = createItem(context, uuid);
+        Item item = null;
+        if (uuid != null) {
+            item = createItem(context, uuid);
+        } else {
+            item = createItem(context);
+        }
         workspaceItem.setItem(item);
 
-        log.info(LogHelper.getHeader(context, "create_item", "item_id=" + item.getID()));
+
+        log.info(LogHelper.getHeader(context, "create_item", "item_id="
+                + item.getID()));
 
         return item;
     }
@@ -421,14 +296,14 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         Optional<MetadataValue> colEntityType = getDSpaceEntityType(collection);
         Optional<MetadataValue> templateItemEntityType = getDSpaceEntityType(templateItem);
 
-        if (colEntityType.isPresent() && templateItemEntityType.isPresent() &&
+        if (template && colEntityType.isPresent() && templateItemEntityType.isPresent() &&
             !StringUtils.equals(colEntityType.get().getValue(), templateItemEntityType.get().getValue())) {
             throw new IllegalStateException("The template item has entity type : (" +
                 templateItemEntityType.get().getValue() + ") different than collection entity type : " +
                 colEntityType.get().getValue());
         }
 
-        if (colEntityType.isPresent() && templateItemEntityType.isEmpty()) {
+        if (template && colEntityType.isPresent() && templateItemEntityType.isEmpty()) {
             MetadataValue original = colEntityType.get();
             MetadataField metadataField = original.getMetadataField();
             MetadataSchema metadataSchema = metadataField.getMetadataSchema();
@@ -446,15 +321,8 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
             for (MetadataValue aMd : md) {
                 MetadataField metadataField = aMd.getMetadataField();
                 MetadataSchema metadataSchema = metadataField.getMetadataSchema();
-                List<MetadataValueVO> metadataValueFromTemplateList = templateItemValueService.value(context, item,
-                        templateItem, aMd);
-
-                for (MetadataValueVO metadataValueFromTemplate : metadataValueFromTemplateList) {
-                    addMetadata(context, item, metadataSchema.getName(), metadataField.getElement(),
-                        metadataField.getQualifier(), aMd.getLanguage(),
-                        metadataValueFromTemplate.getValue(), metadataValueFromTemplate.getAuthority(),
-                        metadataValueFromTemplate.getConfidence());
-                }
+                addMetadata(context, item, metadataSchema.getName(), metadataField.getElement(),
+                    metadataField.getQualifier(), aMd.getLanguage(), aMd.getValue());
             }
         }
     }
@@ -495,20 +363,19 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
     @Override
     public Iterator<Item> findBySubmitter(Context context, EPerson eperson, boolean retrieveAllItems)
-            throws SQLException {
+        throws SQLException {
         return itemDAO.findBySubmitter(context, eperson, retrieveAllItems);
     }
 
     @Override
     public Iterator<Item> findBySubmitterDateSorted(Context context, EPerson eperson, Integer limit)
-            throws SQLException {
+        throws SQLException {
 
         MetadataField metadataField = metadataFieldService
-                .findByElement(context, MetadataSchemaEnum.DC.getName(), "date", "accessioned");
+            .findByElement(context, MetadataSchemaEnum.DC.getName(), "date", "accessioned");
         if (metadataField == null) {
             throw new IllegalArgumentException(
-                    "Required metadata field '" +
-                        MetadataSchemaEnum.DC.getName() + ".date.accessioned' doesn't exist!");
+                "Required metadata field '" + MetadataSchemaEnum.DC.getName() + ".date.accessioned' doesn't exist!");
         }
 
         return itemDAO.findBySubmitter(context, eperson, metadataField, limit);
@@ -521,13 +388,13 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
     @Override
     public Iterator<Item> findByCollection(Context context, Collection collection, Integer limit, Integer offset)
-            throws SQLException {
+        throws SQLException {
         return itemDAO.findArchivedByCollection(context, collection, limit, offset);
     }
 
     @Override
     public Iterator<Item> findByCollectionMapping(Context context, Collection collection, Integer limit, Integer offset)
-            throws SQLException {
+        throws SQLException {
         return itemDAO.findArchivedByCollectionExcludingOwning(context, collection, limit, offset);
     }
 
@@ -543,19 +410,19 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
     @Override
     public Iterator<Item> findAllByCollection(Context context, Collection collection, Integer limit, Integer offset)
-            throws SQLException {
+        throws SQLException {
         return itemDAO.findAllByCollection(context, collection, limit, offset);
     }
 
     @Override
     public Iterator<Item> findInArchiveOrWithdrawnDiscoverableModifiedSince(Context context, Date since)
-            throws SQLException {
+        throws SQLException {
         return itemDAO.findAll(context, true, true, true, since);
     }
 
     @Override
     public Iterator<Item> findInArchiveOrWithdrawnNonDiscoverableModifiedSince(Context context, Date since)
-            throws SQLException {
+        throws SQLException {
         return itemDAO.findAll(context, true, true, false, since);
     }
 
@@ -563,69 +430,6 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     public void updateLastModified(Context context, Item item) throws SQLException, AuthorizeException {
         item.setLastModified(new Date());
         update(context, item);
-        //Also fire a modified event since the item HAS been modified
-        context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(), null, getIdentifiers(context, item)));
-    }
-
-    @Override
-    public void updateLastModifiedDate(Context context, Item item, Date lastModifiedDate)
-        throws SQLException, AuthorizeException {
-
-        if (!canEdit(context, item)) {
-            authorizeService.authorizeAction(context, item, Constants.WRITE);
-        }
-
-        log.info(LogHelper.getHeader(context, "update_item", "item_id="
-                + item.getID()));
-
-        super.update(context, item);
-
-        // Set sequence IDs for bitstreams in Item. To guarantee uniqueness,
-        // sequence IDs are assigned in sequential order (starting with 1)
-        int sequence = 0;
-        List<Bundle> bunds = item.getBundles();
-
-        // find the highest current sequence number
-        for (Bundle bund : bunds) {
-            List<Bitstream> streams = bund.getBitstreams();
-
-            for (Bitstream bitstream : streams) {
-                if (bitstream.getSequenceID() > sequence) {
-                    sequence = bitstream.getSequenceID();
-                }
-            }
-        }
-
-        // start sequencing bitstreams without sequence IDs
-        sequence++;
-        for (Bundle bund : bunds) {
-            List<Bitstream> streams = bund.getBitstreams();
-
-            for (Bitstream stream : streams) {
-                if (stream.getSequenceID() < 0) {
-                    stream.setSequenceID(sequence);
-                    sequence++;
-                    bitstreamService.update(context, stream);
-//                    modified = true;
-                }
-            }
-        }
-
-        if (item.isMetadataModified() || item.isModified()) {
-            item.setLastModified(lastModifiedDate);
-            // Set the last modified date
-            itemDAO.save(context, item);
-
-            if (item.isMetadataModified()) {
-                context.addEvent(new Event(Event.MODIFY_METADATA, item.getType(), item.getID(), item.getDetails(),
-                        getIdentifiers(context, item)));
-            }
-
-            context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(),
-                    null, getIdentifiers(context, item)));
-            item.clearModified();
-            item.clearDetails();
-        }
         //Also fire a modified event since the item HAS been modified
         context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(), null, getIdentifiers(context, item)));
     }
@@ -683,13 +487,13 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         bundle.addItem(item);
 
         context.addEvent(new Event(Event.ADD, Constants.ITEM, item.getID(),
-                Constants.BUNDLE, bundle.getID(), bundle.getName(),
-                getIdentifiers(context, item)));
+                                   Constants.BUNDLE, bundle.getID(), bundle.getName(),
+                                   getIdentifiers(context, item)));
     }
 
     @Override
     public void removeBundle(Context context, Item item, Bundle bundle)
-            throws SQLException, AuthorizeException, IOException {
+        throws SQLException, AuthorizeException, IOException {
         // Check authorisation
         authorizeService.authorizeAction(context, item, Constants.REMOVE);
 
@@ -697,14 +501,14 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
             + item.getID() + ",bundle_id=" + bundle.getID()));
 
         context.addEvent(new Event(Event.REMOVE, Constants.ITEM, item.getID(),
-                Constants.BUNDLE, bundle.getID(), bundle.getName(), getIdentifiers(context, item)));
+                                   Constants.BUNDLE, bundle.getID(), bundle.getName(), getIdentifiers(context, item)));
 
         bundleService.delete(context, bundle);
     }
 
     @Override
     public Bitstream createSingleBitstream(Context context, InputStream is, Item item, String name)
-            throws AuthorizeException, IOException, SQLException {
+        throws AuthorizeException, IOException, SQLException {
         // Authorisation is checked by methods below
         // Create a bundle
         Bundle bnd = bundleService.create(context, item, name);
@@ -717,7 +521,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
     @Override
     public Bitstream createSingleBitstream(Context context, InputStream is, Item item)
-            throws AuthorizeException, IOException, SQLException {
+        throws AuthorizeException, IOException, SQLException {
         return createSingleBitstream(context, is, item, "ORIGINAL");
     }
 
@@ -743,10 +547,6 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         return bitstreamList;
     }
 
-    protected Item createItem(Context context) throws SQLException, AuthorizeException {
-        return createItem(context, null);
-    }
-
     protected Item createItem(Context context, UUID uuid) throws SQLException, AuthorizeException {
         Item item;
         if (uuid != null) {
@@ -765,6 +565,25 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
         context.addEvent(new Event(Event.CREATE, Constants.ITEM, item.getID(),
                 null, getIdentifiers(context, item)));
+
+        log.info(LogHelper.getHeader(context, "create_item", "item_id=" + item.getID()));
+
+        return item;
+    }
+
+    protected Item createItem(Context context) throws SQLException, AuthorizeException {
+        Item item = itemDAO.create(context, new Item());
+        // set discoverable to true (default)
+        item.setDiscoverable(true);
+
+        // Call update to give the item a last modified date. OK this isn't
+        // amazingly efficient but creates don't happen that often.
+        context.turnOffAuthorisationSystem();
+        update(context, item);
+        context.restoreAuthSystemState();
+
+        context.addEvent(new Event(Event.CREATE, Constants.ITEM, item.getID(),
+                                   null, getIdentifiers(context, item)));
 
         log.info(LogHelper.getHeader(context, "create_item", "item_id=" + item.getID()));
 
@@ -868,16 +687,15 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
             if (item.isMetadataModified()) {
                 context.addEvent(new Event(Event.MODIFY_METADATA, item.getType(), item.getID(), item.getDetails(),
-                        getIdentifiers(context, item)));
+                                           getIdentifiers(context, item)));
             }
 
             context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(),
-                    null, getIdentifiers(context, item)));
+                                       null, getIdentifiers(context, item)));
             item.clearModified();
             item.clearDetails();
         }
     }
-
 
     @Override
     public void withdraw(Context context, Item item) throws SQLException, AuthorizeException {
@@ -895,8 +713,8 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         StringBuilder prov = new StringBuilder();
 
         prov.append("Item withdrawn by ").append(e.getFullName()).append(" (")
-                .append(e.getEmail()).append(") on ").append(timestamp).append("\n")
-                .append("Item was in collections:\n");
+            .append(e.getEmail()).append(") on ").append(timestamp).append("\n")
+            .append("Item was in collections:\n");
 
         List<Collection> colls = item.getCollections();
 
@@ -918,7 +736,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         update(context, item);
 
         context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(),
-                "WITHDRAW", getIdentifiers(context, item)));
+                                   "WITHDRAW", getIdentifiers(context, item)));
 
         // switch all READ authorization policies to WITHDRAWN_READ
         authorizeService.switchPoliciesAction(context, item, Constants.READ, Constants.WITHDRAWN_READ);
@@ -950,8 +768,8 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         EPerson e = context.getCurrentUser();
         StringBuilder prov = new StringBuilder();
         prov.append("Item reinstated by ").append(e.getFullName()).append(" (")
-                .append(e.getEmail()).append(") on ").append(timestamp).append("\n")
-                .append("Item was in collections:\n");
+            .append(e.getEmail()).append(") on ").append(timestamp).append("\n")
+            .append("Item was in collections:\n");
 
         for (Collection coll : colls) {
             prov.append(coll.getName()).append(" (ID: ").append(coll.getID()).append(")\n");
@@ -973,7 +791,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         update(context, item);
 
         context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(),
-                "REINSTATE", getIdentifiers(context, item)));
+                                   "REINSTATE", getIdentifiers(context, item)));
 
         // restore all WITHDRAWN_READ authorization policies back to READ
         for (Bundle bnd : item.getBundles()) {
@@ -1012,19 +830,15 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     }
 
     protected void rawDelete(Context context, Item item) throws AuthorizeException, SQLException, IOException {
-
         authorizeService.authorizeAction(context, item, Constants.REMOVE);
 
         context.addEvent(new Event(Event.DELETE, Constants.ITEM, item.getID(),
-                item.getHandle(), getIdentifiers(context, item)));
+                                   item.getHandle(), getIdentifiers(context, item)));
 
         log.info(LogHelper.getHeader(context, "delete_item", "item_id="
             + item.getID()));
-
         //remove subscription related with it
         subscribeService.deleteByDspaceObject(context, item);
-        crisMetricsService.deleteByResourceID(context, item);
-
         // Remove relationships
         for (Relationship relationship : relationshipService.findByItem(context, item, -1, -1, false, false)) {
             relationshipService.forceDelete(context, relationship, false, false);
@@ -1044,6 +858,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         DOI doi = doiService.findDOIByDSpaceObject(context, item);
         if (doi != null) {
             doi.setDSpaceObject(null);
+            doi.setStatus(DOIIdentifierProvider.TO_BE_DELETED);
         }
 
         // remove version attached to the item
@@ -1074,110 +889,8 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         item.clearCollections();
         item.setOwningCollection(null);
 
-        // remore authority references
-        if (configurationService.getBooleanProperty("item-deletion.authority-cleanup.enabled", false)) {
-            removeAuthorityReferences(context, item);
-        }
-
         // Finally remove item row
         itemDAO.delete(context, item);
-    }
-
-    private void removeAuthorityReferences(Context context, Item deletedItem) throws SQLException, AuthorizeException {
-        String uuidOfDeletedItem = deletedItem.getID().toString();
-        List<String> controlledFields = getAuthorityControlledFieldsByItemEntityType(deletedItem);
-
-        Iterator<Item> itemsToFixAuthority =
-               this.findRelatedItemsByAuthorityControlledFields(context, deletedItem, Arrays.asList(uuidOfDeletedItem));
-
-        while (itemsToFixAuthority.hasNext()) {
-            Item itemToProcess = itemsToFixAuthority.next();
-
-            for (String controlledField : controlledFields) {
-                List<MetadataValue> metadataValuesWithAuthorityToUpdate = getMetadataWithAuthority(itemToProcess,
-                                                                                    controlledField, uuidOfDeletedItem);
-
-                if (CollectionUtils.isEmpty(metadataValuesWithAuthorityToUpdate)) {
-                    continue;
-                }
-
-                String cleanUpMode = getCleanUpMode(controlledField);
-
-                for (MetadataValue metadataValue : metadataValuesWithAuthorityToUpdate) {
-                    applyCleanUpMode(context, deletedItem, itemToProcess, metadataValue, cleanUpMode);
-                }
-            }
-            update(context, itemToProcess);
-            context.uncacheEntity(itemToProcess);
-        }
-    }
-
-    private List<MetadataValue> getMetadataWithAuthority(Item item, String metadataField, String authority) {
-        if (isValidMetadata(metadataField)) {
-            return getMetadataByMetadataString(item, metadataField).stream()
-                .filter(metadataValue -> StringUtils.equals(metadataValue.getAuthority(), authority))
-                .collect(Collectors.toList());
-        }
-        return List.of();
-    }
-
-    public boolean isValidMetadata(String metadataField) {
-        if (metadataField.split(Pattern.quote(".")).length > 3) {
-            return false;
-        }
-        return true;
-    }
-
-    private void applyCleanUpMode(Context context, Item deletedItem, Item itemToProcess,
-            MetadataValue metadataValueWithAuthorityToUpdate, String cleanUpMode) throws SQLException {
-
-        switch (cleanUpMode) {
-            case AUTHORITY_CLEANUP_BUSINESS_MODE:
-                replaceAuthorityWithItemBusinessIdentifier(deletedItem, metadataValueWithAuthorityToUpdate);
-                break;
-            case AUTHORITY_CLEANUP_CLEAN_ALL_MODE:
-                removeMetadataValues(context, itemToProcess, Arrays.asList(metadataValueWithAuthorityToUpdate));
-                break;
-            default:
-                log.error("The configured mode:" + cleanUpMode + " for metadata:"
-                          + metadataValueWithAuthorityToUpdate.getMetadataField().toString() + " is not supported");
-        }
-    }
-
-    private void replaceAuthorityWithItemBusinessIdentifier(Item deletedItem, MetadataValue mvWithAuthorityToUpdate) {
-        String authority = getBusinesIdentifier(deletedItem)
-                                     .map(businessId -> REFERENCE + businessId)
-                                     .orElse(null);
-
-        mvWithAuthorityToUpdate.setAuthority(authority);
-        mvWithAuthorityToUpdate.setConfidence(CF_UNSET);
-    }
-
-    private String getCleanUpMode(String metadataField) {
-        String mode = configurationService.getProperty(AUTHORITY_CLEANUP_PROPERTY_PREFIX + metadataField);
-        if (StringUtils.isBlank(mode)) {
-            mode = configurationService.getProperty(AUTHORITY_CLEANUP_PROPERTY_PREFIX + "default");
-        }
-        return mode;
-    }
-
-    private List<String> getAuthorityControlledFieldsByItemEntityType(Item item) {
-        String entityType = this.getEntityType(item);
-        return choiceAuthorityService.getAuthorityControlledFieldsByEntityType(entityType)
-                                     .stream()
-                                     .filter(field -> isValidMetadata(field))
-                                     .map(field -> field.replaceAll("_", "."))
-                                     .collect(Collectors.toList());
-    }
-
-    private Optional<String> getBusinesIdentifier(Item item) {
-        for (ItemSearcherByMetadata itemSearcherByMetadata : itemSearcherByMetadata) {
-            String businessIdentifier = getMetadata(item, itemSearcherByMetadata.getMetadata());
-            if (StringUtils.isNotBlank(businessIdentifier)) {
-                return Optional.of(itemSearcherByMetadata.getAuthorityPrefix() + SPLIT + businessIdentifier);
-            }
-        }
-        return Optional.empty();
     }
 
     protected void removeRequest(Context context, Item item) throws SQLException {
@@ -1199,7 +912,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     }
 
     protected void deleteBundle(Context context, Item item, Bundle b)
-            throws AuthorizeException, SQLException, IOException {
+        throws AuthorizeException, SQLException, IOException {
         // Check authorisation
         authorizeService.authorizeAction(context, item, Constants.REMOVE);
 
@@ -1207,10 +920,8 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
         log.info(LogHelper.getHeader(context, "remove_bundle", "item_id="
             + item.getID() + ",bundle_id=" + b.getID()));
-
         context
-                .addEvent(new Event(Event.REMOVE, Constants.ITEM, item.getID(),
-                    Constants.BUNDLE, b.getID(), b.getName()));
+            .addEvent(new Event(Event.REMOVE, Constants.ITEM, item.getID(), Constants.BUNDLE, b.getID(), b.getName()));
     }
 
     protected void removeVersion(Context context, Item item) throws AuthorizeException, SQLException {
@@ -1234,7 +945,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
     @Override
     public void replaceAllItemPolicies(Context context, Item item, List<ResourcePolicy> newpolicies)
-            throws SQLException, AuthorizeException {
+        throws SQLException, AuthorizeException {
         // remove all our policies, add new ones
         authorizeService.removeAllPolicies(context, item);
         authorizeService.addPolicies(context, newpolicies, item);
@@ -1242,7 +953,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
     @Override
     public void replaceAllBitstreamPolicies(Context context, Item item, List<ResourcePolicy> newpolicies)
-            throws SQLException, AuthorizeException {
+        throws SQLException, AuthorizeException {
         // remove all policies from bundles, add new ones
         List<Bundle> bunds = item.getBundles();
 
@@ -1313,10 +1024,9 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
                 ResourcePolicy.TYPE_CUSTOM);
         if (defaultCollectionBitstreamPolicies.size() < 1) {
             throw new SQLException("Collection " + collection.getID()
-                    + " (" + collection.getHandle() + ")"
-                    + " has no default bitstream READ policies");
+                                       + " (" + collection.getHandle() + ")"
+                                       + " has no default bitstream READ policies");
         }
-        // TODO: should we also throw an exception if no DEFAULT_ITEM_READ?
         // TODO: should we also throw an exception if no DEFAULT_ITEM_READ?
 
         boolean removeCurrentReadRPBitstream =
@@ -1399,12 +1109,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         throws SQLException, AuthorizeException {
         // read collection's default READ policies
         List<ResourcePolicy> defaultCollectionPolicies = authorizeService
-                .getPoliciesActionFilter(context, collection, Constants.DEFAULT_ITEM_READ);
-
-        // If collection has defaultREAD policies, remove the item's READ policies.
-        if (replaceReadRPWithCollectionRP && defaultCollectionPolicies.size() > 0) {
-            authorizeService.removePoliciesActionFilter(context, item, Constants.READ);
-        }
+            .getPoliciesActionFilter(context, collection, Constants.DEFAULT_ITEM_READ);
 
         // If collection has defaultREAD policies, remove the item's READ policies.
         if (replaceReadRPWithCollectionRP && defaultCollectionPolicies.size() > 0) {
@@ -1414,8 +1119,8 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
         // MUST have default policies
         if (defaultCollectionPolicies.size() < 1) {
             throw new SQLException("Collection " + collection.getID()
-                    + " (" + collection.getHandle() + ")"
-                    + " has no default item READ policies");
+                                       + " (" + collection.getHandle() + ")"
+                                       + " has no default item READ policies");
         }
 
         try {
@@ -1448,7 +1153,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
 
     @Override
     public void move(Context context, Item item, Collection from, Collection to, boolean inheritDefaultPolicies)
-            throws SQLException, AuthorizeException, IOException {
+        throws SQLException, AuthorizeException, IOException {
         // Check authorisation on the item before that the move occur
         // otherwise we will need edit permission on the "target collection" to archive our goal
         // only do write authorization if user is not an editor
@@ -1467,7 +1172,6 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
                                           "item_id=" + item.getID() + ", from " +
                                               "collection_id=" + from.getID() + " to " +
                                               "collection_id=" + to.getID()));
-
             item.setOwningCollection(to);
 
             // If applicable, update the item policies
@@ -1490,7 +1194,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
             // so we only do this here if the owning collection hasn't changed.
 
             context.addEvent(new Event(Event.MODIFY, Constants.ITEM, item.getID(),
-                    null, getIdentifiers(context, item)));
+                                       null, getIdentifiers(context, item)));
         }
     }
 
@@ -1535,7 +1239,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     public boolean canEdit(Context context, Item item) throws SQLException {
         // can this person write to the item?
         if (authorizeService.authorizeActionBoolean(context, item,
-                Constants.WRITE)) {
+                                                    Constants.WRITE)) {
             return true;
         }
 
@@ -1544,9 +1248,8 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
             if (!isInProgressSubmission(context, item)) {
                 return true;
             }
-            return researcherProfileService.isAuthorOf(context, context.getCurrentUser(), item);
+            return false;
         }
-
 
         return collectionService.canEditBoolean(context, item.getOwningCollection(), false);
     }
@@ -1609,7 +1312,7 @@ public class ItemServiceImpl extends DSpaceObjectServiceImpl<Item> implements It
     @Override
     public boolean isInProgressSubmission(Context context, Item item) throws SQLException {
         return workspaceItemService.findByItem(context, item) != null
-                || workflowItemService.findByItem(context, item) != null;
+            || workflowItemService.findByItem(context, item) != null;
     }
 
     /*
@@ -1629,8 +1332,8 @@ prevent the generation of resource policy entry values with null dspace_object a
      * @throws AuthorizeException Exception indicating the current user of the context does not have permission
      *                            to perform a particular action.
      */
-    public void addDefaultPoliciesNotInPlace(Context context, DSpaceObject dso,
-         List<ResourcePolicy> defaultCollectionPolicies) throws SQLException, AuthorizeException {
+    protected void addDefaultPoliciesNotInPlace(Context context, DSpaceObject dso,
+        List<ResourcePolicy> defaultCollectionPolicies) throws SQLException, AuthorizeException {
         boolean appendMode = configurationService
                 .getBooleanProperty("core.authorization.installitem.inheritance-read.append-mode", false);
         for (ResourcePolicy defaultPolicy : defaultCollectionPolicies) {
@@ -1658,8 +1361,8 @@ prevent the generation of resource policy entry values with null dspace_object a
     }
 
     /**
-     * Check whether or not there is already an RP on the given dso, which has actionId={@link Constants#READ} and
-     * resourceTypeId={@link ResourcePolicy#TYPE_CUSTOM}
+     * Check whether or not there is already an RP on the given dso, which has actionId={@link Constants.READ} and
+     * resourceTypeId={@link ResourcePolicy.TYPE_CUSTOM}
      *
      * @param context DSpace context
      * @param dso     DSpace object to check for custom read RP
@@ -1709,20 +1412,17 @@ prevent the generation of resource policy entry values with null dspace_object a
      * Returns an iterator of Items possessing the passed metadata field, or only
      * those matching the passed value, if value is not Item.ANY
      *
-     * @param  context            DSpace context object
-     * @param  schema             metadata field schema
-     * @param  element            metadata field element
-     * @param  qualifier          metadata field qualifier
-     * @param  value              field value or Item.ANY to match any value
-     * @return                    an iterator over the items matching that authority
-     *                            value
-     * @throws SQLException       if database error An exception that provides
-     *                            information on a database access error or other
-     *                            errors.
-     * @throws AuthorizeException if authorization error Exception indicating the
-     *                            current user of the context does not have
-     *                            permission
-     *
+     * @param context   DSpace context object
+     * @param schema    metadata field schema
+     * @param element   metadata field element
+     * @param qualifier metadata field qualifier
+     * @param value     field value or Item.ANY to match any value
+     * @return an iterator over the items matching that authority value
+     * @throws SQLException       if database error
+     *                            An exception that provides information on a database access error or other errors.
+     * @throws AuthorizeException if authorization error
+     *                            Exception indicating the current user of the context does not have permission
+     *                            to perform a particular action.
      */
     @Override
     public Iterator<Item> findArchivedByMetadataField(Context context,
@@ -1749,26 +1449,6 @@ prevent the generation of resource policy entry values with null dspace_object a
             throws SQLException, AuthorizeException {
         String[] mdValueByField = getMDValueByField(metadataField);
         return findArchivedByMetadataField(context, mdValueByField[0], mdValueByField[1], mdValueByField[2], value);
-    }
-
-    @Override
-    public Iterator<Item> findUnfilteredByMetadataField(Context context, String schema, String element,
-                                                        String qualifier, String value)
-        throws SQLException, AuthorizeException {
-        MetadataSchema mds = metadataSchemaService.find(context, schema);
-        if (mds == null) {
-            throw new IllegalArgumentException("No such metadata schema: " + schema);
-        }
-        MetadataField mdf = metadataFieldService.findByElement(context, mds, element, qualifier);
-        if (mdf == null) {
-            throw new IllegalArgumentException(
-                    "No such metadata field: schema=" + schema + ", element=" + element + ", qualifier=" + qualifier);
-        }
-
-        if (Item.ANY.equals(value)) {
-            return itemDAO.findByMetadataField(context, mdf, null);
-        }
-        return itemDAO.findByMetadataField(context, mdf, value);
     }
 
     /**
@@ -1816,6 +1496,7 @@ prevent the generation of resource policy entry values with null dspace_object a
         return itemDAO.findByMetadataQuery(context, queryPredicates, collectionUuids, "value ~ ?",
                 offset, limit);
     }
+
 
     @Override
     public long countForMetadataQuery(Context context, List<QueryPredicate> queryPredicates,
@@ -1912,21 +1593,15 @@ prevent the generation of resource policy entry values with null dspace_object a
         MetadataField mdf = metadataFieldService.findByElement(context, mds, element, qualifier);
         if (mdf == null) {
             throw new IllegalArgumentException(
-                    "No such metadata field: schema=" + schema + ", element=" + element + ", qualifier=" + qualifier);
+                "No such metadata field: schema=" + schema + ", element=" + element + ", qualifier=" + qualifier);
         }
 
         return itemDAO.findByAuthorityValue(context, mdf, value, true);
     }
 
     @Override
-    public Iterator<Item> findByLikeAuthorityValue(Context context, String likeAuthority,
-            Boolean inArchive) throws SQLException {
-        return itemDAO.findByLikeAuthorityValue(context, likeAuthority, inArchive);
-    }
-
-    @Override
     public Iterator<Item> findByMetadataFieldAuthority(Context context, String mdString, String authority)
-            throws SQLException, AuthorizeException {
+        throws SQLException, AuthorizeException {
         String[] elements = getElementsFilled(mdString);
         String schema = elements[0];
         String element = elements[1];
@@ -1938,7 +1613,7 @@ prevent the generation of resource policy entry values with null dspace_object a
         MetadataField mdf = metadataFieldService.findByElement(context, mds, element, qualifier);
         if (mdf == null) {
             throw new IllegalArgumentException(
-                    "No such metadata field: schema=" + schema + ", element=" + element + ", qualifier=" + qualifier);
+                "No such metadata field: schema=" + schema + ", element=" + element + ", qualifier=" + qualifier);
         }
         return findByAuthorityValue(context, mds.getName(), mdf.getElement(), mdf.getQualifier(), authority);
     }
@@ -1960,12 +1635,6 @@ prevent the generation of resource policy entry values with null dspace_object a
             log.error(e.getMessage());
             return false;
         }
-    }
-
-    @Override
-    public Iterator<Item> findByIds(Context context, List<String> ids) throws SQLException {
-        return itemDAO.findByIds(context,
-                ids.stream().map(uuid -> UUID.fromString(uuid)).distinct().collect(Collectors.toList()));
     }
 
     @Override
@@ -1999,10 +1668,9 @@ prevent the generation of resource policy entry values with null dspace_object a
     }
 
     @Override
-    protected void getAuthoritiesAndConfidences(String fieldKey, int dsoType, Collection collection,
-                                                List<String> values, List<String> authorities,
-                                                List<Integer> confidences, int i) {
-        Choices c = choiceAuthorityService.getBestMatch(fieldKey, values.get(i), dsoType, collection, null);
+    protected void getAuthoritiesAndConfidences(String fieldKey, Collection collection, List<String> values,
+                                                List<String> authorities, List<Integer> confidences, int i) {
+        Choices c = choiceAuthorityService.getBestMatch(fieldKey, values.get(i), collection, null);
         authorities.add(c.values.length > 0 && c.values[0] != null ? c.values[0].authority : null);
         confidences.add(c.confidence);
     }
@@ -2027,7 +1695,7 @@ prevent the generation of resource policy entry values with null dspace_object a
 
     @Override
     public Iterator<Item> findByLastModifiedSince(Context context, Date last)
-            throws SQLException {
+        throws SQLException {
         return itemDAO.findByLastModifiedSince(context, last);
     }
 
@@ -2056,37 +1724,17 @@ prevent the generation of resource policy entry values with null dspace_object a
 
     @Override
     public boolean canCreateNewVersion(Context context, Item item) throws SQLException {
-        boolean userAuthorized = false;
         if (authorizeService.isAdmin(context, item)) {
-            userAuthorized = true;
+            return true;
         }
 
         if (context.getCurrentUser() != null
             && context.getCurrentUser().equals(item.getSubmitter())) {
-            userAuthorized = configurationService.getPropertyAsType(
+            return configurationService.getPropertyAsType(
                 "versioning.submitterCanCreateNewVersion", false);
         }
 
-        if (!userAuthorized) {
-            List<String> allowedGroups = List
-                    .of(configurationService.getArrayProperty("versioning.allowed.groups"));
-            userAuthorized = allowedGroups.stream().anyMatch(groupName -> {
-                try {
-                    return groupService.isMember(context, groupName);
-                } catch (SQLException e) {
-                    return false;
-                }
-            });
-        }
-
-        if (userAuthorized) {
-            List<String> allowedEntities = List
-                .of(configurationService.getArrayProperty("versioning.enabled.entities"));
-            String entityType = getEntityType(item);
-            return entityType != null && allowedEntities.contains(entityType);
-        }
-
-        return userAuthorized;
+        return false;
     }
 
     /**
@@ -2094,21 +1742,20 @@ prevent the generation of resource policy entry values with null dspace_object a
      * metadata of the item passed along in the parameters as well as all the virtual metadata
      * which will be generated and processed together with the {@link VirtualMetadataPopulator}
      * by processing the item's relationships
-     *
-     * @param item      the Item to be processed
-     * @param schema    the schema for the metadata field. <em>Must</em> match
-     *                  the <code>name</code> of an existing metadata schema.
-     * @param element   the element name. <code>DSpaceObject.ANY</code> matches any
-     *                  element. <code>null</code> doesn't really make sense as all
-     *                  metadata must have an element.
-     * @param qualifier the qualifier. <code>null</code> means unqualified, and
-     *                  <code>DSpaceObject.ANY</code> means any qualifier (including
-     *                  unqualified.)
-     * @param lang      the ISO639 language code, optionally followed by an underscore
-     *                  and the ISO3166 country code. <code>null</code> means only
-     *                  values with no language are returned, and
-     *                  <code>DSpaceObject.ANY</code> means values with any country code or
-     *                  no country code are returned.
+     * @param item         the Item to be processed
+     * @param schema       the schema for the metadata field. <em>Must</em> match
+     *                     the <code>name</code> of an existing metadata schema.
+     * @param element      the element name. <code>DSpaceObject.ANY</code> matches any
+     *                     element. <code>null</code> doesn't really make sense as all
+     *                     metadata must have an element.
+     * @param qualifier    the qualifier. <code>null</code> means unqualified, and
+     *                     <code>DSpaceObject.ANY</code> means any qualifier (including
+     *                     unqualified.)
+     * @param lang         the ISO639 language code, optionally followed by an underscore
+     *                     and the ISO3166 country code. <code>null</code> means only
+     *                     values with no language are returned, and
+     *                     <code>DSpaceObject.ANY</code> means values with any country code or
+     *                     no country code are returned.
      * @return
      */
     @Override
@@ -2119,10 +1766,6 @@ prevent the generation of resource policy entry values with null dspace_object a
     @Override
     public List<MetadataValue> getMetadata(Item item, String schema, String element, String qualifier, String lang,
                                            boolean enableVirtualMetadata) {
-
-        enableVirtualMetadata = enableVirtualMetadata
-                && configurationService.getBooleanProperty("item.enable-virtual-metadata", false);
-
         if (!enableVirtualMetadata) {
             log.debug("Called getMetadata for " + item.getID() + " without enableVirtualMetadata");
             return super.getMetadata(item, schema, element, qualifier, lang);
@@ -2133,9 +1776,7 @@ prevent the generation of resource policy entry values with null dspace_object a
             List<MetadataValue> dbMetadataValues = item.getMetadata();
 
             List<MetadataValue> fullMetadataValueList = new LinkedList<>();
-            if (configurationService.getBooleanProperty("item.enable-virtual-metadata", false)) {
-                fullMetadataValueList.addAll(relationshipMetadataService.getRelationshipMetadata(item, true));
-            }
+            fullMetadataValueList.addAll(relationshipMetadataService.getRelationshipMetadata(item, true));
             fullMetadataValueList.addAll(dbMetadataValues);
 
             item.setCachedMetadata(MetadataValueComparators.sort(fullMetadataValueList));
@@ -2145,29 +1786,13 @@ prevent the generation of resource policy entry values with null dspace_object a
         // Build up list of matching values based on the cache
         List<MetadataValue> values = new ArrayList<>();
         for (MetadataValue dcv : item.getCachedMetadata()) {
-            if (match(schema, element, qualifier, dcv)) {
+            if (match(schema, element, qualifier, lang, dcv)) {
                 values.add(dcv);
             }
         }
 
-        values = getFilteredMetadataValuesByLanguage(values, lang);
-
         // Create an array of matching values
         return values;
-    }
-
-    @Override
-    public String getEntityType(Item item) {
-        return getMetadataFirstValue(item, new MetadataFieldName("dspace.entity.type"), Item.ANY);
-    }
-
-    @Override
-    public void setEntityType(Context context, Item item, String entityType) {
-        try {
-            setMetadataSingleValue(context, item, new MetadataFieldName("dspace.entity.type"), null, entityType);
-        } catch (SQLException e) {
-            throw new SQLRuntimeException(e);
-        }
     }
 
     /**
@@ -2182,7 +1807,7 @@ prevent the generation of resource policy entry values with null dspace_object a
                 //Retrieve the applicable relationship
                 Relationship rs = relationshipService.find(context,
                         ((RelationshipMetadataValue) rr).getRelationshipId());
-                if (rs.getLeftItem().getID().equals(dso.getID())) {
+                if (rs.getLeftItem().equals(dso)) {
                     rs.setLeftPlace(place);
                 } else {
                     rs.setRightPlace(place);
@@ -2192,53 +1817,30 @@ prevent the generation of resource policy entry values with null dspace_object a
                 //should not occur, otherwise metadata can't be updated either
                 log.error("An error occurred while moving " + rr.getAuthority() + " for item " + dso.getID(), e);
             }
-        }  else {
-            //just move the metadata
-            rr.setPlace(place);
         }
+
+        // Update the MetadataValue object with the new place setting
+        rr.setPlace(place);
     }
 
     @Override
     public MetadataValue addMetadata(Context context, Item dso, String schema, String element, String qualifier,
-                                     String lang, String value, String authority,
-                                     int confidence, int place) throws SQLException {
+            String lang, String value, String authority, int confidence, int place) throws SQLException {
 
         // We will not verify that they are valid entries in the registry
         // until update() is called.
         MetadataField metadataField = metadataFieldService.findByElement(context, schema, element, qualifier);
         if (metadataField == null) {
             throw new SQLException(
-                    "bad_dublin_core schema=" + schema + "." + element + "." +
-                        qualifier + ". Metadata field does not " +
-                            "exist!");
+                "bad_dublin_core schema=" + schema + "." + element + "." + qualifier + ". Metadata field does not " +
+                "exist!");
         }
 
-        final Supplier<Integer> placeSupplier = () -> place;
+        final Supplier<Integer> placeSupplier =  () -> place;
 
         return addMetadata(context, dso, metadataField, lang, Arrays.asList(value),
                 Arrays.asList(authority), Arrays.asList(confidence), placeSupplier)
                 .stream().findFirst().orElse(null);
-    }
-
-    @Override
-    public MetadataValue addMetadataInPlaceSecured(Context context, Item dso, String schema, String element,
-                                                   String qualifier, String lang, String value,
-                                                   String authority, int confidence, int place,
-                                                   Integer securityValue)
-        throws SQLException {
-
-        // We will not verify that they are valid entries in the registry
-        // until update() is called.
-        MetadataField metadataField = metadataFieldService.findByElement(context, schema, element, qualifier);
-        if (metadataField == null) {
-            throw new SQLException("bad_dublin_core schema=" + schema + "." + element + "." + qualifier +
-                    ". Metadata field does not exist!");
-        }
-        final Supplier<Integer> placeSupplier = () -> place;
-        return addMetadata(context, dso, metadataField, lang, Arrays.asList(value),
-                Arrays.asList(authority), Arrays.asList(confidence), placeSupplier, securityValue)
-                .stream().findFirst().orElse(null);
-
     }
 
     @Override
@@ -2338,32 +1940,6 @@ prevent the generation of resource policy entry values with null dspace_object a
     }
 
     @Override
-    public Iterator<Item> findRelatedItemsByAuthorityControlledFields(Context c, Item item, List<String> authorities) {
-        String entityType = this.getEntityType(item);
-        String query = choiceAuthorityService.getAuthorityControlledFieldsByEntityType(entityType).stream()
-                                             .map(field -> getFieldFilter(field, authorities))
-                                             .collect(Collectors.joining(" OR "));
-
-        if (StringUtils.isEmpty(query)) {
-            return Collections.emptyIterator();
-        }
-
-        DiscoverQuery discoverQuery = new DiscoverQuery();
-        discoverQuery.addDSpaceObjectFilter(IndexableItem.TYPE);
-        discoverQuery.addDSpaceObjectFilter(IndexableWorkspaceItem.TYPE);
-        discoverQuery.addDSpaceObjectFilter(IndexableWorkflowItem.TYPE);
-        discoverQuery.addFilterQueries(query);
-
-        return new DiscoverResultItemIterator(c, discoverQuery, false);
-    }
-
-    private String getFieldFilter(String field, List<String> authorities) {
-        return authorities.stream()
-            .map(authority -> field.replaceAll("_", ".") + "_allauthority: \"" + authority + "\"")
-            .collect(Collectors.joining(" OR "));
-    }
-
-    @Override
     public boolean isLatestVersion(Context context, Item item) throws SQLException {
 
         VersionHistory history = versionHistoryService.findByItem(context, item);
@@ -2397,18 +1973,6 @@ prevent the generation of resource policy entry values with null dspace_object a
 
         return item.equals(latestVersion.getItem());
 
-    }
-
-    @Override
-    public void addResourcePolicy(Context context, Item item, int actionID, EPerson eperson)
-        throws SQLException, AuthorizeException {
-        ResourcePolicy resourcePolicy =
-            this.authorizeService.createResourcePolicy(context, item, null, eperson, actionID, null);
-        item.getResourcePolicies().add(resourcePolicy);
-    }
-
-    public boolean exists(Context context, UUID id) throws SQLException {
-        return this.itemDAO.exists(context, Item.class, id);
     }
 
 }

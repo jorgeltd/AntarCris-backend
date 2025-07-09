@@ -7,9 +7,6 @@
  */
 package org.dspace.administer;
 
-import static org.dspace.content.Item.ANY;
-import static org.dspace.content.MetadataSchemaEnum.CRIS;
-import static org.dspace.content.authority.Choices.CF_UNSET;
 import static org.dspace.content.service.DSpaceObjectService.MD_COPYRIGHT_TEXT;
 import static org.dspace.content.service.DSpaceObjectService.MD_INTRODUCTORY_TEXT;
 import static org.dspace.content.service.DSpaceObjectService.MD_LICENSE;
@@ -50,16 +47,13 @@ import org.dspace.authorize.AuthorizeException;
 import org.dspace.content.Collection;
 import org.dspace.content.Community;
 import org.dspace.content.Item;
-import org.dspace.content.MetadataField;
 import org.dspace.content.MetadataFieldName;
 import org.dspace.content.MetadataSchemaEnum;
 import org.dspace.content.MetadataValue;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.CollectionService;
 import org.dspace.content.service.CommunityService;
-import org.dspace.content.service.ItemService;
 import org.dspace.core.Context;
-import org.dspace.core.CrisConstants;
 import org.dspace.eperson.factory.EPersonServiceFactory;
 import org.dspace.eperson.service.EPersonService;
 import org.dspace.handle.factory.HandleServiceFactory;
@@ -125,8 +119,7 @@ public class StructBuilder {
             = EPersonServiceFactory.getInstance().getEPersonService();
     protected static final HandleService handleService
             = HandleServiceFactory.getInstance().getHandleService();
-    protected static final ItemService itemService
-        = ContentServiceFactory.getInstance().getItemService();
+
     /**
      * Default constructor
      */
@@ -318,10 +311,6 @@ public class StructBuilder {
         communityMap.put("sidebar", MD_SIDEBAR_TEXT);
 
         collectionMap.put("name", MD_NAME);
-        collectionMap.put("entity-type", CrisConstants.MD_ENTITY_TYPE);
-        collectionMap.put("submission-type", CrisConstants.MD_SUBMISSION_TYPE);
-        collectionMap.put("workflow-name", CrisConstants.MD_WORKFLOW_NAME);
-        collectionMap.put("shared-workspace", CrisConstants.MD_SHARED_WORKSPACE);
         collectionMap.put("description", MD_SHORT_DESCRIPTION);
         collectionMap.put("intro", MD_INTRODUCTORY_TEXT);
         collectionMap.put("copyright", MD_COPYRIGHT_TEXT);
@@ -411,9 +400,6 @@ public class StructBuilder {
         Element element = new Element("collection");
         element.setAttribute("identifier", collection.getHandle());
         element.addContent(new Element("name").setText(collection.getName()));
-
-        buildTemplateItem(collection, element);
-
         element.addContent(new Element("description")
                 .setText(collectionService.getMetadataFirstValue(collection,
                         MetadataSchemaEnum.DC.getName(), "description", "abstract", Item.ANY)));
@@ -434,28 +420,6 @@ public class StructBuilder {
                 MetadataSchemaEnum.DC.getName(), "provenance", null, Item.ANY)) {
             element.addContent(new Element("provenance")
                     .setText(value.getValue()));
-        }
-        String entityType = collectionService.getMetadataFirstValue(collection, "dspace", "entity", "type", Item.ANY);
-        if (StringUtils.isNotBlank(entityType)) {
-            element.addContent(new Element("entity-type").setText(entityType));
-        }
-
-        String submissionDefinition = collectionService.getMetadataFirstValue(collection,
-            MetadataSchemaEnum.CRIS.getName(), "submission", "definition", Item.ANY);
-        if (StringUtils.isNotBlank(submissionDefinition)) {
-            element.addContent(new Element("submission-type").setText(submissionDefinition));
-        }
-
-        String workflowName = collectionService.getMetadataFirstValue(collection, MetadataSchemaEnum.CRIS.getName(),
-                "workflow", "name", Item.ANY);
-        if (StringUtils.isNotBlank(workflowName)) {
-            element.addContent(new Element("workflow-name").setText(workflowName));
-        }
-
-        String sharedWorkspace = collectionService.getMetadataFirstValue(collection, MetadataSchemaEnum.CRIS.getName(),
-            "workspace", "shared", Item.ANY);
-        if (StringUtils.isNotBlank(sharedWorkspace)) {
-            element.addContent(new Element("shared-workspace").setText(sharedWorkspace));
         }
 
         return element;
@@ -838,9 +802,7 @@ public class StructBuilder {
 
             // default the short description to the empty string
             collectionService.setMetadataSingleValue(context, collection,
-                    MD_SHORT_DESCRIPTION, Item.ANY, " ");
-
-            handleTemplateItem(context, collection, tn);
+                    MD_SHORT_DESCRIPTION, null, " ");
 
             // import the rest of the metadata
             for (Map.Entry<String, MetadataFieldName> entry : collectionMap.entrySet()) {
@@ -862,8 +824,6 @@ public class StructBuilder {
             element.addContent(nameElement);
 
             String fieldValue;
-
-            buildTemplateItem(collection, element);
 
             fieldValue = collectionService.getMetadataFirstValue(collection,
                     CollectionService.MD_SHORT_DESCRIPTION, Item.ANY);
@@ -913,121 +873,9 @@ public class StructBuilder {
                 element.addContent(sidebarElement);
             }
 
-            String entityType = collectionService.getMetadataFirstValue(collection, "dspace", "entity", "type", ANY);
-            if (StringUtils.isNotBlank(entityType)) {
-                element.addContent(new Element("entity-type").setText(entityType));
-            }
-
-            String submissionDefinition = collectionService.getMetadataFirstValue(collection,
-                MetadataSchemaEnum.CRIS.getName(), "submission", "definition", Item.ANY);
-            if (StringUtils.isNotBlank(submissionDefinition)) {
-                element.addContent(new Element("submission-type").setText(submissionDefinition));
-            }
-
-            String workflowName = collectionService.getMetadataFirstValue(collection, MetadataSchemaEnum.CRIS.getName(),
-                    "workflow", "name", Item.ANY);
-            if (StringUtils.isNotBlank(workflowName)) {
-                element.addContent(new Element("workflow-name").setText(workflowName));
-            }
-
-            String sharedWorkspace = collectionService.getMetadataFirstValue(collection, CRIS.getName(),
-                "workspace", "shared", Item.ANY);
-            if (StringUtils.isNotBlank(sharedWorkspace)) {
-                element.addContent(new Element("shared-workspace").setText(sharedWorkspace));
-            }
-
             elements[i] = element;
         }
 
         return elements;
     }
-
-    private static void handleTemplateItem(Context context, Collection collection, Node tn)
-        throws XPathExpressionException, SQLException, AuthorizeException {
-
-        XPath xPath = XPathFactory.newInstance().newXPath();
-        Node node = (Node) xPath.compile("templateItem").evaluate(tn, XPathConstants.NODE);
-
-        if (node == null) {
-            return;
-        }
-
-        Item templateItem = itemService.createTemplateItem(context, collection);
-
-        NodeList metadataNodes = (NodeList) xPath.compile("metadata").evaluate(node, XPathConstants.NODESET);
-
-        for (int i = 0; i < metadataNodes.getLength(); i++) {
-            Node metadataNode = metadataNodes.item(i);
-            MetadataFieldName metadataFieldName = buildMetadataFieldName(metadataNode);
-
-            Node valueAttribute = (Node) xPath.compile("value").evaluate(metadataNode, XPathConstants.NODE);
-            Node authorityAttribute = (Node) xPath.compile("authority").evaluate(metadataNode, XPathConstants.NODE);
-            Node confidenceAttribute = (Node) xPath.compile("confidence").evaluate(metadataNode, XPathConstants.NODE);
-
-            String authority = null;
-            int confidence = CF_UNSET;
-
-            if (authorityAttribute != null) {
-                authority = authorityAttribute.getTextContent();
-                confidence = confidenceAttribute != null ? Integer.parseInt(confidenceAttribute.getTextContent()) : 600;
-            }
-
-            itemService.addMetadata(context, templateItem, metadataFieldName.schema, metadataFieldName.element,
-                metadataFieldName.qualifier, ANY, valueAttribute.getTextContent(), authority, confidence);
-            itemService.update(context, templateItem);
-        }
-    }
-
-    private static MetadataFieldName buildMetadataFieldName(Node node) {
-        Node schemaAttribute = node.getAttributes().getNamedItem("schema");
-        Node elementAttribute = node.getAttributes().getNamedItem("element");
-        Node qualifierAttribute = node.getAttributes().getNamedItem("qualifier");
-
-        if (qualifierAttribute == null) {
-            return new MetadataFieldName(schemaAttribute.getTextContent(), elementAttribute.getTextContent());
-        } else {
-            return new MetadataFieldName(schemaAttribute.getTextContent(),
-                elementAttribute.getTextContent(), qualifierAttribute.getTextContent());
-        }
-    }
-
-    private static void buildTemplateItem(Collection collection, Element element) {
-
-        try {
-            Item templateItem = collection.getTemplateItem();
-
-            if (templateItem == null) {
-                return;
-            }
-
-            Element templateItemElement = new Element("templateItem");
-
-            for (MetadataValue metadataValue : templateItem.getMetadata()) {
-                MetadataField metadataField = metadataValue.getMetadataField();
-                Element metadata = new Element("metadata");
-                metadata.setAttribute("schema", metadataField.getMetadataSchema().getName());
-                metadata.setAttribute("element", metadataField.getElement());
-
-                if (metadataField.getQualifier() != null) {
-                    metadata.setAttribute("qualifier", metadataField.getQualifier());
-                }
-
-                metadata.addContent(new Element("value").setText(metadataValue.getValue()));
-
-                if (metadataValue.getAuthority() != null) {
-                    metadata.addContent(new Element("authority").setText(metadataValue.getAuthority()));
-                    metadata.addContent(new Element("confidence").setText(
-                        String.valueOf(metadataValue.getConfidence())
-                    ));
-                }
-
-                templateItemElement.addContent(metadata);
-            }
-
-            element.addContent(templateItemElement);
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
 }

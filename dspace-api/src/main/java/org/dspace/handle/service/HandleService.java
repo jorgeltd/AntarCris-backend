@@ -194,16 +194,6 @@ public interface HandleService {
     String parseHandle(String identifier);
 
     /**
-     * Checks whether the given handle matches an existing dso or not
-     * 
-     * @param context DSpace context
-     * @param handle  The given handle
-     * @return
-     * @throws SQLException
-     */
-    public boolean isGone(Context context, String handle) throws SQLException;
-
-    /**
      * Gets the additional prefixes used for handles,
      * mapped in configuration file.
      * 

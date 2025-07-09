@@ -15,6 +15,7 @@ import static org.dspace.qaevent.service.impl.QAEventServiceImpl.QAEVENTS_SOURCE
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -36,7 +37,6 @@ import java.io.OutputStream;
 import java.net.URL;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import eu.dnetlib.broker.BrokerClient;
 import org.apache.commons.io.IOUtils;
 import org.dspace.AbstractIntegrationTestWithDatabase;
@@ -117,6 +117,10 @@ public class OpenaireEventsImportIT extends AbstractIntegrationTestWithDatabase 
         String[] args = new String[] { "import-openaire-events" };
         ScriptLauncher.handleScript(args, ScriptLauncher.getConfig(kernelImpl), handler, kernelImpl);
 
+        assertThat(handler.getErrorMessages(), empty());
+        assertThat(handler.getWarningMessages(), empty());
+        assertThat(handler.getInfoMessages(), empty());
+
         Exception exception = handler.getException();
         assertThat(exception, instanceOf(IllegalArgumentException.class));
         assertThat(exception.getMessage(), is("One parameter between the location of the file and the email "
@@ -132,6 +136,10 @@ public class OpenaireEventsImportIT extends AbstractIntegrationTestWithDatabase 
         String[] args = new String[] { "import-openaire-events", "-f", getFileLocation("events.json"),
             "-e", "test@user.com" };
         ScriptLauncher.handleScript(args, ScriptLauncher.getConfig(kernelImpl), handler, kernelImpl);
+
+        assertThat(handler.getErrorMessages(), empty());
+        assertThat(handler.getWarningMessages(), empty());
+        assertThat(handler.getInfoMessages(), empty());
 
         Exception exception = handler.getException();
         assertThat(exception, instanceOf(IllegalArgumentException.class));
@@ -291,12 +299,10 @@ public class OpenaireEventsImportIT extends AbstractIntegrationTestWithDatabase 
         String[] args = new String[] { "import-openaire-events", "-f", getFileLocation("empty-file.json") };
         ScriptLauncher.handleScript(args, ScriptLauncher.getConfig(kernelImpl), handler, kernelImpl);
 
-        Exception exception = handler.getException();
-        assertThat(exception, instanceOf(MismatchedInputException.class));
-        /*assertThat(handler.getErrorMessages(),
+        assertThat(handler.getErrorMessages(),
             contains(containsString("A not recoverable error occurs during OPENAIRE events import")));
         assertThat(handler.getWarningMessages(),empty());
-        assertThat(handler.getInfoMessages(), contains("Trying to read the QA events from the provided file"));*/
+        assertThat(handler.getInfoMessages(), contains("Trying to read the QA events from the provided file"));
 
         assertThat(qaEventService.findAllSources(context, 0, 20), hasItem(QASourceMatcher.with(OPENAIRE_SOURCE, 0L)));
 
@@ -397,10 +403,10 @@ public class OpenaireEventsImportIT extends AbstractIntegrationTestWithDatabase 
         String[] args = new String[] { "import-openaire-events", "-e", "user@test.com" };
         ScriptLauncher.handleScript(args, ScriptLauncher.getConfig(kernelImpl), handler, kernelImpl);
 
-        Exception exception = handler.getException();
-        assertThat(exception, instanceOf(RuntimeException.class));
-        assertThat(exception.getMessage(), is("An error occurs retriving the subscriptions "
-            + "from the OPENAIRE broker: Connection refused"));
+        assertThat(handler.getErrorMessages(),
+            contains("A not recoverable error occurs during OPENAIRE events import: Connection refused"));
+        assertThat(handler.getWarningMessages(), empty());
+        assertThat(handler.getInfoMessages(), contains("Trying to read the QA events from the OPENAIRE broker"));
 
         assertThat(qaEventService.findAllSources(context, 0, 20), hasItem(QASourceMatcher.with(OPENAIRE_SOURCE, 0L)));
 

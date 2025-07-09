@@ -137,6 +137,45 @@ public class CanClaimItemFeatureIT extends AbstractControllerIntegrationTest {
     }
 
     @Test
+    public void testNotClaimableEntityForDifferentEmail() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        profile = ItemBuilder.createItem(context, personCollection)
+            .withPersonEmail(eperson.getEmail())
+            .build();
+
+        context.restoreAuthSystemState();
+
+        getClient(adminToken).perform(get("/api/authz/authorizations/search/object")
+            .param("uri", uri(profile))
+            .param("feature", canClaimProfileFeature.getName()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$._embedded").doesNotExist())
+            .andExpect(jsonPath("$.page.totalElements", equalTo(0)));
+
+    }
+
+    @Test
+    public void testNotClaimableEntityWithoutEmail() throws Exception {
+
+        context.turnOffAuthorisationSystem();
+
+        profile = ItemBuilder.createItem(context, personCollection)
+            .build();
+
+        context.restoreAuthSystemState();
+
+        getClient(adminToken).perform(get("/api/authz/authorizations/search/object")
+            .param("uri", uri(profile))
+            .param("feature", canClaimProfileFeature.getName()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$._embedded").doesNotExist())
+            .andExpect(jsonPath("$.page.totalElements", equalTo(0)));
+
+    }
+
+    @Test
     public void testNotClaimableEntity() throws Exception {
 
         context.turnOffAuthorisationSystem();

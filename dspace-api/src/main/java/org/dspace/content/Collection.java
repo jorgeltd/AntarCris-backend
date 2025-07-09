@@ -118,11 +118,6 @@ public class Collection extends CacheableDSpaceObject implements DSpaceObjectLeg
         return value == null ? "" : value;
     }
 
-    public String getEntityType() {
-        String value = getCollectionService().getMetadataFirstValue(this, "dspace", "entity", "type", Item.ANY);
-        return value == null ? "" : value;
-    }
-
     /**
      * Get the logo for the collection. <code>null</code> is returned if the
      * collection does not have a logo.
@@ -234,7 +229,7 @@ public class Collection extends CacheableDSpaceObject implements DSpaceObjectLeg
      * @throws SQLException if database error
      */
     public void setLicense(Context context, String license) throws SQLException {
-        getCollectionService().setMetadataSingleValue(context, this, MD_LICENSE, Item.ANY, license);
+        getCollectionService().setMetadataSingleValue(context, this, MD_LICENSE, null, license);
     }
 
     /**

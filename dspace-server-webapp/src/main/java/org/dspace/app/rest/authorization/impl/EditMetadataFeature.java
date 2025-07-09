@@ -8,10 +8,7 @@
 package org.dspace.app.rest.authorization.impl;
 
 import java.sql.SQLException;
-import java.util.Objects;
-import java.util.UUID;
 
-import org.apache.commons.lang.StringUtils;
 import org.dspace.app.rest.authorization.AuthorizationFeature;
 import org.dspace.app.rest.authorization.AuthorizationFeatureDocumentation;
 import org.dspace.app.rest.authorization.AuthorizeServiceRestUtil;
@@ -24,9 +21,6 @@ import org.dspace.app.rest.model.ItemRest;
 import org.dspace.app.rest.model.SiteRest;
 import org.dspace.app.rest.security.DSpaceRestPermission;
 import org.dspace.core.Context;
-import org.dspace.eperson.Group;
-import org.dspace.eperson.service.GroupService;
-import org.dspace.services.ConfigurationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -43,10 +37,6 @@ public class EditMetadataFeature implements AuthorizationFeature {
     public final static String NAME = "canEditMetadata";
 
     @Autowired
-    private GroupService groupService;
-    @Autowired
-    private ConfigurationService configurationService;
-    @Autowired
     private AuthorizeServiceRestUtil authorizeServiceRestUtil;
 
     @Override
@@ -58,15 +48,7 @@ public class EditMetadataFeature implements AuthorizationFeature {
                 || object instanceof BitstreamRest
                 || object instanceof SiteRest
         ) {
-            String defaultGroupUUID = configurationService.getProperty("edit.metadata.allowed-group");
-            if (StringUtils.isBlank(defaultGroupUUID)) {
-                return authorizeServiceRestUtil.authorizeActionBoolean(context, object, DSpaceRestPermission.WRITE);
-            }
-            Group defaultGroup = StringUtils.isNotBlank(defaultGroupUUID) ?
-                                 groupService.find(context, UUID.fromString(defaultGroupUUID)) : null;
-            if (Objects.nonNull(defaultGroup) && groupService.isMember(context, defaultGroup)) {
-                return authorizeServiceRestUtil.authorizeActionBoolean(context, object, DSpaceRestPermission.WRITE);
-            }
+            return authorizeServiceRestUtil.authorizeActionBoolean(context, object, DSpaceRestPermission.WRITE);
         }
         return false;
     }

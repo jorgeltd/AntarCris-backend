@@ -101,9 +101,9 @@ public class RestDiscoverQueryBuilder {
                                                        transformedFilters, dsoTypes, null, null, null, null);
             }
         } catch (IllegalArgumentException e) {
-            throw new DSpaceBadRequestException(e.getMessage(), e);
+            throw new DSpaceBadRequestException(e.getMessage());
         } catch (SearchServiceException e) {
-            throw new InvalidSearchRequestException(e.getMessage(), e);
+            throw new InvalidSearchRequestException(e.getMessage());
         }
     }
 

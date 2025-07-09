@@ -20,7 +20,7 @@ public abstract class DSpaceObjectRest extends BaseObjectRest<String> {
     private String name;
     private String handle;
 
-    MetadataRest<MetadataValueRest> metadata = new MetadataRest<>();
+    MetadataRest metadata = new MetadataRest();
 
     @Override
     public String getId() {
@@ -56,11 +56,11 @@ public abstract class DSpaceObjectRest extends BaseObjectRest<String> {
      *
      * @return the metadata.
      */
-    public MetadataRest<MetadataValueRest> getMetadata() {
+    public MetadataRest getMetadata() {
         return metadata;
     }
 
-    public void setMetadata(MetadataRest<MetadataValueRest> metadata) {
+    public void setMetadata(MetadataRest metadata) {
         this.metadata = metadata;
     }
 

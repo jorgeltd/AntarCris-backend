@@ -26,13 +26,6 @@ public class StatisticsSolrDateFilter implements StatisticsFilter {
     private String typeStr;
 
 
-    public StatisticsSolrDateFilter(String startStr, String endStr, String typeStr) {
-        super();
-        this.startStr = startStr;
-        this.endStr = endStr;
-        this.typeStr = typeStr;
-    }
-
     public StatisticsSolrDateFilter() {
     }
 
@@ -78,10 +71,6 @@ public class StatisticsSolrDateFilter implements StatisticsFilter {
         this.startDate = (startDate == null ? null : new Date(startDate.getTime()));
     }
 
-    public Date getStartDate() {
-        return startDate;
-    }
-
     /**
      * Set the end date as a Date object.
      *
@@ -91,10 +80,6 @@ public class StatisticsSolrDateFilter implements StatisticsFilter {
      */
     public void setEndDate(Date endDate) {
         this.endDate = (endDate == null ? null : new Date(endDate.getTime()));
-    }
-
-    public Date getEndDate() {
-        return endDate;
     }
 
     /**

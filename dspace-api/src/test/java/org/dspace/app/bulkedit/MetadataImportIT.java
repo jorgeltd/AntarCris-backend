@@ -15,7 +15,6 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
-import java.sql.SQLException;
 import java.util.List;
 
 import org.apache.commons.cli.ParseException;
@@ -25,7 +24,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.dspace.AbstractIntegrationTestWithDatabase;
 import org.dspace.app.launcher.ScriptLauncher;
 import org.dspace.app.scripts.handler.impl.TestDSpaceRunnableHandler;
-import org.dspace.authorize.AuthorizeException;
 import org.dspace.builder.CollectionBuilder;
 import org.dspace.builder.CommunityBuilder;
 import org.dspace.builder.EntityTypeBuilder;
@@ -39,14 +37,12 @@ import org.dspace.content.Relationship;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.ItemService;
 import org.dspace.content.service.RelationshipService;
-import org.dspace.eperson.EPerson;
 import org.dspace.eperson.factory.EPersonServiceFactory;
 import org.dspace.eperson.service.EPersonService;
 import org.dspace.scripts.DSpaceRunnable;
 import org.dspace.scripts.configuration.ScriptConfiguration;
 import org.dspace.scripts.factory.ScriptServiceFactory;
 import org.dspace.scripts.service.ScriptService;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -79,14 +75,29 @@ public class MetadataImportIT extends AbstractIntegrationTestWithDatabase {
         context.restoreAuthSystemState();
     }
 
-    @After
-    public void after() throws SQLException, AuthorizeException {
-        context.turnOffAuthorisationSystem();
-        List<Relationship> relationships = relationshipService.findAll(context);
-        for (Relationship relationship : relationships) {
-            relationshipService.delete(context, relationship);
+    @Test
+    public void metadataImportTestWithDuplicateHeader() {
+        String[] csv = {"id,collection,dc.title,dc.title,dc.contributor.author",
+            "+," + collection.getHandle() + ",\"Test Import 1\",\"Test Import 2\"," + "\"Donald, SmithImported\"," +
+            "+," + collection.getHandle() + ",\"Test Import 3\",\"Test Import 4\"," + "\"Donald, SmithImported\""};
+        // Should throw an exception because of duplicate header
+        try {
+            performImportScript(csv);
+        } catch (Exception e) {
+            assertTrue(e instanceof MetadataImportInvalidHeadingException);
         }
-        context.restoreAuthSystemState();
+    }
+
+    @Test
+    public void metadataImportTestWithAnyLanguage() {
+        String[] csv = {"id,collection,dc.title[*],dc.contributor.author",
+            "+," + collection.getHandle() + ",\"Test Import 1\"," + "\"Donald, SmithImported\""};
+        // Should throw an exception because of invalid ANY language (*) in metadata field
+        try {
+            performImportScript(csv);
+        } catch (Exception e) {
+            assertTrue(e instanceof MetadataImportInvalidHeadingException);
+        }
     }
 
     @Test
@@ -99,7 +110,7 @@ public class MetadataImportIT extends AbstractIntegrationTestWithDatabase {
             StringUtils.equals(
                 itemService.getMetadata(importedItem, "dc", "contributor", "author", Item.ANY).get(0).getValue(),
                 "Donald, SmithImported"));
-        eperson = ePersonService.findByEmail(context, admin.getEmail());
+        eperson = ePersonService.findByEmail(context, eperson.getEmail());
         assertEquals(importedItem.getSubmitter(), eperson);
 
         context.turnOffAuthorisationSystem();
@@ -117,7 +128,7 @@ public class MetadataImportIT extends AbstractIntegrationTestWithDatabase {
                               .get(0).getValue(), "Donald, SmithImported"));
         assertTrue(StringUtils.equals(itemService.getMetadata(importedItem, "dspace", "entity", "type", Item.ANY)
                               .get(0).getValue(), "Publication"));
-        EPerson eperson = ePersonService.findByEmail(context, admin.getEmail());
+        eperson = ePersonService.findByEmail(context, eperson.getEmail());
         assertEquals(importedItem.getSubmitter(), eperson);
 
         context.turnOffAuthorisationSystem();
@@ -133,9 +144,9 @@ public class MetadataImportIT extends AbstractIntegrationTestWithDatabase {
         Item importedItem = findItemByName("Test Import 1");
         assertTrue(StringUtils.equals(itemService.getMetadata(importedItem, "dc", "contributor", "author", Item.ANY)
             .get(0).getValue(), "Donald, SmithImported"));
-        assertEquals(1, itemService.getMetadata(importedItem, "dspace", "entity", "type", Item.ANY)
+        assertEquals(0, itemService.getMetadata(importedItem, "dspace", "entity", "type", Item.ANY)
             .size());
-        EPerson eperson = ePersonService.findByEmail(context, admin.getEmail());
+        eperson = ePersonService.findByEmail(context, eperson.getEmail());
         assertEquals(importedItem.getSubmitter(), eperson);
 
         context.turnOffAuthorisationSystem();
@@ -244,7 +255,7 @@ public class MetadataImportIT extends AbstractIntegrationTestWithDatabase {
                 itemService.getMetadata(item, "dc", "contributor", "author", Item.ANY).get(0).getValue(),
                 "TestAuthorToRemove"));
 
-        String[] csv = {"id,collection,dc.title,dc.contributor.author[*]",
+        String[] csv = {"id,collection,dc.title,dc.contributor.author",
             item.getID().toString() + "," + personCollection.getHandle() + "," + item.getName() + ","};
         performImportScript(csv);
         item = findItemByName(itemTitle);
@@ -283,7 +294,7 @@ public class MetadataImportIT extends AbstractIntegrationTestWithDatabase {
         out.close();
         String fileLocation = csvFile.getAbsolutePath();
         try {
-            String[] args = new String[] {"metadata-import", "-f", fileLocation, "-e", admin.getEmail(), "-s"};
+            String[] args = new String[] {"metadata-import", "-f", fileLocation, "-e", eperson.getEmail(), "-s"};
             if (useTemplate) {
                 args = ArrayUtils.add(args, "-t");
             }

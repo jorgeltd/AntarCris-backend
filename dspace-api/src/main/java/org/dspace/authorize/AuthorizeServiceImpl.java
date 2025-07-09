@@ -15,14 +15,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.dspace.authorize.relationship.RelationshipAuthorizer;
 import org.dspace.authorize.service.AuthorizeService;
 import org.dspace.authorize.service.ResourcePolicyService;
 import org.dspace.content.Bitstream;
@@ -31,8 +29,6 @@ import org.dspace.content.Collection;
 import org.dspace.content.Community;
 import org.dspace.content.DSpaceObject;
 import org.dspace.content.Item;
-import org.dspace.content.Relationship;
-import org.dspace.content.RelationshipType;
 import org.dspace.content.factory.ContentServiceFactory;
 import org.dspace.content.service.BitstreamService;
 import org.dspace.content.service.CollectionService;
@@ -87,8 +83,6 @@ public class AuthorizeServiceImpl implements AuthorizeService {
     protected WorkflowItemService workflowItemService;
     @Autowired(required = true)
     private SearchService searchService;
-    @Autowired(required = true)
-    private List<RelationshipAuthorizer> relationshipAuthorizers;
 
 
     protected AuthorizeServiceImpl() {
@@ -252,7 +246,7 @@ public class AuthorizeServiceImpl implements AuthorizeService {
         }
 
         // If authorization was given before and cached
-        Boolean cachedResult = c.getCachedAuthorizationResult(o, action, e, useInheritance);
+        Boolean cachedResult = c.getCachedAuthorizationResult(o, action, e);
         if (cachedResult != null) {
             return cachedResult;
         }
@@ -264,16 +258,6 @@ public class AuthorizeServiceImpl implements AuthorizeService {
 
             // perform immediately isAdmin check as this is cheap
             if (isAdmin(c, e)) {
-                return true;
-            }
-
-            // perform isAdmin check to see
-            // if user is an Admin on this object
-            DSpaceObject adminObject = useInheritance ? serviceFactory.getDSpaceObjectService(o)
-                                                                      .getAdminObject(c, o, action) : null;
-
-            if (isAdmin(c, e, adminObject)) {
-                c.cacheAuthorizedAction(o, action, e, useInheritance, true, null);
                 return true;
             }
         }
@@ -321,7 +305,7 @@ public class AuthorizeServiceImpl implements AuthorizeService {
             // check policies for date validity
             if (resourcePolicyService.isDateValid(rp)) {
                 if (rp.getEPerson() != null && rp.getEPerson().equals(userToCheck)) {
-                    c.cacheAuthorizedAction(o, action, e, useInheritance, true, rp);
+                    c.cacheAuthorizedAction(o, action, e, true, rp);
                     return true; // match
                 }
 
@@ -329,7 +313,7 @@ public class AuthorizeServiceImpl implements AuthorizeService {
                     && groupService.isMember(c, e, rp.getGroup())) {
                     // group was set, and eperson is a member
                     // of that group
-                    c.cacheAuthorizedAction(o, action, e, useInheritance, true, rp);
+                    c.cacheAuthorizedAction(o, action, e, true, rp);
                     return true;
                 }
             }
@@ -352,7 +336,7 @@ public class AuthorizeServiceImpl implements AuthorizeService {
             }
         }
         // default authorization is denial
-        c.cacheAuthorizedAction(o, action, e, useInheritance, false, null);
+        c.cacheAuthorizedAction(o, action, e, false, null);
         return false;
     }
 
@@ -521,12 +505,6 @@ public class AuthorizeServiceImpl implements AuthorizeService {
     public List<ResourcePolicy> getPoliciesActionFilter(Context c, DSpaceObject o,
                                                         int actionID) throws SQLException {
         return resourcePolicyService.find(c, o, actionID);
-    }
-
-    @Override
-    public List<ResourcePolicyOwnerVO> getValidPolicyOwnersActionFilter(Context c, List<UUID> dsoIds, int actionID)
-        throws SQLException {
-        return resourcePolicyService.findValidPolicyOwners(c, dsoIds, actionID);
     }
 
     @Override
@@ -867,7 +845,6 @@ public class AuthorizeServiceImpl implements AuthorizeService {
         DiscoverResult discoverResult = getDiscoverResult(context, query + "search.resourcetype:" +
                                                               IndexableCollection.TYPE,
             offset, limit, CollectionService.SOLR_SORT_FIELD, SORT_ORDER.asc);
-
         for (IndexableObject solrCollections : discoverResult.getIndexableObjects()) {
             Collection collection = ((IndexableCollection) solrCollections).getIndexedObject();
             collections.add(collection);
@@ -922,14 +899,14 @@ public class AuthorizeServiceImpl implements AuthorizeService {
     }
 
     private DiscoverResult getDiscoverResult(Context context, String query, Integer offset, Integer limit,
-        String sortField, SORT_ORDER sortOrder) throws SearchServiceException, SQLException {
+            String sortField, SORT_ORDER sortOrder)
+        throws SearchServiceException, SQLException {
+        String groupQuery = getGroupToQuery(groupService.allMemberGroups(context, context.getCurrentUser()));
+
         DiscoverQuery discoverQuery = new DiscoverQuery();
         if (!this.isAdmin(context)) {
-            StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append("(" + "admin:e").append(context.getCurrentUser().getID()).
-                    append(getGroupToQuery(groupService.allMemberGroupsSet(context,
-                            context.getCurrentUser()))).append(")");
-            discoverQuery.addFilterQueries(stringBuilder.toString());
+            query = query + " AND (" +
+                "admin:e" + context.getCurrentUser().getID() + groupQuery + ")";
         }
         discoverQuery.setQuery(query);
         if (offset != null) {
@@ -945,9 +922,9 @@ public class AuthorizeServiceImpl implements AuthorizeService {
         return searchService.search(context, discoverQuery);
     }
 
-
-    private String getGroupToQuery(Set<Group> groups) {
+    private String getGroupToQuery(List<Group> groups) {
         StringBuilder groupQuery = new StringBuilder();
+
         if (groups != null) {
             for (Group group: groups) {
                 groupQuery.append(" OR admin:g");
@@ -964,17 +941,5 @@ public class AuthorizeServiceImpl implements AuthorizeService {
         } else {
             return query + " AND ";
         }
-    }
-
-    @Override
-    public boolean canHandleRelationship(Context context, RelationshipType type, Item leftItem, Item rightItem) {
-        return relationshipAuthorizers.stream()
-            .anyMatch(authorizer -> authorizer.canHandleRelationship(context, type, leftItem, rightItem));
-    }
-
-    @Override
-    public boolean canHandleRelationship(Context context, Relationship relationship) {
-        return canHandleRelationship(context, relationship.getRelationshipType(),
-            relationship.getLeftItem(), relationship.getRightItem());
     }
 }

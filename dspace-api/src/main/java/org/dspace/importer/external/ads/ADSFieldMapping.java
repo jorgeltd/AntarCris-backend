@@ -13,7 +13,7 @@ import jakarta.annotation.Resource;
 import org.dspace.importer.external.metadatamapping.AbstractMetadataFieldMapping;
 
 /**
- * An implementation of {@link AbstractMetadataFieldMapping}===
+ * An implementation of {@link AbstractMetadataFieldMapping}
  * Responsible for defining the mapping of the ADS metadatum fields on the DSpace metadatum fields
  *
  * @author Pasquale Cavallo (pasquale.cavallo at 4science dot it)
