@@ -1,0 +1,98 @@
+<dspace-dc-types>
+
+    <dspace-header>
+        <title>INACH Custom Metadata</title>
+    </dspace-header>
+
+    <dc-schema>
+        <name>antarc</name>
+    </dc-schema>
+
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>affiliation</element>
+        <qualifier>ror</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>affiliation</element>
+        <qualifier>orcid</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>area</element>
+        <qualifier>ocde</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>area</element>
+        <qualifier>anid</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>area</element>
+        <qualifier>inach</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>area</element>
+        <qualifier>ods</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>affiliation</element>
+        <qualifier>country</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+    
+    <dc-type>
+        <schema>antarc</schema>
+        <element>citation</element>
+        <qualifier>quartile</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>citation</element>
+        <qualifier>edition</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>citation</element>
+        <qualifier>editorial</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>citation</element>
+        <qualifier>numreport</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>state</element>
+        <scope_note></scope_note>
+    </dc-type>
+
+
+</dspace-dc-types>
