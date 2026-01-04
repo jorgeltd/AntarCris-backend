@@ -1701,7 +1701,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>organization</dc-schema>
           <dc-element>parentOrganization</dc-element>
@@ -1722,7 +1722,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <required />
           <hint />
         </field>
-      </row>
+      </row>-->
       <row>
         <field>
           <dc-schema>organization</dc-schema>
@@ -1734,7 +1734,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>crisou</dc-schema>
           <dc-element>boards</dc-element>
@@ -1744,8 +1744,8 @@ it, please enter the types and the actual numbers or codes.</hint>
           <required />
           <hint />
         </field>
-      </row>
-      <row>
+      </row>-->
+      <!--<row>
         <field>
           <dc-schema>organization</dc-schema>
           <dc-element>identifier</dc-element>
@@ -1753,6 +1753,50 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type value-pairs-name="orgunit_identifiers">qualdrop_value</input-type>
           <repeatable>true</repeatable>
           <required />
+          <hint />
+        </field>
+      </row>-->
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>isni</dc-qualifier>
+          <label>Identifier ISNI</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>ror</dc-qualifier>
+          <label>Identifier ROR</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>crossrefid</dc-qualifier>
+          <label>Identifier CrossRefID</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>organization</dc-schema>
+          <dc-element>identifier</dc-element>
+          <dc-qualifier>rin</dc-qualifier>
+          <label>Identifier RIN</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
           <hint />
         </field>
       </row>
@@ -1768,7 +1812,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>dc</dc-schema>
           <dc-element>description</dc-element>
@@ -1779,7 +1823,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <required />
           <hint />
         </field>
-      </row>
+      </row>-->
       <row>
         <field>
           <dc-schema>organization</dc-schema>
@@ -1810,6 +1854,16 @@ it, please enter the types and the actual numbers or codes.</hint>
           <input-type value-pairs-name="orgunit_types">dropdown</input-type>
           <repeatable>false</repeatable>
           <required>You must specify the organisation type</required>
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>antarc</dc-schema>
+          <dc-element>state</dc-element>
+          <label>Es activa la organizacion?</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
           <hint />
         </field>
       </row>
