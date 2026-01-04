@@ -1862,7 +1862,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-schema>antarc</dc-schema>
           <dc-element>state</dc-element>
           <label>Es activa la organizacion?</label>
-          <input-type>onebox</input-type>
+          <input-type value-pairs-name="truefalse">dropdown</input-type>
           <repeatable>false</repeatable>
           <hint />
         </field>
@@ -2127,7 +2127,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>dc</dc-schema>
           <dc-element>relation</dc-element>
@@ -2138,7 +2138,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <required />
           <hint />
         </field>
-      </row>
+      </row>-->
       <row>
         <field>
           <dc-schema>oairecerif</dc-schema>
@@ -2150,6 +2150,15 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
         <field>
+          <dc-schema>antarc</dc-schema>
+          <dc-element>funder</dc-element>
+          <dc-quality>ror</dc-quality>
+          <label>Funder</label>
+          <input-type>onebox</input-type>
+          <repeatable>false</repeatable>
+          <hint />
+        </field>
+        <!--<field>
           <dc-schema>oairecerif</dc-schema>
           <dc-element>fundingParent</dc-element>
           <label>Program</label>
@@ -2157,9 +2166,9 @@ it, please enter the types and the actual numbers or codes.</hint>
           <repeatable>false</repeatable>
           <required />
           <hint>Link this funding with its upper level if applicable</hint>
-        </field>
+        </field>-->
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>crisfund</dc-schema>
           <dc-element>award</dc-element>
@@ -2224,7 +2233,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <required />
           <hint />
         </field>
-      </row>
+      </row>-->
       <row>
         <field>
           <dc-schema>oairecerif</dc-schema>
@@ -2268,7 +2277,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>dc</dc-schema>
           <dc-element>description</dc-element>
@@ -2278,7 +2287,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <required />
           <hint />
         </field>
-      </row>
+      </row>-->
       <row>
         <field>
           <dc-schema>crisfund</dc-schema>
@@ -2286,11 +2295,19 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>Investigator(s)</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
-          <required />
+          <hint />
+        </field>
+        <field>
+          <dc-schema>antarc</dc-schema>
+          <dc-element>affiliation</dc-element>
+          <dc-quality>orcid</dc-quality>
+          <label>Investigator(s) ORCID</label>
+          <input-type>onebox</input-type>
+          <repeatable>true</repeatable>
           <hint />
         </field>
       </row>
-      <row>
+      <!--<row>
         <field>
           <dc-schema>crisfund</dc-schema>
           <dc-element>coinvestigators</dc-element>
@@ -2300,7 +2317,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <required />
           <hint />
         </field>
-      </row>
+      </row>-->
       <row>
         <field>
           <dc-schema>crisfund</dc-schema>
@@ -2308,18 +2325,45 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>Lead Organization(s)</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
-          <required />
+          <hint />
+        </field>
+        <field>
+          <dc-schema>antarc</dc-schema>
+          <dc-element>affiliation</dc-element>
+          <dc-quality>ror</dc-quality>
+          <label>Lead Organization(s) ROR</label>
+          <input-type>onebox</input-type>
+          <repeatable>true</repeatable>
           <hint />
         </field>
       </row>
       <row>
         <field>
-          <dc-schema>crisfund</dc-schema>
-          <dc-element>leadcoorganizations</dc-element>
-          <label>Lead Co-Organization(s)</label>
-          <input-type>onebox</input-type>
-          <repeatable>true</repeatable>
-          <required />
+          <dc-schema>antarc</dc-schema>
+          <dc-element>area</dc-element>
+          <dc-quality>anid</dc-quality>
+          <label>Linea ANID</label>
+          <input-type value-pairs-name="linea_anid">dropdown</input-type>
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>antarc</dc-schema>
+          <dc-element>area</dc-element>
+          <dc-quality>inach</dc-quality>
+          <label>Linea INACH</label>
+          <input-type value-pairs-name="linea_inach">dropdown</input-type>
+          <hint />
+        </field>
+      </row>
+      <row>
+        <field>
+          <dc-schema>antarc</dc-schema>
+          <dc-element>area</dc-element>
+          <dc-quality>ods</dc-quality>
+          <label>Linea ODS</label>
+          <input-type value-pairs-name="linea_ods">dropdown</input-type>
           <hint />
         </field>
       </row>
@@ -2578,6 +2622,132 @@ it, please enter the types and the actual numbers or codes.</hint>
     </form>
   </form-definitions>
   <form-value-pairs>
+    <value-pairs value-pairs-name="linea_inach" dc-term="linea_inach">
+      <pair>
+        <displayed-value>Estado del ecosistema antártico</displayed-value>
+        <stored-value>Estado del ecosistema antártico</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Umbrales antárticos: Resiliencia y adaptación del ecosistema</displayed-value>
+        <stored-value>Umbrales antárticos: Resiliencia y adaptación del ecosistema</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Cambio climatico en la Antártica</displayed-value>
+        <stored-value>Cambio climatico en la Antártica</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Astronomía y Ciencia de la Tierra</displayed-value>
+        <stored-value>Astronimía y Ciencia de la Tierra</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Biotecnología</displayed-value>
+        <stored-value>Biotecnología</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Huellas humanas en la Antártica</displayed-value>
+        <stored-value>Huellas humanas en la Antártica</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Ciencias Sociales y Humanidades</displayed-value>
+        <stored-value>Ciencias Sociales y Humanidades</stored-value>
+      </pair>
+    </value-pairs>
+    <value-pairs value-pairs-name="linea_ods" dc-term="linea_ods">
+      <pair>
+        <displayed-value>Objetivo 1: Fin de la pobreza</displayed-value>
+        <stored-value>Objetivo 1: Fin de la pobreza</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 2: Hambre Cero</displayed-value>
+        <stored-value>Objetivo 2: Hambre Cero</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 3: Salud y bienestar</displayed-value>
+        <stored-value>Objetivo 3: Salud y bienestar</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 4: Educación de calidad</displayed-value>
+        <stored-value>Objetivo 4: Educación de calidad</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 5: Igualdad de género</displayed-value>
+        <stored-value>Objetivo 5: Igualdad de género</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 6: Agua limpia y saneamiento</displayed-value>
+        <stored-value>Objetivo 6: Agua limpia y saneamiento</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 7: Energía asequible y no contaminante</displayed-value>
+        <stored-value>Objetivo 7: Energía asequible y no contaminante</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 8: Trabajo decente y crecimiento económico</displayed-value>
+        <stored-value>Objetivo 8: Trabajo decente y crecimiento económico</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 9: Industria, innovación e infraestructuras</displayed-value>
+        <stored-value>Objetivo 9: Industria, innovación e infraestructuras</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 10: Reducción de las desigualdades</displayed-value>
+        <stored-value>Objetivo 10: Reducción de las desigualdades</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 11: Ciudades y comunidades sostenibles</displayed-value>
+        <stored-value>Objetivo 11: Ciudades y comunidades sostenibles</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 12: Producción y consumo responsables</displayed-value>
+        <stored-value>Objetivo 12: Producción y consumo responsables</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 13: Acción por el clima</displayed-value>
+        <stored-value>Objetivo 13: Acción por el clima</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 14: Vida submarina</displayed-value>
+        <stored-value>Objetivo 14: Vida submarina</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 15: Vida de ecosistemas terrestres</displayed-value>
+        <stored-value>Objetivo 15: Vida de ecosistemas terrestres</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 16: Paz, justicia e instituciones sólidas</displayed-value>
+        <stored-value>Objetivo 16: Paz, justicia e instituciones sólidas</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Objetivo 17: Alianzas para lograr los objetivos</displayed-value>
+        <stored-value>Objetivo 17: Alianzas para lograr los objetivos</stored-value>
+      </pair>
+    </value-pairs> 
+    <value-pairs value-pairs-name="linea_anid" dc-term="linea_anid">
+      <pair>
+        <displayed-value>Ciencias naturales</displayed-value>
+        <stored-value>Ciencias naturales</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Ingeniería y tecnología</displayed-value>
+        <stored-value>Ingeniería y tecnología</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Ciencias médicas y de la salud</displayed-value>
+        <stored-value>Ciencias médicas y de la salud</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Ciencias agricolas</displayed-value>
+        <stored-value>Ciencias agricolas</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Ciencias sociales</displayed-value>
+        <stored-value>Ciencias sociales</stored-value>
+      </pair>
+      <pair>
+        <displayed-value>Humanidades</displayed-value>
+        <stored-value>Humanidades</stored-value>
+      </pair>
+    </value-pairs>
     <value-pairs value-pairs-name="patent_types" dc-term="patent_types">
       <pair>
         <displayed-value>Use by owner</displayed-value>
