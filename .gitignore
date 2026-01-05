@@ -47,7 +47,7 @@ nb-configuration.xml
 rebel.xml
 
 ##Template files
-template/
+#template/
 
 ## Ignore jenv configuration
 .java-version
