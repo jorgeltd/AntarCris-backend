@@ -9,6 +9,7 @@
                 <ref bean="sectionresearchoutputs" />
                 <ref bean="sectionfundings_and_projects" />
                 <ref bean="sectionresearcherprofiles" />
+                <ref bean="sectionorganizations" />
                 <ref bean="sectionsite" />
             </list>
         </property>
@@ -114,6 +115,20 @@
                 <list>
                     <bean class="org.dspace.layout.CrisLayoutFacetComponent">
                         <property name="discoveryConfigurationName" value="person" />
+                        <property name="style" value="col-md-12"/>
+                    </bean>
+                </list>
+            </list>
+        </constructor-arg>
+    </bean>
+    <bean class="org.dspace.layout.CrisLayoutSection" id="sectionorganizations">
+        <constructor-arg name="id" value="orgunits"/>
+        <constructor-arg name="visible" value="true"/>
+        <constructor-arg name="sectionComponents">
+            <list>
+                <list>
+                    <bean class="org.dspace.layout.CrisLayoutSearchComponent">
+                        <property name="discoveryConfigurationName" value="orgunit" />
                         <property name="style" value="col-md-12"/>
                     </bean>
                 </list>
