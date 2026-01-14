@@ -682,7 +682,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>area</dc-element>
-          <dc-quality>anid</dc-quality>
+          <dc-qualifier>anid</dc-qualifier>
           <label>Linea ANID</label>
           <input-type value-pairs-name="linea_anid">dropdown</input-type>
           <hint />
@@ -692,7 +692,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>area</dc-element>
-          <dc-quality>inach</dc-quality>
+          <dc-qualifier>inach</dc-qualifier>
           <label>Linea INACH</label>
           <input-type value-pairs-name="linea_inach">dropdown</input-type>
           <hint />
@@ -702,7 +702,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>area</dc-element>
-          <dc-quality>ods</dc-quality>
+          <dc-qualifier>ods</dc-qualifier>
           <label>Linea ODS</label>
           <input-type value-pairs-name="linea_ods">dropdown</input-type>
           <hint />
@@ -2266,7 +2266,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>funder</dc-element>
-          <dc-quality>ror</dc-quality>
+          <dc-qualifier>ror</dc-qualifier>
           <label>Funder</label>
           <input-type>onebox</input-type>
           <repeatable>false</repeatable>
@@ -2414,7 +2414,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>affiliation</dc-element>
-          <dc-quality>orcid</dc-quality>
+          <dc-qualifier>orcid</dc-qualifier>
           <label>Investigator(s) ORCID</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
@@ -2444,7 +2444,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>affiliation</dc-element>
-          <dc-quality>ror</dc-quality>
+          <dc-qualifier>ror</dc-qualifier>
           <label>Lead Organization(s) ROR</label>
           <input-type>onebox</input-type>
           <repeatable>true</repeatable>
@@ -2455,7 +2455,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>area</dc-element>
-          <dc-quality>anid</dc-quality>
+          <dc-qualifier>anid</dc-qualifier>
           <label>Linea ANID</label>
           <input-type value-pairs-name="linea_anid">dropdown</input-type>
           <hint />
@@ -2465,7 +2465,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>area</dc-element>
-          <dc-quality>inach</dc-quality>
+          <dc-qualifier>inach</dc-qualifier>
           <label>Linea INACH</label>
           <input-type value-pairs-name="linea_inach">dropdown</input-type>
           <hint />
@@ -2475,7 +2475,7 @@ it, please enter the types and the actual numbers or codes.</hint>
         <field>
           <dc-schema>antarc</dc-schema>
           <dc-element>area</dc-element>
-          <dc-quality>ods</dc-quality>
+          <dc-qualifier>ods</dc-qualifier>
           <label>Linea ODS</label>
           <input-type value-pairs-name="linea_ods">dropdown</input-type>
           <hint />
