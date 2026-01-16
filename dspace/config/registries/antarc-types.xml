@@ -94,5 +94,11 @@
         <scope_note></scope_note>
     </dc-type>
 
+    <dc-type>
+        <schema>antarc</schema>
+        <element>funder</element>
+        <qualifier>ror</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
 
 </dspace-dc-types>
