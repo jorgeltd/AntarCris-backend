@@ -14,4 +14,7 @@ de algunos comandos utiles para cargar configuraciones.
 En este archivo se indican los archivos para configurar las diferentes entidades que componen el sistema 
 CRIS, editando los formularios asociados y los datos que se solicita a cada una.
 
+## 04_cicd_produccion
+En este archivo se indican detalles del entorno de produccion utilizado.
+
 Autor: Javier Norambuena Leiva

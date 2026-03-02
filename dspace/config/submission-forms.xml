@@ -1440,7 +1440,7 @@ it, please enter the types and the actual numbers or codes.</hint>
           <hint />
         </field>
         <field>
-          <dc-schema>person</dc-schema>
+          <dc-schema>antarc</dc-schema>
           <dc-element>affiliation</dc-element>
           <dc-qualifier>name</dc-qualifier>
           <label>ROR's Main Affiliation</label>
@@ -1490,7 +1490,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-qualifier>scopus-author-id</dc-qualifier>
           <label>Scopus Author ID</label>
           <input-type>onebox</input-type>
-          <repeatable>true</repeatable>
           <required />
           <hint />
         </field>
@@ -1502,7 +1501,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <dc-qualifier>rid</dc-qualifier>
           <label>Researcher ID</label>
           <input-type>onebox</input-type>
-          <repeatable>true</repeatable>
           <required />
           <hint />
         </field>
@@ -1650,7 +1648,6 @@ it, please enter the types and the actual numbers or codes.</hint>
           <label>Type</label>
           <input-type value-pairs-name="orgunit_types">dropdown</input-type>
           <repeatable>false</repeatable>
-          <required>You must specify the organisation type</required>
           <hint />
         </field>
       </row>

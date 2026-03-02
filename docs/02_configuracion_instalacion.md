@@ -81,8 +81,8 @@ solr.server = http://localhost:8983/solr
 db.url = jdbc:postgresql://localhost:5432/dspace
 
 # Database username and password
-db.username = dspace
-db.password = dspace
+db.username = <usuario>
+db.password = <contraseña>
 ```
 
 Un detalle importante, ademas de que las url deben estar operativas, es que la ruta definida en `dspace.dir` sea valida y tenga los permisos 
