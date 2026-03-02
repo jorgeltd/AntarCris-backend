@@ -171,6 +171,12 @@
                                 <property name="icon" value="fas fa-users fa-3x"/>
                                 <property name="link" value="/explore/researcherprofiles"/>
                             </bean>
+                            <bean class="org.dspace.layout.CrisLayoutCountersComponent.CounterSettings">
+                                <property name="discoveryConfigurationName" value="orgunit"/>
+                                <property name="label" value="orgunit"/>
+                                <property name="icon" value="fas fa-building-columns fa-3x"/>
+                                <property name="link" value="/explore/orgunits"/>
+                            </bean>
                         </list>
                     </property>
                 </bean>
