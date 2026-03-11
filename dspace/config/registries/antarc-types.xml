@@ -23,6 +23,13 @@
         <qualifier>orcid</qualifier>
         <scope_note></scope_note>
     </dc-type>
+    
+    <dc-type>
+        <schema>antarc</schema>
+        <element>affiliation</element>
+        <qualifier>piorcid</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
 
     <dc-type>
         <schema>antarc</schema>
@@ -83,7 +90,32 @@
     <dc-type>
         <schema>antarc</schema>
         <element>state</element>
-        <qualifier>state</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>person</element>
+        <qualifier>googleid</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>mainaffiliation</element>
+        <qualifier>ror</qualifier>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>investigator</element>
+        <scope_note></scope_note>
+    </dc-type>
+
+    <dc-type>
+        <schema>antarc</schema>
+        <element>institution</element>
         <scope_note></scope_note>
     </dc-type>
 
