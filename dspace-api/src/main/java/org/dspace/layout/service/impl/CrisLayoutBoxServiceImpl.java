@@ -172,6 +172,8 @@ public class CrisLayoutBoxServiceImpl implements CrisLayoutBoxService {
                 return hasVersioningBox(context, item);
             case "NETWORKLAB":
                 return isNetworkLabEnabled(item);
+            case "COLLABORATION":
+                return isCollaborationEnabled(item);
             case "METADATA":
             default:
                 return hasMetadataBoxContent(context, box, item);
@@ -270,6 +272,10 @@ public class CrisLayoutBoxServiceImpl implements CrisLayoutBoxService {
     private boolean isNetworkLabEnabled(Item item) {
         return BooleanUtils.toBoolean(itemService.getMetadataFirstValue(item,
                 new MetadataFieldName("dspace.networklab.enabled"), Item.ANY));
+    }
+
+    private boolean isCollaborationEnabled(Item item) {
+        return true;
     }
 
     private boolean isOwningCollectionPresent(Item item) {

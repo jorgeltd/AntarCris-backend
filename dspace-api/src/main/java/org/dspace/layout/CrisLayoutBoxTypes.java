@@ -14,5 +14,6 @@ public enum CrisLayoutBoxTypes {
     METRICS,
     COLLECTIONS,
     VERSIONING,
-    NETWORKLAB
+    NETWORKLAB,
+    COLLABORATION,
 }
