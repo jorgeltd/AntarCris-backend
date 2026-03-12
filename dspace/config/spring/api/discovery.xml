@@ -1343,6 +1343,7 @@
             <list>
                 <!--<ref bean="graphPublicationByType" />-->
                 <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterIssued" />
                 <ref bean="searchFilterAuthor" />
 	            <ref bean="searchFilterEditor" />
@@ -1361,6 +1362,7 @@
                 <ref bean="searchFilterTitle" />
                 <!--<ref bean="graphPublicationByType" />-->
                 <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterIssued" />
                 <ref bean="searchFilterAuthor" />
                 <ref bean="searchFilterEditor" />
