@@ -1273,15 +1273,27 @@
     <!-- Inverse Relations -->
         <!-- project of an researcher -->
     <bean id="relationInvestigatorProjectsConfiguration" class="org.dspace.discovery.configuration.DiscoveryRelatedItemConfiguration">
+        <property name="id" value="relationinvestigatorprojects"/>
+        <property name="indexAlways" value="true"/>
         <!--Which sidebar facets are to be displayed-->
         <property name="sidebarFacets">
             <list>
+                <ref bean="graphProjectByDate" />
+                <ref bean="graphByResearchLines" />
+                <ref bean="searchFilterProjectStartDate" />
+                <ref bean="searchFilterProjectEndDate" />
+                <ref bean="searchFilterProjectResearchLine" />
                 <ref bean="searchFilterEntityType" />
             </list>
         </property>
         <!--The search filters which can be used on the discovery search page-->
         <property name="searchFilters">
             <list>
+                <ref bean="graphProjectByDate" />
+                <ref bean="graphByResearchLines" />
+                <ref bean="searchFilterProjectStartDate" />
+                <ref bean="searchFilterProjectEndDate" />
+                <ref bean="searchFilterProjectResearchLine" />
                 <ref bean="searchFilterEntityType" />
                 <ref bean="searchFilterProjectInvestigator"/>
             </list>
@@ -1329,8 +1341,9 @@
         <!--Which sidebar facets are to be displayed-->
         <property name="sidebarFacets">
             <list>
-                <ref bean="graphPublicationByType" />
+                <!--<ref bean="graphPublicationByType" />-->
                 <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterIssued" />
                 <ref bean="searchFilterAuthor" />
 	            <ref bean="searchFilterEditor" />
@@ -1347,8 +1360,9 @@
         <property name="searchFilters">
             <list>
                 <ref bean="searchFilterTitle" />
-                <ref bean="graphPublicationByType" />
+                <!--<ref bean="graphPublicationByType" />-->
                 <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterIssued" />
                 <ref bean="searchFilterAuthor" />
                 <ref bean="searchFilterEditor" />
@@ -1399,6 +1413,16 @@
 
     <!-- project investigated by people affiliated to an orgunit -->
     <bean id="relationOrgunitRPProjectConfiguration" class="org.dspace.discovery.configuration.DiscoveryRelatedItemConfiguration">
+        <property name="searchFilters">
+            <list>
+                <ref bean="graphByResearchLines" />
+            </list>
+        </property>
+        <property name="sidebarFacets">
+            <list>
+                <ref bean="graphByResearchLines" />
+            </list>
+        </property>
         <!--The sort filters for the discovery search-->
         <property name="searchSortConfiguration">
             <bean class="org.dspace.discovery.configuration.DiscoverySortConfiguration">
@@ -1451,6 +1475,21 @@
 
     <!-- publication authored by people affiliated to an orgunit -->
     <bean id="relationOrgunitRPPublicationsConfiguration" class="org.dspace.discovery.configuration.DiscoveryRelatedItemConfiguration">
+        <property name="sidebarFacets">
+            <list>
+                <ref bean="searchFilterTypes" />
+                <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
+            </list>
+        </property>
+        <!--The search filters which can be used on the discovery search page (same as defaultConfiguration above)-->
+        <property name="searchFilters">
+            <list>
+                <ref bean="searchFilterTypes" />
+                <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
+            </list>
+        </property>
         <!--The sort filters for the discovery search-->
         <property name="searchSortConfiguration">
             <bean class="org.dspace.discovery.configuration.DiscoverySortConfiguration">
@@ -1711,6 +1750,8 @@
                 <ref bean="searchFilterEditor" />
                 <ref bean="searchFilterOrgUnit" />
                 <ref bean="searchFilterSubject" />
+                <ref bean="searchFilterProcienLines" />
+                <ref bean="searchFilterSDG" />
                 <ref bean="searchFilterFunding" />
                 <ref bean="searchFilterContentInOriginalBundle"/>
                 <ref bean="searchFilterEntityType"/>
@@ -1726,6 +1767,8 @@
                 <ref bean="searchFilterEditor" />
                 <ref bean="searchFilterOrgUnit" />
                 <ref bean="searchFilterSubject" />
+                <ref bean="searchFilterProcienLines" />
+                <ref bean="searchFilterSDG" />
                 <ref bean="searchFilterFunding" />
                 <ref bean="searchFilterContentInOriginalBundle"/>
                 <ref bean="searchFilterFileNameInOriginalBundle" />
@@ -3061,6 +3104,32 @@
 
     </bean>
 
+    <!-- Sustainable Development Goals -->
+    <bean id="searchFilterSDG" class="org.dspace.discovery.configuration.HierarchicalSidebarFacetConfiguration">
+        <property name="indexFieldName" value="ods"/>
+        <property name="metadataFields">
+            <list>
+                <value>antarc.area.ods</value>
+            </list>
+        </property>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+    </bean>
+
+    <!-- Procien Research Lines -->
+    <bean id="searchFilterProcienLines" class="org.dspace.discovery.configuration.HierarchicalSidebarFacetConfiguration">
+        <property name="indexFieldName" value="procien_lines"/>
+        <property name="metadataFields">
+            <list>
+                <value>antarc.area.inach</value>
+            </list>
+        </property>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+    </bean>
+
     <bean id="searchFilterEquipmentOwner" class="org.dspace.discovery.configuration.HierarchicalSidebarFacetConfiguration">
         <property name="indexFieldName" value="eqowner"/>
         <property name="metadataFields">
@@ -3162,6 +3231,56 @@
                 <value>crispj.coordinator</value>
                 <value>crispj.partnerou</value>
                 <value>crispj.organization</value>
+            </list>
+        </property>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+        <property name="isOpenByDefault" value="false"/>
+        <property name="pageSize" value="10"/>
+        <property name="exposeMinAndMaxValue" value="false"/>
+    </bean>
+
+    <bean id="searchFilterProjectStartDate"
+          class="org.dspace.discovery.configuration.DiscoverySearchFilterFacet">
+        <property name="indexFieldName" value="projectStartDate"/>
+        <property name="metadataFields">
+            <list>
+                <value>oairecerif.project.startDate</value>
+            </list>
+        </property>
+        <property name="type" value="date"/>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+        <property name="isOpenByDefault" value="true"/>
+        <property name="pageSize" value="10"/>
+        <property name="exposeMinAndMaxValue" value="true"/>
+    </bean>
+
+    <bean id="searchFilterProjectEndDate"
+          class="org.dspace.discovery.configuration.DiscoverySearchFilterFacet">
+        <property name="indexFieldName" value="projectEndDate"/>
+        <property name="metadataFields">
+            <list>
+                <value>oairecerif.project.endDate</value>
+            </list>
+        </property>
+        <property name="type" value="date"/>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+        <property name="isOpenByDefault" value="true"/>
+        <property name="pageSize" value="10"/>
+        <property name="exposeMinAndMaxValue" value="true"/>
+    </bean>
+
+    <bean id="searchFilterProjectResearchLine"
+          class="org.dspace.discovery.configuration.DiscoverySearchFilterFacet">
+        <property name="indexFieldName" value="projectResearchLine"/>
+        <property name="metadataFields">
+            <list>
+                <value>antarc.area.inach</value>
             </list>
         </property>
         <property name="facetLimit" value="5"/>
@@ -3681,7 +3800,7 @@
 
     <!-- Configurations for GraphDiscoverSearchFilterFacet -->
     <bean id="graphPublicationByDate" class="org.dspace.discovery.configuration.GraphDiscoverSearchFilterFacet">
-    	<property name="facetLimit" value="10"/>
+    	<property name="facetLimit" value="5"/>
         <property name="sortOrderSidebar" value="VALUE"/>
         <property name="indexFieldName" value="graphpubldate" />
         <!-- isDate cannot be true if the splitter is set -->
@@ -3713,6 +3832,46 @@
         <property name="metadataFields">
             <list>
                 <value>dc.type</value>
+            </list>
+        </property>
+        <property name="graphType" value="pie" />
+        <property name="exposeMissing" value="true" />
+        <property name="exposeMore" value="true" />
+        <property name="exposeTotalElements" value="true" />
+    </bean>
+
+    <bean id="graphProjectByDate" class="org.dspace.discovery.configuration.GraphDiscoverSearchFilterFacet">
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="VALUE"/>
+        <property name="indexFieldName" value="graphprojdate" />
+        <!-- isDate cannot be true if the splitter is set -->
+        <property name="isDate" value="true" />
+        <!-- force solr to reverse its order, as it is by value this mean descending
+            (by COUNT is descending by default so the inverse flag would make it ascending) -->
+        <property name="inverseDirection" value="true" />
+        <!-- force to return 0 count buckets for years between the range -->
+        <property name="fillDateGaps" value="true" />
+        <property name="metadataFields">
+            <list>
+                <value>oairecerif.project.startDate</value>
+            </list>
+        </property>
+        <property name="graphType" value="bar" />
+        <property name="exposeMissing" value="true" />
+        <property name="exposeMore" value="true" />
+        <property name="exposeTotalElements" value="true" />
+    </bean>
+
+    <bean id="graphByResearchLines" class="org.dspace.discovery.configuration.GraphDiscoverSearchFilterFacet">
+        <property name="indexFieldName" value="graphresearchline" />
+        <!-- the splitter needs to be a not empty string -->
+        <property name="splitter" value="::" />
+        <property name="onlyLastNodeRelevant" value="true" />
+        <!-- isDate cannot be true if the splitter is set -->
+        <property name="isDate" value="false" />
+        <property name="metadataFields">
+            <list>
+                <value>antarc.area.inach</value>
             </list>
         </property>
         <property name="graphType" value="pie" />
