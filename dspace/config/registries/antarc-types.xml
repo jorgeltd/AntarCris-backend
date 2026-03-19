@@ -123,6 +123,11 @@
         <schema>antarc</schema>
         <element>funder</element>
         <qualifier>ror</qualifier>
+    </dc-type>
+
+    <dc-type>
+        <element>institution</element>
+        <qualifier>grid</qualifier>
         <scope_note></scope_note>
     </dc-type>
 
