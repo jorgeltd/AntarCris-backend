@@ -1783,12 +1783,14 @@
         <property name="sidebarFacets">
             <list>
                 <ref bean="searchFilterAuthor" />
-                <ref bean="searchFilterEditor" />
                 <ref bean="searchFilterOrgUnit" />
                 <ref bean="searchFilterSubject" />
-                <ref bean="searchFilterProcienLines" />
+                <ref bean="searchFilterIssued" />
                 <ref bean="searchFilterSDG" />
-                <ref bean="searchFilterFunding" />
+                <ref bean="searchFilterProcienLines" />
+                <ref bean="searchFilterANID" />
+                <ref bean="searchFilterCountry" />
+                <ref bean="searchFilterQuartile" />
                 <ref bean="searchFilterContentInOriginalBundle"/>
                 <ref bean="searchFilterEntityType"/>
             </list>
@@ -1800,12 +1802,14 @@
             <list>
                 <ref bean="searchFilterTitle" />
                 <ref bean="searchFilterAuthor" />
-                <ref bean="searchFilterEditor" />
                 <ref bean="searchFilterOrgUnit" />
                 <ref bean="searchFilterSubject" />
-                <ref bean="searchFilterProcienLines" />
+                <ref bean="searchFilterIssued" />
                 <ref bean="searchFilterSDG" />
-                <ref bean="searchFilterFunding" />
+                <ref bean="searchFilterProcienLines" />
+                <ref bean="searchFilterANID" />
+                <ref bean="searchFilterCountry" />
+                <ref bean="searchFilterQuartile" />
                 <ref bean="searchFilterContentInOriginalBundle"/>
                 <ref bean="searchFilterFileNameInOriginalBundle" />
                 <ref bean="searchFilterFileDescriptionInOriginalBundle" />
@@ -3168,6 +3172,45 @@
         <property name="metadataFields">
             <list>
                 <value>antarc.area.inach</value>
+            </list>
+        </property>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+    </bean>
+
+    <!-- ANID/OECD -->
+    <bean id="searchFilterANID" class="org.dspace.discovery.configuration.HierarchicalSidebarFacetConfiguration">
+        <property name="indexFieldName" value="anid_oecd"/>
+        <property name="metadataFields">
+            <list>
+                <value>antarc.area.anid</value>
+            </list>
+        </property>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+    </bean>
+
+    <!-- Country -->
+    <bean id="searchFilterCountry" class="org.dspace.discovery.configuration.HierarchicalSidebarFacetConfiguration">
+        <property name="indexFieldName" value="country"/>
+        <property name="metadataFields">
+            <list>
+                <value>antarc.affiliation.country</value>
+            </list>
+        </property>
+        <property name="facetLimit" value="5"/>
+        <property name="sortOrderSidebar" value="COUNT"/>
+        <property name="sortOrderFilterPage" value="COUNT"/>
+    </bean>
+
+    <!-- Quartile -->
+    <bean id="searchFilterQuartile" class="org.dspace.discovery.configuration.HierarchicalSidebarFacetConfiguration">
+        <property name="indexFieldName" value="quartile"/>
+        <property name="metadataFields">
+            <list>
+                <value>antarc.citation.quartile</value>
             </list>
         </property>
         <property name="facetLimit" value="5"/>
