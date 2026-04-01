@@ -1343,6 +1343,8 @@
         <!--Which sidebar facets are to be displayed-->
         <property name="sidebarFacets">
             <list>
+                <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterAuthor" />
                 <ref bean="searchFilterOrgUnit" />
                 <ref bean="searchFilterSubject" />
@@ -1361,6 +1363,8 @@
         <!--The search filters which can be used on the discovery search page-->
         <property name="searchFilters">
             <list>
+                <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterTitle" />
                 <ref bean="searchFilterAuthor" />
                 <ref bean="searchFilterOrgUnit" />
@@ -1519,6 +1523,8 @@
         <!--Which sidebar facets are to be displayed-->
         <property name="sidebarFacets">
             <list>
+                <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterAuthor" />
                 <ref bean="searchFilterOrgUnit" />
                 <ref bean="searchFilterSubject" />
@@ -1537,6 +1543,8 @@
         <!--The search filters which can be used on the discovery search page-->
         <property name="searchFilters">
             <list>
+                <ref bean="graphPublicationByDate" />
+                <ref bean="graphByResearchLines" />
                 <ref bean="searchFilterTitle" />
                 <ref bean="searchFilterAuthor" />
                 <ref bean="searchFilterOrgUnit" />
